@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-05-12T00:19:50.384719",
+  "weak_count": 2,
+  "evaluated_count": 28,
+  "weakness_rate": 7.1,
+  "top_issues": [],
+  "analysis": {
+    "ana_zayıflık": "Hallucination - doğru cevap veremedi veya yanlış konuya yöneldi",
+    "ortak_pattern": "JARVIS'in cevabı sorunla ilgili değil veya hatalı bilgi içerdi",
+    "öneri": "Kullanıcıya daha net ve kesin soruları sormaya özen göstermek, veritabanını güncel tutmak ve daha fazla eğitim almak için çalışarak bilgilerini geliştirmek",
+    "araştırılacak_konular": [
+      "Sorunlu cevapları iyileştirmek için yapılandırma ayarlarını gözden geçirmek",
+      "Hallucination sorununu azaltmak için modeli güncellemek veya değiştirmek"
+    ],
+    "kullanıcıya_soru": "Eğer JARVIS'in verdiği cevabı doğru bulmadıysanız, lütfen bana hatalı bilgiyi bildirin ve doğru bilginin ne olduğunu söyleyin. Böylece beni iyileştirebilir ve daha iyi hizmet verebilirim."
+  }
+}

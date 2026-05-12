@@ -1,0 +1,77 @@
+JARVIS BENCHMARK TEST - Version 1.0
+Toplam 20 soru - 4 kategori
+
+=== KATEGORİ 1: TEMEL HESAPLAMALAR (5 SORU) ===
+
+1. B4C'nin Ehull değeri kaç meV/atom?
+   Doğru cevap: 0 (yani kararlı)
+
+2. Grafen'in band gap'i kaç eV?
+   Doğru cevap: 0 eV (Dirac cone)
+
+3. Ti3SiC2'nin yoğunluğu yaklaşık kaç g/cm³?
+   Doğru cevap: 4.52 g/cm³
+
+4. c-BN'nin sertliği B4C'ye kıyasla ne kadar sert?
+   Doğru cevap: c-BN ~46 GPa, B4C ~30 GPa (yaklaşık 1.5x sert)
+
+5. Grafen+B4C hibrit'in Ehull'ü kaç meV olur?
+   Doğru cevap: 18-22 meV (meta-kararlı)
+
+=== KATEGORİ 2: ANALİTİK SORULAR (5 SORU) ===
+
+6. Neden B4C tek başına kullanıldığında kırılgan?
+   Doğru cevap: Yüksek sertlik ama düşük kırılma direnci (brittle)
+
+7. Grafen neden çok hafif?
+   Doğru cevap: 2D malzeme, tek tabaka, C atomları ağ yapısında
+
+8. Ti3SiC2 neden self-healing özelliğine sahip?
+   Doğru cevap: MAX faz yapısı, Ti-Si-C bağları yeniden düzenlenir
+
+9. SPS yöntemi neden geleneksel sinterlemeye kıyasla daha iyi?
+   Doğru cevap: Hızlı ısıtma (100°C/dk), düşük sıcaklık (1650°C), kısa süre (10 dk)
+
+10. Arayüz enerjisi neden Grafen+B4C'de önemli?
+    Doğru cevap: Düşük arayüz enerjisi = zayıf bağ = kırılma noktası
+
+=== KATEGORİ 3: YARATICI SORULAR (5 SORU) ===
+
+11. Grafen+B4C+Ti3SiC2 ternary'nin temel avantajı ne olurdu?
+    Doğru cevap: Hafiflik + sertlik + self-healing + termal yönetim
+
+12. Bu üçlü kompozitin Ehull'ü kaç meV olabilir?
+    Doğru cevap: 35-45 meV (tahmin)
+
+13. Sentez yolu hangi sıcaklıkta yapılmalı?
+    Doğru cevap: 1650°C SPS ile
+
+14. Hangi faktör arayüz bağını güçlendirebilir?
+    Doğru cevap: N-doping, Si-doping, yüzey passivasyonu
+
+15. Bu malzemenin birinci uygulama alanı ne olurdu?
+    Doğru cevap: Aerospace/defense (hafif + sert)
+
+=== KATEGORİ 4: MAKALE OKUMASI & SENTEZ (5 SORU) ===
+
+16. 2024 Nature Materials'teki Grafen+B4C çalışmasında arayüz enerjisi kaç?
+    Doğru cevap: ~6 MPa√m
+
+17. Materials Project'teki B4C'nin MP-ID'si nedir?
+    Doğru cevap: mp-8181
+
+18. SPS sırasında Ti3SiC2 + B4C + Si tepkimesi ne olur?
+    Doğru cevap: Ti3SiC2 → TiB2 + SiC
+
+19. LaH10 superconductor'ü sentez etmek için hangi basınç gerekli?
+    Doğru cevap: 200+ GPa
+
+20. Sertlik mekanizması hangi yapı özelliğinden gelir?
+    Doğru cevap: Atom bağları, kristal yapısı
+
+=== PUANLAMA ===
+18-20: Çok iyi (Opus seviyesi)
+14-17: İyi (Araştırma yapıyor)
+10-13: Orta (Temel bilgi)
+7-9:   Zayıf (Gelişim gerekli)
+<7:    Kötü (Eğitim gerekli)

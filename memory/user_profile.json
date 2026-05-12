@@ -1,0 +1,21 @@
+{
+  "name": "Ve Soyadım",
+  "city": "İzmir",
+  "district": "Buca",
+  "facts": [
+    "meslek: Polimer Teknikeri",
+    "meslek: İş Güvenliği Uzmanı",
+    "işyeri: ESHOT",
+    "sistem: RTX 3070 + 32GB RAM"
+  ],
+  "interests": [
+    "yapay zeka",
+    "JARVIS geliştirme"
+  ],
+  "preferences": {
+    "hitap": "efendim"
+  },
+  "current_projects": [
+    "JARVIS yerel AI asistanı"
+  ]
+}

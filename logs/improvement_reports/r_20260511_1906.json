@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-05-11T19:06:18.529471",
+  "weak_count": 2,
+  "evaluated_count": 28,
+  "weakness_rate": 7.1,
+  "top_issues": [],
+  "analysis": {
+    "ana_zayıflık": "Hallucination - doğru cevap veremedi veya yanlış konu hakkında cevap verdi",
+    "ortak_pattern": "Kullanıcının bir soruyu sorması ve JARVIS'in bu soruya yanlış veya hiçbir şekilde yanıt vermemeği",
+    "öneri": "JARVIS'i kullanıcının sorusuna daha iyi yanıt vermek üzere eğitmek veya kullanıcıya doğru bilgiyi sağlayacak kaynaklar göstermek",
+    "araştırılacak_konular": [
+      "Sorunlara karşı daha iyi koruma mekanizmaları",
+      "Kullanıcılar için daha anlaşılır ve net soru-yanıt formatı"
+    ],
+    "kullanıcıya_soru": "Eğer bir sorunuza JARVIS'in yanıtı yanlış veya hiçbir şekilde yanıt vermediğini hissedersek, lütfen bana bu soruyu tekrar söyleyin veya daha fazla ayrıntı sağlayın."
+  }
+}

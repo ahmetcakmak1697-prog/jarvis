@@ -1,0 +1,52 @@
+{
+  "_comment": "Bu dosyayı VS Code .vscode/mcp.json veya ~/.vscode/mcp.json olarak kopyala",
+  "mcpServers": {
+
+    "filesystem": {
+      "_comment": "Dosya okuma/yazma/listeleme — en temel araç",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "${workspaceFolder}"
+      ]
+    },
+
+    "git": {
+      "_comment": "Git operasyonları: log, diff, status, blame",
+      "command": "uvx",
+      "args": ["mcp-server-git", "--repository", "${workspaceFolder}"]
+    },
+
+    "terminal": {
+      "_comment": "Terminal komutları çalıştırma (dikkat: AUTO_RUN_COMMANDS=false tut)",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-shell"],
+      "env": {
+        "SHELL": "/bin/bash",
+        "ALLOWED_COMMANDS": "ls,cat,grep,find,git,python,npm,pip,echo,pwd,mkdir,cp,mv"
+      }
+    },
+
+    "memory": {
+      "_comment": "Kalıcı bellek — konuşmalar arası hafıza",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
+    },
+
+    "fetch": {
+      "_comment": "Web sayfası getirme ve arama",
+      "command": "uvx",
+      "args": ["mcp-server-fetch"]
+    },
+
+    "github": {
+      "_comment": "GitHub entegrasyonu (GITHUB_TOKEN gerekli)",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${env:GITHUB_TOKEN}"
+      }
+    }
+  }
+}

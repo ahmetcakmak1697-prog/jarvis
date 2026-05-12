@@ -1,0 +1,139 @@
+[
+  {
+    "id": "conv_000",
+    "date": "2026-05-09",
+    "timestamp": "2026-05-09T14:00:00Z",
+    "conversation": {
+      "user": "Merhaba JARVIS, başlayalım mı?",
+      "assistant": "Evet, hazırım! Malzeme bilimi konularında seni nasıl yardımcı olabilirim?"
+    },
+    "metadata": {
+      "quality_score": 8,
+      "category": "greeting",
+      "language": "turkish",
+      "feedback": "Başlangıç konuşması",
+      "evaluated": true,
+      "eval_reason": "Başlangıç konuşması",
+      "ts": "2026-05-09T14:00:00Z"
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "Merhaba JARVIS, başlayalım mı?"
+      },
+      {
+        "role": "assistant",
+        "content": "Evet, hazırım! Malzeme bilimi konularında seni nasıl yardımcı olabilirim?"
+      }
+    ]
+  },
+  {
+    "id": "conv_001",
+    "date": "2026-05-09",
+    "timestamp": "2026-05-09T14:13:58.271763Z",
+    "conversation": {
+      "user": "B4C nedir?",
+      "assistant": "B4C bor karbürdür, sert bir seramik malzeme..."
+    },
+    "metadata": {
+      "quality_score": 8,
+      "category": "materials_basics",
+      "language": "turkish",
+      "feedback": "",
+      "evaluated": true,
+      "eval_reason": "",
+      "ts": "2026-05-09T14:13:58.271763Z"
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "B4C nedir?"
+      },
+      {
+        "role": "assistant",
+        "content": "B4C bor karbürdür, sert bir seramik malzeme..."
+      }
+    ]
+  },
+  {
+    "id": "conv_002",
+    "date": "2026-05-09",
+    "timestamp": "2026-05-09T14:37:20.049777Z",
+    "conversation": {
+      "user": "B4C'nin Ehull değeri kaç meV/atom?",
+      "assistant": "Merhaba efendim! B4C'nin Ehull değerini sormaktan mutluyum. Bu değer yaklaşık olarak 1,2 eV/atom'dür. Eğer detaylı bilgi istiyorsanız, lütfen bana emir verin."
+    },
+    "metadata": {
+      "quality_score": 2,
+      "category": "materials_basics",
+      "language": "turkish",
+      "feedback": "Hallucination - doğru cevap veremedi",
+      "evaluated": true,
+      "eval_reason": "Hallucination - doğru cevap veremedi",
+      "ts": "2026-05-09T14:37:20.049777Z"
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "B4C'nin Ehull değeri kaç meV/atom?"
+      },
+      {
+        "role": "assistant",
+        "content": "Merhaba efendim! B4C'nin Ehull değerini sormaktan mutluyum. Bu değer yaklaşık olarak 1,2 eV/atom'dür. Eğer detaylı bilgi istiyorsanız, lütfen bana emir verin."
+      }
+    ]
+  },
+  {
+    "id": "conv_004",
+    "date": "2026-05-09",
+    "timestamp": "2026-05-09T14:44:43.964391Z",
+    "conversation": {
+      "user": "Grafen'in band gap'i kaç eV?",
+      "assistant": "Hoş geldin efendim! B4C (boron carbide) bir çift karbonlu bor bileşiği ve sert malzemenler arasında en yüksek sertliğe sahiptir..."
+    },
+    "metadata": {
+      "quality_score": 1,
+      "category": "materials_basics",
+      "language": "turkish",
+      "feedback": "Hallucination - B4C hakkında cevap verdi, Grafen'i soramadı",
+      "evaluated": true,
+      "eval_reason": "Hallucination - B4C hakkında cevap verdi, Grafen'i soramadı",
+      "ts": "2026-05-09T14:44:43.964391Z"
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "Grafen'in band gap'i kaç eV?"
+      },
+      {
+        "role": "assistant",
+        "content": "Hoş geldin efendim! B4C (boron carbide) bir çift karbonlu bor bileşiği ve sert malzemenler arasında en yüksek sertliğe sahiptir..."
+      }
+    ]
+  },
+  {
+    "messages": [
+      {
+        "role": "user",
+        "content": "Hello"
+      },
+      {
+        "role": "assistant",
+        "content": "Merhaba efendim, ben JARVIS. size ne yardımcı olabileceğime eminim."
+      }
+    ],
+    "metadata": {
+      "ts": "2026-05-10T14:14:32.728081",
+      "quality_score": 8,
+      "eval_reason": "Türkçe doğruluğu yüksek, anlam doğruluğu iyi ve cevabın kalitesi de iyidir.",
+      "eval_issues": [
+        "JARVIS karakteri biraz uzun"
+      ],
+      "eval_strengths": [
+        "Doğru Türkçe kullanımı",
+        "Anlamlı ve yararlı cevap"
+      ],
+      "evaluated": true
+    }
+  }
+]
