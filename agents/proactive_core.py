@@ -101,14 +101,39 @@ class ProactiveCore:
             },
         }
 
+
     def _security_stub(self) -> dict:
-        return {
-            "level": "normal",
-            "shield": "active",
-            "failed_login_24h": 0,
-            "blocked_ips": 0,
-            "line": "Koruma Kalkanı aktif. Olağan dışı bir hareket saptanmadı.",
-        }
+        try:
+            from tools.security_snapshot import get_security_snapshot
+            snap = get_security_snapshot()
+
+            return {
+                "level": snap.get("level", "normal"),
+                "shield": snap.get("shield", "active"),
+                "failed_login_24h": snap.get("failed_login_24h", 0),
+                "failed_login_total": snap.get("failed_login_total", 0),
+                "blocked_ips": snap.get("blocked_ips", 0),
+                "blocked_ip_list": snap.get("blocked_ip_list", []),
+                "active_sessions": snap.get("active_sessions", 0),
+                "last_fail": snap.get("last_fail"),
+                "last_external": snap.get("last_external"),
+                "line": snap.get("line", "Koruma Kalkanı aktif."),
+            }
+
+        except Exception as e:
+            return {
+                "level": "unknown",
+                "shield": "fallback",
+                "failed_login_24h": 0,
+                "failed_login_total": 0,
+                "blocked_ips": 0,
+                "blocked_ip_list": [],
+                "active_sessions": 0,
+                "last_fail": None,
+                "last_external": None,
+                "line": f"Koruma verisi alınamadı: {str(e)[:120]}",
+            }
+
 
 
     def _system_stub(self) -> dict:
