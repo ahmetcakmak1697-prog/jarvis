@@ -77,3 +77,11 @@ mcp/__pycache__/
 memory/__pycache__/
 rag/__pycache__/
 voice/__pycache__/
+
+# Legacy / experimental folders
+agent/
+jarvis_yeni/
+
+# Legacy / experimental folders
+agent/
+jarvis_yeni/
