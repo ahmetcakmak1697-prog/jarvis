@@ -110,13 +110,63 @@ class ProactiveCore:
             "line": "Koruma Kalkanı aktif. Olağan dışı bir hareket saptanmadı.",
         }
 
+
     def _system_stub(self) -> dict:
-        return {
-            "health": "stable",
-            "model": "mistral-nemo:latest",
-            "local_core": "standby",
-            "line": "Yerel çekirdek beklemede.",
-        }
+        try:
+            from tools.system_intelligence import get_system_status, get_health_score
+
+            status = get_system_status()
+            health = get_health_score(status)
+
+            cpu = status.get("cpu_percent", 0)
+            ram = status.get("ram", {})
+            disk = status.get("disk", {})
+            gpu = status.get("gpu", {})
+
+            line = (
+                f"CPU %{cpu}, RAM %{ram.get('percent', 0)}, "
+                f"Disk %{disk.get('percent', 0)}. "
+                f"Sağlık: {health.get('label', 'Bilinmiyor')}."
+            )
+
+            if gpu.get("available"):
+                line += (
+                    f" GPU %{gpu.get('percent', 0)}, "
+                    f"VRAM %{gpu.get('memory_percent', 0)}, "
+                    f"Sıcaklık {gpu.get('temperature', '--')}°C."
+                )
+            else:
+                line += " GPU bilgisi alınamadı."
+
+            return {
+                "health": health.get("level", "normal"),
+                "health_score": health.get("score", 100),
+                "health_label": health.get("label", "Stabil"),
+                "health_note": health.get("threshold_note", ""),
+                "cpu_percent": cpu,
+                "ram_percent": ram.get("percent", 0),
+                "ram_used_gb": ram.get("used_gb", 0),
+                "ram_total_gb": ram.get("total_gb", 0),
+                "disk_percent": disk.get("percent", 0),
+                "disk_used_gb": disk.get("used_gb", 0),
+                "disk_total_gb": disk.get("total_gb", 0),
+                "gpu": gpu,
+                "model": "mistral-nemo:latest",
+                "local_core": "online",
+                "line": line,
+            }
+
+        except Exception as e:
+            return {
+                "health": "unknown",
+                "health_score": 0,
+                "health_label": "Bilinmiyor",
+                "health_note": "Sistem verisi okunamadı.",
+                "model": "mistral-nemo:latest",
+                "local_core": "fallback",
+                "line": f"Sistem verisi alınamadı: {str(e)[:120]}",
+            }
+
 
     def _suggestion_stub(self, now: datetime) -> dict:
         if now.hour < 12:
