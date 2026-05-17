@@ -46,6 +46,11 @@ def main():
         allow_fail=False
     )
 
+    run(
+        [sys.executable, "tests/proactive_core_smoke.py"],
+        "Proactive core smoke"
+    )
+
     tracked_sensitive = run(
         ["git", "ls-files"],
         "Git tracked files scan"
