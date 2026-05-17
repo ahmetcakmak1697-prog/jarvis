@@ -50,7 +50,7 @@ try:
     VM_OK = True
 except ImportError:
     VM_OK = False
-    print("⚠️  ChromaDB yok — vector memory devre dışı. pip install chromadb")
+    print("[WARN]  ChromaDB yok — vector memory devre dışı. pip install chromadb")
 
 
 class JarvisBrain:
@@ -72,7 +72,7 @@ class JarvisBrain:
             self.system = SystemController()
         except Exception as e:
             self.system = None
-            print(f"⚠️  SystemController devre dışı: {e}")
+            print(f"[WARN]  SystemController devre dışı: {e}")
 
         # Faz 1 modülleri
         self.router = self._safe_init("SemanticRouter", SemanticRouter) if ROUTER_OK else None
@@ -80,11 +80,11 @@ class JarvisBrain:
         self.orch = self._safe_init("LLMOrchestrator", lambda: LLMOrchestrator(self.MODEL)) if ORCH_OK else None
 
         if self.router:
-            console.print("[green]✓ Semantic Router aktif[/]")
+            console.print("[green]Semantic Router aktif[/]")
         if self.scorer:
-            console.print("[green]✓ Memory Scorer aktif[/]")
+            console.print("[green]Memory Scorer aktif[/]")
         if self.orch:
-            console.print("[green]✓ Multi-LLM Orchestrator aktif[/]")
+            console.print("[green]Multi-LLM Orchestrator aktif[/]")
 
         # Skill auto-discovery için sayaç
         self._recent_patterns = {}
@@ -97,18 +97,18 @@ class JarvisBrain:
         if VM_OK:
             try:
                 self.memory = VectorMemory()
-                print(f"✅ VM: {self.memory.stats()['total']} hafıza")
+                print(f"[OK] VM: {self.memory.stats()['total']} hafıza")
             except Exception as e:
-                print(f"⚠️  VM err: {e}")
+                print(f"[WARN]  VM err: {e}")
 
     def _safe_init(self, name, factory):
         """Opsiyonel JARVIS modüllerini güvenli başlatır; hata ana çekirdeği düşürmez."""
         try:
             obj = factory()
-            print(f"✅ {name}: aktif")
+            print(f"[OK] {name}: aktif")
             return obj
         except Exception as e:
-            print(f"⚠️ {name} devre dışı: {e}")
+            print(f"[WARN] {name} devre disi: {e}")
             return None
 
     def _load_profile(self):
@@ -830,9 +830,9 @@ JSON döndür:
                     research = self.researcher.research_and_learn(msg)
                 except Exception as e:
                     research = ""
-                    print(f"❌ Araştırma hatası: {e}")
+                    print(f"[FAIL] Araştırma hatası: {e}")
 
-                print(f"{'✅' if research else '❌'} {len(research)} char")
+                print(f"{'[OK]' if research else '[FAIL]'} {len(research)} char")
 
                 safe_answer = self._answer_from_research(research)
                 self._add_history(msg, safe_answer)
@@ -870,7 +870,7 @@ JSON döndür:
             # Belirsizlik varsa bir kez araştırma ile sağlamlaştırmayı dene.
             if self._is_uncertain(cevap) and not research:
                 try:
-                    print("⚠️  Belirsiz, araştır...")
+                    print("[WARN]  Belirsiz, araştır...")
                     research = self.researcher.research_and_learn(msg)
                 except Exception:
                     research = ""
