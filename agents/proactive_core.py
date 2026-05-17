@@ -214,13 +214,31 @@ class ProactiveCore:
             "action": "Gün Özeti",
         }
 
+
     def _tasks_stub(self) -> dict:
-        return {
-            "pending": 0,
-            "completed": 0,
-            "failed": 0,
-            "running": False,
-        }
+        try:
+            from tools.task_snapshot import get_task_snapshot
+            snap = get_task_snapshot()
+
+            return {
+                "pending": snap.get("pending", 0),
+                "running": snap.get("running", 0),
+                "completed": snap.get("completed", 0),
+                "failed": snap.get("failed", 0),
+                "recent": snap.get("recent", []),
+                "line": snap.get("line", "Görev durumu okunamadı."),
+            }
+
+        except Exception as e:
+            return {
+                "pending": 0,
+                "running": 0,
+                "completed": 0,
+                "failed": 0,
+                "recent": [],
+                "line": f"Görev verisi alınamadı: {str(e)[:120]}",
+            }
+
 
 
 if __name__ == "__main__":
