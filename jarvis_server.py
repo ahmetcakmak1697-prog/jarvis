@@ -3415,17 +3415,77 @@ function loadPanel(){
   });
 }
 
-function loadBriefing(kind){
-  return jget('/briefing/' + kind).then(function(d){
-    addMsg(d.briefing || 'Brifing alınamadı.', false);
-  }).catch(function(e){
-    addMsg('Hata: ' + e.message, false);
-  });
+
+
+function loadProactiveStatus(){
+  return fetch('/api/proactive-status', {credentials:'same-origin'})
+    .then(function(r){ return r.json(); })
+    .then(function(p){
+      if(!p || !p.ok) return false;
+
+      var NL = String.fromCharCode(10);
+      var briefing = p.briefing || {};
+      var weather = p.weather || {};
+      var music = p.music || {};
+      var musicSuggestion = music.suggestion || {};
+      var security = p.security || {};
+      var system = p.system || {};
+      var suggestion = p.suggestion || {};
+      var tasks = p.tasks || {};
+
+      setText('briefing-status', briefing.ready ? 'AKTIF' : 'BEKLEMEDE');
+      setText('morning-briefing-text', briefing.text || 'Proaktif brifing hazir degil.');
+
+      var weatherLine = weather.summary || 'Hava durumu beklemede.';
+      var weatherStrip = el('weather-strip');
+      if(weatherStrip){
+        weatherStrip.innerHTML = '<div class="music-strip">' + weatherLine + '</div>';
+      }
+
+      var musicText = musicSuggestion.artist
+        ? ((musicSuggestion.artist || '') + ' - ' + (musicSuggestion.track || '') + '. ' + (musicSuggestion.reason || ''))
+        : 'Muzik onerisi beklemede.';
+
+      setText('music-strip', musicText);
+      setText('music-pick', musicSuggestion.artist ? (musicSuggestion.artist + ' - ' + musicSuggestion.track) : '--');
+      setText('music-reason', musicSuggestion.reason || 'Yerel muzik oneri motoru beklemede.');
+      setText('music-status', music.status ? String(music.status).toUpperCase() : 'YEREL');
+
+      setText('security-level', security.level === 'alarm' ? 'ALARM' : (security.level === 'warning' ? 'UYARI' : 'AKTIF'));
+      setText('security-scope', security.shield || '--');
+      setText('security-fails', String(security.failed_login_24h || 0) + '/24s');
+      setText('security-blocks', String(security.blocked_ips || 0));
+      setText('security-line', security.line || 'Koruma Kalkani aktif.');
+
+      var securityCard = document.querySelector('.security-card');
+      if(securityCard) securityCard.dataset.level = security.level || 'normal';
+
+      setText('rec-card', (suggestion.title || 'Oneri') + NL + (suggestion.text || '') + NL + 'Eylem: ' + (suggestion.action || '--'));
+      setText('suggested-action', suggestion.action || 'Onerim hazir');
+
+      setText('jarvis-comment', system.line || briefing.text || 'Durum analizi hazir.');
+      setText('risk-card', security.line || 'Belirgin risk yok.');
+
+      setText(
+        'today-card',
+        (p.date || '--') + ' / ' + (p.time || '--') +
+        NL + 'Proaktif cekirdek: ' + (p.version || '--') +
+        NL + 'Gorevler: bekleyen ' + (tasks.pending || 0) + ', tamamlanan ' + (tasks.completed || 0)
+      );
+
+      var hint = el('jarvis-hint');
+      if(hint) hint.textContent = suggestion.text || briefing.text || 'Proaktif cekirdek aktif.';
+
+      replaceFirstJarvisMessage(briefing.text || localGreeting());
+      addActivity('Proaktif durum guncellendi.');
+      return true;
+    })
+    .catch(function(e){
+      console.error('proactive status error:', e);
+      return false;
+    });
 }
 
-function uploadDoc(){
-  addMsg('Doküman paneli yeni dashboard içinde hazır değil. v4 araç modlarında bağlayacağız efendim.', false);
-}
 
 function boot(){
   if(booted) return;
@@ -3437,6 +3497,7 @@ function boot(){
     .then(loadMorning)
     .then(loadPanel)
     .then(loadSecurity)
+    .then(loadProactiveStatus)
     .then(function(){
       setStatus('JARVIS - sistemler güncel');
     })
@@ -3447,6 +3508,7 @@ function boot(){
 
   setInterval(loadPanel, 15000);
   setInterval(loadSecurity, 15000);
+  setInterval(loadProactiveStatus, 30000);
   setInterval(loadMorning, 30 * 60 * 1000);
 }
 
