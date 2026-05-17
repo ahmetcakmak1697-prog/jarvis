@@ -1,189 +1,166 @@
-"""JARVIS Auto Runner — 24/7 background orchestrator.
-Tek komut: python auto_runner.py
-- Server'ı başlatır
-- Gece curation (02:00)
-- Sabah brifing (08:00)
-- Akşam özeti (22:00)
-- Saatlik self-improvement
-- Health monitor (5 dak)
+﻿"""JARVIS Auto Runner - 24/7 background orchestrator.
+
+Tek komut:
+    python auto_runner.py
+
+Gorevler:
+- JARVIS server calismiyorsa baslatir
+- /healthz ile server sagligini izler
+- Ollama durumunu kontrol eder
+- Saatlik self-improvement dener
+- Loglari logs/auto_runner.log dosyasina yazar
 """
-import sys
-import time
+
+from __future__ import annotations
+
 import subprocess
+import sys
 import threading
-from pathlib import Path
+import time
 from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
 import requests
 
-def log(msg):
-    Path("logs").mkdir(exist_ok=True)
-    line = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}"
+
+SERVER_URL = "http://127.0.0.1:8000"
+HEALTH_URL = f"{SERVER_URL}/healthz"
+OLLAMA_URL = "http://127.0.0.1:11434/api/tags"
+LOG_PATH = Path("logs/auto_runner.log")
+
+
+def log(message: str) -> None:
+    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    line = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}"
     print(line)
-    with open("logs/auto_runner.log", "a", encoding='utf-8') as f:
+    with LOG_PATH.open("a", encoding="utf-8") as f:
         f.write(line + "\n")
 
-def is_server_up():
+
+def is_server_up() -> bool:
     try:
-        r = requests.get("http://localhost:8000/status", timeout=3)
-        return r.status_code == 200
-    except:
+        response = requests.get(HEALTH_URL, timeout=3)
+        if response.status_code != 200:
+            return False
+        data = response.json()
+        return bool(data.get("ok"))
+    except Exception:
         return False
 
-def is_ollama_up():
+
+def is_ollama_up() -> bool:
     try:
-        r = requests.get("http://localhost:11434/api/tags", timeout=3)
-        return r.status_code == 200
-    except:
+        response = requests.get(OLLAMA_URL, timeout=3)
+        return response.status_code == 200
+    except Exception:
         return False
 
-def start_server():
-    log("🚀 Server başlatılıyor...")
+
+def start_server() -> subprocess.Popen:
+    log("Server baslatiliyor...")
     return subprocess.Popen(
         [sys.executable, "jarvis_server.py"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
-def health_monitor(server_proc):
-    """5 dakikada bir sağlık kontrolü"""
-    while True:
-        time.sleep(300)
-        if not is_ollama_up():
-            log("❌ Ollama down — restart manuel: ollama serve")
-        if not is_server_up():
-            log("❌ Server down — yeniden başlatılıyor")
-            try:
-                server_proc.terminate()
-            except:
-                pass
-            server_proc = start_server()
-        else:
-            log("💚 Health OK")
 
-def schedule_jobs():
-    try:
-        import schedule
-    except ImportError:
-        log("schedule yok — pip install schedule")
+def run_self_improvement() -> None:
+    if not is_ollama_up():
+        log("Ollama calismiyor. Self-improvement atlandi.")
         return
 
-    def digest_job():
-        log("🌅 Daily Digest...")
-        try:
-            from agents.daily_digest import DailyDigest
-            d = DailyDigest()
-            r = d.generate()
-            log(f"✅ Digest: {r.get('content', '')[:120]}")
-        except Exception as e:
-            log(f"❌ Digest: {e}")
+    try:
+        from agents.self_improver import SelfImprover
 
-    def cleanup_job():
-        log("🧹 Memory Cleanup...")
-        try:
-            from agents.memory_scorer import MemoryScorer
-            s = MemoryScorer()
-            n = s.cleanup_old(days=30)
-            log(f"✅ Temizlendi: {n} eski hafıza silindi")
-        except Exception as e:
-            log(f"❌ Cleanup: {e}")
+        result = SelfImprover().analyze_weaknesses()
+        status = result.get("status", "done") if isinstance(result, dict) else "done"
+        log(f"Self-improvement tamamlandi: {status}")
+    except Exception as exc:
+        log(f"Self-improvement hata verdi: {str(exc)[:160]}")
 
-    def curate_job():
-        log("🌙 Curation başlıyor...")
-        try:
-            from training.data_curator import run_once
-            run_once(verbose=False)
-            log("✅ Curation tamam")
-        except Exception as e:
-            log(f"❌ Curation: {e}")
 
-    def morning_job():
-        log("🌅 Sabah brifingi...")
-        try:
-            r = requests.get("http://localhost:8000/briefing/morning", timeout=120)
-            log(f"✅ Brifing: {r.json().get('briefing', '')[:100]}")
-        except Exception as e:
-            log(f"❌ Brifing: {e}")
+def schedule_jobs(stop_event: threading.Event) -> None:
+    """Basit zamanlayici.
 
-    def evening_job():
-        log("🌙 Akşam özeti...")
-        try:
-            r = requests.get("http://localhost:8000/briefing/evening", timeout=120)
-            log(f"✅ Özet: {r.json().get('briefing', '')[:100]}")
-        except Exception as e:
-            log(f"❌ Özet: {e}")
+    Su an bilincli olarak sade tutuldu:
+    - Saatlik self-improvement
+    - Ileride sabah brifingi / aksam ozeti buraya eklenecek
+    """
+    last_improvement_hour: Optional[str] = None
 
-    def improvement_job():
-        log("🔍 Self-improvement...")
-        try:
-            from agents.self_improver import SelfImprover
-            r = SelfImprover().analyze_weaknesses()
-            log(f"✅ Improvement: {r.get('status', 'done')}")
-        except Exception as e:
-            log(f"❌ Improvement: {e}")
+    while not stop_event.is_set():
+        now = datetime.now()
+        current_hour = now.strftime("%Y-%m-%d %H")
 
-    def summary_job():
-        log("📝 Günlük özet...")
-        try:
-            from training.conversation_summarizer import summarize_day
-            summarize_day()
-            log("✅ Özet tamam")
-        except Exception as e:
-            log(f"❌ Özet: {e}")
+        if current_hour != last_improvement_hour:
+            last_improvement_hour = current_hour
+            run_self_improvement()
 
-    # Zamanlamalar
-    schedule.every().day.at("02:00").do(curate_job)
-    schedule.every().day.at("08:00").do(morning_job)
-    schedule.every().day.at("08:05").do(digest_job)
-    schedule.every().monday.at("03:00").do(cleanup_job)
-    schedule.every().day.at("22:00").do(evening_job)
-    schedule.every().day.at("23:00").do(summary_job)
-    schedule.every(2).hours.do(improvement_job)
+        stop_event.wait(60)
 
-    log("📅 Scheduler aktif:")
-    log("   • 02:00 curation")
-    log("   • 08:00 sabah brifing")
-    log("   • 08:05 daily digest 🌅")
-    log("   • 22:00 akşam özeti")
-    log("   • 23:00 günlük özet")
-    log("   • Her 2 saat: self-improvement")
-    log("   • Pazartesi 03:00: memory cleanup 🧹")
 
-    while True:
-        schedule.run_pending()
-        time.sleep(30)
+def health_monitor(server_proc: Optional[subprocess.Popen], stop_event: threading.Event) -> None:
+    """5 dakikada bir server sagligini kontrol eder."""
+    while not stop_event.is_set():
+        if not is_server_up():
+            log("Server healthz yanit vermiyor.")
 
-def main():
-    log("="*60)
-    log("🤖 JARVIS AUTO RUNNER — OPERATION OVERMIND")
-    log("="*60)
-    if not is_ollama_up():
-        log("⚠️  Ollama çalışmıyor — Ollama'yı başlat: ollama serve")
-        log("   Server yine de başlayacak")
-    
+            if server_proc and server_proc.poll() is None:
+                log("Server process hala calisiyor gorunuyor; yeniden baslatilmadi.")
+            else:
+                log("Server process kapali. Yeniden baslatiliyor.")
+                server_proc = start_server()
+                time.sleep(8)
+        else:
+            log("Server saglik kontrolu OK.")
+
+        stop_event.wait(300)
+
+
+def main() -> None:
+    log("=" * 60)
+    log("JARVIS Auto Runner baslatildi.")
+
+    server_proc: Optional[subprocess.Popen]
+
     if is_server_up():
-        log("⚠️  Server zaten çalışıyor — yeni instance başlatılmadı")
+        log("Server zaten calisiyor. Yeni instance baslatilmadi.")
         server_proc = None
     else:
         server_proc = start_server()
         time.sleep(8)
-        
-    threading.Thread(target=schedule_jobs, daemon=True).start()
-    
-    if server_proc:
-        threading.Thread(target=health_monitor, args=(server_proc,), daemon=True).start()
-        
-    log("✅ Auto Runner aktif — Ctrl+C ile durdur")
-    log("="*60)
-    
+
+        if is_server_up():
+            log("Server baslatildi ve healthz OK.")
+        else:
+            log("Server baslatildi ama healthz henuz OK donmedi.")
+
+    stop_event = threading.Event()
+
+    threading.Thread(target=schedule_jobs, args=(stop_event,), daemon=True).start()
+    threading.Thread(target=health_monitor, args=(server_proc, stop_event), daemon=True).start()
+
+    log("Auto Runner aktif. Durdurmak icin Ctrl+C.")
+    log("=" * 60)
+
     try:
-        while True:
-            time.sleep(3600)
+        while not stop_event.is_set():
+            stop_event.wait(3600)
     except KeyboardInterrupt:
-        log("⏹  Durduruluyor...")
-        if server_proc:
+        log("Durdurma sinyali alindi.")
+        stop_event.set()
+
+        if server_proc and server_proc.poll() is None:
             try:
                 server_proc.terminate()
-            except:
-                pass
+                log("Server process sonlandirildi.")
+            except Exception as exc:
+                log(f"Server sonlandirilirken hata: {str(exc)[:160]}")
+
+        log("Auto Runner durduruldu.")
+
 
 if __name__ == "__main__":
     main()
