@@ -51,6 +51,23 @@ class VectorMemory:
         except:
             return []
 
+# Mevcut VectorMemory sınıfının içine ekle:
+
+    def save_info(self, content, metadata=None):
+        """Brain'in 'save_info' çağrısını 'remember' metoduna bağlar."""
+        # Senin 'remember' metodun user ve jarvis mesajı bekliyor. 
+        # Bunu genel bir kayıt sistemine uyarlıyoruz.
+        return self.remember("Sistem Kaydı", content, meta=metadata)
+
+    def search_memory(self, query):
+        """Brain'in 'search_memory' çağrısını 'find_similar' metoduna bağlar."""
+        results = self.find_similar(query, n=1)
+        if results:
+            # En yakın sonucu Jarvis'in anlayacağı formatta döndürür
+            res = results[0]
+            return f"--- Hatırlanan Bilgi ---\nKullanıcı: {res['user_msg']}\nJarvis: {res['jarvis_msg']}"
+        return None
+    
     def stats(self):
         try:
             return {"total": self.col.count()}
