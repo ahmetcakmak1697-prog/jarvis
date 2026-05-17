@@ -23,6 +23,7 @@ try:
 except Exception:
     pass
 from tools.system_intelligence import get_panel_intelligence
+from agents.proactive_core import ProactiveCore
 
 try:
     import edge_tts
@@ -122,6 +123,7 @@ except Exception as e:
     SkillLibrary = NullSkillLibrary
 
 app = FastAPI(title="JARVIS API v5")
+proactive_core = ProactiveCore()
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_methods=["*"], allow_headers=["*"])
 
@@ -1173,6 +1175,17 @@ async def healthz():
         "version": "v5",
         "message": "JARVIS çekirdeği çevrimiçi."
     }
+
+
+@app.get("/api/proactive-status")
+async def api_proactive_status():
+    try:
+        return proactive_core.build_state()
+    except Exception as e:
+        return JSONResponse(
+            {"ok": False, "error": str(e)[:200]},
+            status_code=500
+        )
 
 @app.get("/status")
 async def status():
