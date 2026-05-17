@@ -1,17 +1,32 @@
 """JARVIS BRAIN v5 — Multi-step reasoning + memory + research."""
+
 import json
 import sqlite3
 import requests
 import re
 from pathlib import Path
 from datetime import datetime
+
 from tools.system_control import SystemController
 from tools.web_research import WebResearcher
 from tools.document_reader import DocumentReader
+from tools.diagnostics import run_diagnostics, run_self_tests
+from tools.system_intelligence import format_panel_intelligence
+
+from tools.file_tools import (
+    count_text_in_file,
+    count_regex_in_file,
+    search_text_in_project,
+    read_file,
+    list_project_files,
+)
+
 from rich.console import Console
+
 console = Console()
 
-# Faz 1 — Yeni modüller (opsiyonel, hata olursa devre dışı)
+
+# Faz 1 — Yeni modüller, hata olursa devre dışı
 try:
     from agents.semantic_router import SemanticRouter
     ROUTER_OK = True
@@ -35,7 +50,7 @@ try:
     VM_OK = True
 except ImportError:
     VM_OK = False
-    print("⚠️  ChromaDB yok — vector memory devre dışı (pip install chromadb)")
+    print("⚠️  ChromaDB yok — vector memory devre dışı. pip install chromadb")
 
 
 class JarvisBrain:
@@ -45,28 +60,39 @@ class JarvisBrain:
         self.profile_path = Path("memory/user_profile.json")
         self.db_path = Path("memory/jarvis_memory.db")
         self.conv_path = Path("memory/conversations.json")
+
         self.profile_path.parent.mkdir(parents=True, exist_ok=True)
+
         self.profile = self._load_profile()
         self._init_db()
         self.history = []
-       # System control (opsiyonel)
+
+        # System control
         try:
             self.system = SystemController()
-        except Exception:
+        except Exception as e:
             self.system = None
+            print(f"⚠️  SystemController devre dışı: {e}")
 
         # Faz 1 modülleri
-        self.router = SemanticRouter() if ROUTER_OK else None
-        self.scorer = MemoryScorer() if SCORER_OK else None
-        self.orch   = LLMOrchestrator(self.MODEL) if ORCH_OK else None
-        
-        if self.router: console.print("[green]✓ Semantic Router aktif[/]")
-        if self.scorer: console.print("[green]✓ Memory Scorer aktif[/]")
-        if self.orch:   console.print("[green]✓ Multi-LLM Orchestrator aktif[/]")
+        self.router = self._safe_init("SemanticRouter", SemanticRouter) if ROUTER_OK else None
+        self.scorer = self._safe_init("MemoryScorer", MemoryScorer) if SCORER_OK else None
+        self.orch = self._safe_init("LLMOrchestrator", lambda: LLMOrchestrator(self.MODEL)) if ORCH_OK else None
+
+        if self.router:
+            console.print("[green]✓ Semantic Router aktif[/]")
+        if self.scorer:
+            console.print("[green]✓ Memory Scorer aktif[/]")
+        if self.orch:
+            console.print("[green]✓ Multi-LLM Orchestrator aktif[/]")
 
         # Skill auto-discovery için sayaç
-        self._recent_patterns = {}  # {pattern: count}
+        self._recent_patterns = {}
+
+        # Web araştırma
         self.researcher = WebResearcher()
+
+        # Vector memory
         self.memory = None
         if VM_OK:
             try:
@@ -75,61 +101,120 @@ class JarvisBrain:
             except Exception as e:
                 print(f"⚠️  VM err: {e}")
 
+    def _safe_init(self, name, factory):
+        """Opsiyonel JARVIS modüllerini güvenli başlatır; hata ana çekirdeği düşürmez."""
+        try:
+            obj = factory()
+            print(f"✅ {name}: aktif")
+            return obj
+        except Exception as e:
+            print(f"⚠️ {name} devre dışı: {e}")
+            return None
+
     def _load_profile(self):
         if self.profile_path.exists():
             try:
-                return json.loads(self.profile_path.read_text(encoding='utf-8'))
-            except:
+                return json.loads(self.profile_path.read_text(encoding="utf-8"))
+            except Exception:
                 pass
-        return {"name": None, "city": None, "facts": [], "interests": [],
-                "preferences": {}, "sevdiği": [], "sevmediği": [],
-                "takım": [], "kullandığı": [], "sahip olduğu": []}
+
+        return {
+            "name": None,
+            "city": None,
+            "facts": [],
+            "interests": [],
+            "preferences": {},
+            "sevdiği": [],
+            "sevmediği": [],
+            "takım": [],
+            "kullandığı": [],
+            "sahip olduğu": [],
+        }
 
     def _save_profile(self):
         self.profile_path.write_text(
             json.dumps(self.profile, ensure_ascii=False, indent=2),
-            encoding='utf-8')
+            encoding="utf-8",
+        )
 
     def _init_db(self):
         c = sqlite3.connect(self.db_path)
-        c.execute("""CREATE TABLE IF NOT EXISTS chats (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ts TEXT, user TEXT, jarvis TEXT,
-            quality INTEGER DEFAULT 5,
-            researched INTEGER DEFAULT 0)""")
-        c.commit(); c.close()
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS chats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts TEXT,
+                user TEXT,
+                jarvis TEXT,
+                quality INTEGER DEFAULT 5,
+                researched INTEGER DEFAULT 0
+            )"""
+        )
+        c.commit()
+        c.close()
 
     def _save_chat(self, u, j, q=5, r=False):
         c = sqlite3.connect(self.db_path)
-        c.execute("INSERT INTO chats (ts, user, jarvis, quality, researched) "
-                  "VALUES (?, ?, ?, ?, ?)",
-                  (datetime.now().isoformat(), u, j, q, int(r)))
-        c.commit(); c.close()
+        c.execute(
+            "INSERT INTO chats (ts, user, jarvis, quality, researched) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (datetime.now().isoformat(), u, j, q, int(r)),
+        )
+        c.commit()
+        c.close()
+
         self._save_train(u, j, q, r)
 
     def _save_train(self, u, j, q, r):
         cs = []
+
         if self.conv_path.exists():
             try:
-                cs = json.loads(self.conv_path.read_text(encoding='utf-8'))
-            except:
+                cs = json.loads(self.conv_path.read_text(encoding="utf-8"))
+            except Exception:
                 pass
-        cs.append({
-            "messages": [
-                {"role": "user", "content": u},
-                {"role": "assistant", "content": j}
-            ],
-            "metadata": {"ts": datetime.now().isoformat(),
-                         "quality_score": q, "researched": r}
-        })
+
+        cs.append(
+            {
+                "messages": [
+                    {"role": "user", "content": u},
+                    {"role": "assistant", "content": j},
+                ],
+                "metadata": {
+                    "ts": datetime.now().isoformat(),
+                    "quality_score": q,
+                    "researched": r,
+                },
+            }
+        )
+
         self.conv_path.write_text(
-            json.dumps(cs, ensure_ascii=False, indent=2), encoding='utf-8')
+            json.dumps(cs, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
 
     def _extract_info(self, msg):
         m = msg.lower().strip()
-        for p in [r"benim adım ([a-zçğıöşü]+(?:\s[a-zçğıöşü]+)?)",
-                  r"ismim ([a-zçğıöşü]+(?:\s[a-zçğıöşü]+)?)",
-                  r"adım ([a-zçğıöşü]+(?:\s[a-zçğıöşü]+)?)"]:
+
+        # Sağlık kontrolü / diagnostics
+        if any(x in m for x in [
+            "kendini kontrol et",
+            "sağlık kontrolü",
+            "sistem durumu",
+            "jarvis durumu",
+            "diagnostics",
+            "diag",
+        ]):
+            return run_diagnostics()
+
+        # Proje dosyalarını listeleme
+
+        patterns = [
+            r"benim adım ([a-zçğıöşü]+(?:\s[a-zçğıöşü]+)?)",
+            r"ismim ([a-zçğıöşü]+(?:\s[a-zçğıöşü]+)?)",
+            r"adım ([a-zçğıöşü]+(?:\s[a-zçğıöşü]+)?)",
+        ]
+
+        for p in patterns:
             mt = re.search(p, m)
             if mt:
                 n = mt.group(1).strip().title()
@@ -140,13 +225,16 @@ class JarvisBrain:
 
     def _auto_learn(self, msg):
         m = msg.lower().strip()
-        for p, lb in [
+
+        patterns = [
             (r"(\w+(?:\s\w+)?)\s+seviyorum", "sevdiği"),
             (r"(\w+(?:\s\w+)?)\s+sevmiyorum", "sevmediği"),
             (r"(\w+(?:\s\w+)?)\s+takımıyım", "takım"),
             (r"(\w+(?:\s\w+)?)\s+kullanıyorum", "kullandığı"),
-            (r"benim\s+(\w+(?:\s\w+)?)\s+var", "sahip olduğu")
-        ]:
+            (r"benim\s+(\w+(?:\s\w+)?)\s+var", "sahip olduğu"),
+        ]
+
+        for p, lb in patterns:
             mt = re.search(p, m)
             if mt:
                 v = mt.group(1).strip().title()
@@ -158,51 +246,223 @@ class JarvisBrain:
 
     def _is_factual(self, msg):
         m = msg.lower()
-        for p in [
+
+        patterns = [
             r"\b(kaç|ne zaman|hangi yıl|hangi tarih|ne kadar|kim|nerede|nedir|kimdir)\b",
             r"\b(ne demek|ne anlama|ne işe yarar|nasıl çalışır|niye|neden)\b",
-            r"\b(formül|denklem|değer|oran|yüzde|sıcaklık|kütle|hız)\b"]:
+            r"\b(formül|denklem|değer|oran|yüzde|sıcaklık|kütle|hız)\b",
+        ]
+
+        for p in patterns:
             if re.search(p, m):
                 return True
-        sci = ["ehull", "band gap", "atomic", "molar", "ev/atom",
-               "kuantum", "spin", "compound", "kristal", "alaşım"]
-        if any(t in m for t in sci):
+
+        sci_terms = [
+            "ehull",
+            "band gap",
+            "atomic",
+            "molar",
+            "ev/atom",
+            "kuantum",
+            "spin",
+            "compound",
+            "kristal",
+            "alaşım",
+        ]
+
+        if any(t in m for t in sci_terms):
             return True
-        if re.search(r'\b[A-Z][a-zA-Z]*\d+[A-Z]?\b', msg):
+
+        if re.search(r"\b[A-Z][a-zA-Z]*\d+[A-Z]?\b", msg):
             return True
+
+        return False
+
+    def _needs_web_research(self, msg: str, thinking: dict | None = None) -> bool:
+        """
+        İnternet araştırması gerçekten gerekli mi?
+        Gereksiz web aramasını engeller.
+        """
+        m = msg.lower().strip()
+        thinking = thinking or {}
+
+        # Dosya/proje/kod sorularında internete çıkma.
+        local_terms = [
+            "dosya",
+            "proje",
+            "klasör",
+            "brain",
+            "beyin",
+            ".py",
+            ".txt",
+            ".json",
+            "kod",
+            "satır",
+            "kaç tane def",
+            "kaç tane elif",
+            "nerede geçiyor",
+            "ara",
+        ]
+
+        if any(t in m for t in local_terms):
+            # Ancak kullanıcı açıkça internet istiyorsa izin ver.
+            explicit_web = [
+                "internetten",
+                "webden",
+                "google",
+                "araştır internette",
+                "online",
+            ]
+
+            if not any(t in m for t in explicit_web):
+                return False
+
+        # Kullanıcı açıkça araştırma istiyorsa.
+        explicit_research_terms = [
+            "internetten bak",
+            "webden bak",
+            "google'dan bak",
+            "google dan bak",
+            "araştır",
+            "güncel",
+            "son durum",
+            "haber",
+            "kaynak bul",
+            "link bul",
+            "fiyat",
+            "kaç tl",
+            "kaç dolar",
+            "bugün",
+            "bu hafta",
+            "bu ay",
+            "2025",
+            "2026",
+        ]
+
+        if any(t in m for t in explicit_research_terms):
+            return True
+
+        # Model düşünme sonucu net şekilde araştırma istiyorsa.
+        if thinking.get("needs_research") is True and thinking.get("confidence", 0.5) < 0.75:
+            return True
+
+        # Bilmediğini söylüyorsa ve güven düşükse.
+        if thinking.get("knows_answer") is False and thinking.get("confidence", 0.5) < 0.65:
+            return True
+
         return False
 
     def _is_uncertain(self, r):
-        return any(p in r.lower() for p in
-                   ["muhtemelen", "yaklaşık", "sanırım", "galiba",
-                    "tam emin değilim", "olabilir", "tahmin"])
+        return any(
+            p in r.lower()
+            for p in [
+                "muhtemelen",
+                "yaklaşık",
+                "sanırım",
+                "galiba",
+                "tam emin değilim",
+                "olabilir",
+                "tahmin",
+            ]
+        )
+
+    def _answer_from_research(self, research: str) -> str:
+        """
+        Web araştırması sonucunu LLM'e uydurtmadan, kaynak bloklarından güvenli cevap üretir.
+        """
+        if not research or "Araştırma sonucu bulunamadı" in research:
+            return "Efendim, güvenilir bir araştırma sonucu bulamadım. Daha derin arama gerekir."
+
+        blocks = re.split(r"\n\s*\[\d+\]\s+", research)
+        clean_items = []
+
+        for block in blocks:
+            block = block.strip()
+            if not block:
+                continue
+
+            title_match = re.search(r"Başlık:\s*(.+)", block)
+            source_match = re.search(r"Kaynak:\s*(.+)", block)
+            summary_match = re.search(r"Özet:\s*(.+)", block, re.DOTALL)
+
+            title = title_match.group(1).strip() if title_match else ""
+            source = source_match.group(1).strip() if source_match else ""
+            summary = summary_match.group(1).strip() if summary_match else ""
+
+            if not title and not summary:
+                continue
+
+            summary = re.sub(r"\s+", " ", summary)
+            if len(summary) > 260:
+                summary = summary[:260].rsplit(" ", 1)[0] + "..."
+
+            clean_items.append((title, source, summary))
+
+            if len(clean_items) >= 4:
+                break
+
+        if not clean_items:
+            return "Efendim, kaynaklar geldi fakat içlerinde net ve kullanılabilir özet bulunamadı."
+
+        lines = ["Efendim, canlı web araştırmasına göre görünen kaynaklar şunlar:"]
+
+        for i, (title, source, summary) in enumerate(clean_items, start=1):
+            lines.append(f"\n{i}. {title}")
+            if summary:
+                lines.append(f"   Özet: {summary}")
+            if source:
+                lines.append(f"   Kaynak: {source}")
+
+        lines.append(
+            "\nNot: Bu cevap yalnızca yukarıdaki kaynak özetlerine dayalıdır; kaynaklarda açıkça görünmeyen detay eklemedim."
+        )
+
+        return "\n".join(lines)
 
     def _build_prompt(self, research="", memory=""):
-        p = ("Sen JARVIS'sin. Iron Man'in Türkçe AI asistanı.\n\n"
-             "KARAKTER:\n"
-             "- 'Efendim' diye hitap edersin. Resmi, ölçülü, beyefendi.\n"
-             "- 1-3 cümlelik kısa cevaplar.\n"
-             "- İnce mizah olabilir, saygılı.\n\n"
-             "🚨 ASLA UYDURMA:\n"
-             "- Kesin BİLMEDİĞİN bilgiyi söyleme.\n"
-             "- Sayı/formül/tarih/isim asla uydurma.\n"
-             "- 'Muhtemelen', 'sanırım' deme.\n"
-             "- Bilmiyorsan: 'Kesin bilgim yok efendim, araştırayım mı?'\n\n"
-             "DİL: SADECE TÜRKÇE.\n")
+        p = (
+            "Sen JARVIS'sin. Iron Man'in Türkçe AI asistanı.\n\n"
+            "KARAKTER:\n"
+            "- 'Efendim' diye hitap edersin. Resmi, ölçülü, beyefendi.\n"
+            "- 1-3 cümlelik kısa cevaplar.\n"
+            "- İnce mizah olabilir, saygılı.\n\n"
+            "🚨 ASLA UYDURMA:\n"
+            "- Kesin BİLMEDİĞİN bilgiyi söyleme.\n"
+            "- Sayı/formül/tarih/isim asla uydurma.\n"
+            "- 'Muhtemelen', 'sanırım' deme.\n"
+            "- Bilmiyorsan: 'Kesin bilgim yok efendim, araştırayım mı?'\n\n"
+            "DİL: SADECE TÜRKÇE.\n"
+        )
+
         if research:
-            p += (f"\n\n## 🔍 ARAŞTIRMA SONUÇLARI:\n{research}\n\n"
-                  "Sadece yukarıdaki kaynaklara göre cevap ver.\n")
+            p += (
+                f"\n\n## 🔍 ARAŞTIRMA SONUÇLARI:\n{research}\n\n"
+                "ARAŞTIRMA CEVAP KURALLARI:\n"
+                "- Sadece yukarıdaki araştırma sonuçlarında AÇIKÇA yazan bilgileri kullan.\n"
+                "- Kaynaklarda görünmeyen olay, kişi, şirket, dava, tarih veya iddia ekleme.\n"
+                "- Sonuçlar genel haber sayfasıysa bunu açıkça söyle.\n"
+                "- Emin olmadığın detayı uydurma.\n"
+                "- Cevabın sonunda kullanılan kaynak adlarını kısa yaz.\n"
+                "- Eğer sonuçlar yetersizse: 'Kaynaklar genel kaldı, daha derin araştırma gerekir efendim.' de.\n"
+            )
+
         if memory:
-            p += (f"\n\n## 🧠 GEÇMİŞ:\n{memory}\n"
-                  "Bu geçmişi tanıyormuş gibi davran.\n")
+            p += (
+                f"\n\n## 🧠 GEÇMİŞ:\n{memory}\n"
+                "Bu geçmişi tanıyormuş gibi davran.\n"
+            )
+
         if self.profile.get("name"):
             p += f"\n## KULLANICI: {self.profile['name']}\n"
+
             if self.profile.get("city"):
                 p += f"- Şehir: {self.profile['city']}\n"
+
             for lb in ["sevdiği", "sevmediği", "takım", "kullandığı"]:
                 its = self.profile.get(lb, [])
                 if its:
                     p += f"- {lb.title()}: {', '.join(its)}\n"
+
         return p
 
     def _think(self, msg):
@@ -218,184 +478,651 @@ JSON:
   "confidence": <0.0-1.0>,
   "topic": "<2-3 kelime>"
 }}"""
+
         try:
             r = requests.post(
                 "http://localhost:11434/api/generate",
-                json={"model": self.MODEL, "prompt": prompt,
-                      "stream": False, "format": "json",
-                      "options": {"temperature": 0.2, "num_predict": 200}},
-                timeout=45)
+                json={
+                    "model": self.MODEL,
+                    "prompt": prompt,
+                    "stream": False,
+                    "format": "json",
+                    "options": {"temperature": 0.2, "num_predict": 200},
+                },
+                timeout=45,
+            )
+
             return json.loads(r.json().get("response", "{}"))
-        except:
-            return {"knows_answer": True, "needs_research": False, "confidence": 0.5}
-        
+
+        except Exception:
+            return {
+                "knows_answer": True,
+                "needs_research": False,
+                "confidence": 0.5,
+            }
+
     def _cross_check(self, msg: str, answer: str) -> str:
-        """C) Cross-Check: Cevabı araştırma sonucu ile karşılaştırır."""
+        """
+        Cross-check: Cevabı araştırma sonucu ile karşılaştırır.
+        Dosya/proje aracı sorularında çalışmaz.
+        """
+        if self._try_file_tool(msg):
+            return answer
+
         if not self._is_factual(msg) or not self.researcher:
             return answer
+
         low = answer.lower()
+
         if "bilmiyorum" in low or "araştır" in low or "emin değilim" in low:
             return answer
 
         research = self.researcher.research_and_learn(msg)
+
         if not research:
             return answer
 
-        check_prompt = f"""SORU: {msg}\nCEVAP-1: {answer[:500]}\nCEVAP-2 (Araştırma): {research[:1000]}\nJSON döndür: {{"uyumlu_mu": <true/false>, "düzeltme": "<doğru cevap>"}}"""
+        check_prompt = f"""SORU: {msg}
+
+CEVAP-1:
+{answer[:500]}
+
+CEVAP-2 ARAŞTIRMA:
+{research[:1000]}
+
+JSON döndür:
+{{
+  "uyumlu_mu": <true/false>,
+  "düzeltme": "<doğru cevap>"
+}}"""
+
         try:
-            r = requests.post("http://localhost:11434/api/generate",
-                json={"model": self.MODEL, "prompt": check_prompt, "stream": False, "format": "json"},
-                timeout=60)
+            r = requests.post(
+                "http://localhost:11434/api/generate",
+                json={
+                    "model": self.MODEL,
+                    "prompt": check_prompt,
+                    "stream": False,
+                    "format": "json",
+                },
+                timeout=60,
+            )
+
             check = json.loads(r.json().get("response", "{}"))
+
             if not check.get("uyumlu_mu", True) and check.get("düzeltme"):
                 console.print("[yellow]🛡️ Cross-Check: cevap düzeltildi[/]")
                 return check["düzeltme"]
-        except: pass
+
+        except Exception:
+            pass
+
         return answer
 
     def _detect_skill_pattern(self, msg: str):
-        """E) Skill Auto-Discovery: 3+ kez tekrarlanan kalıpları skill yapar."""
-        key_words = re.findall(r'\b\w{4,}\b', msg.lower())[:3]
-        if not key_words: return
+        """
+        Skill Auto-Discovery:
+        3+ kez tekrarlanan kalıpları skill yapar.
+        """
+        key_words = re.findall(r"\b\w{4,}\b", msg.lower())[:3]
+
+        if not key_words:
+            return
+
         pattern = " ".join(sorted(key_words))
         self._recent_patterns[pattern] = self._recent_patterns.get(pattern, 0) + 1
 
         if self._recent_patterns[pattern] == 3:
             try:
                 from agents.skill_library import SkillLibrary
+
                 lib = SkillLibrary()
                 name = f"auto_{pattern.replace(' ', '_')[:30]}"
-                lib.add(name, [pattern], f"Otomatik tespit: '{msg}'", tags=["auto-learned"])
+                lib.add(
+                    name,
+                    [pattern],
+                    f"Otomatik tespit: '{msg}'",
+                    tags=["auto-learned"],
+                )
                 console.print(f"[cyan]📚 Yeni skill tespiti: {name}[/]")
-            except: pass
+
+            except Exception:
+                pass
+
+    def _try_file_tool(self, msg: str):
+        """
+        Dosya/kod/proje içeriği sorularında LLM'e tahmin ettirmez.
+        Doğrudan dosya araçlarını çalıştırır.
+        """
+        m = msg.lower().strip()
+
+        # Proje dosyalarını listeleme
+        if any(
+            x in m
+            for x in [
+                "dosyaları listele",
+                "proje dosyaları",
+                "klasör ağacı",
+                "hangi dosyalar var",
+            ]
+        ):
+            return list_project_files()
+
+        # Proje içinde metin arama
+        search_patterns = [
+            r"projede ['\"](.+?)['\"] ara",
+            r"proje içinde ['\"](.+?)['\"] ara",
+            r"nerede geçiyor ['\"](.+?)['\"]",
+            r"['\"](.+?)['\"] nerede geçiyor",
+
+            # Tırnaksız kullanım:
+            # projede research_and_learn ara
+            # proje içinde TavilyClient ara
+            # research_and_learn nerede geçiyor
+            r"projede\s+([A-Za-z0-9_\-\.]+)\s+ara",
+            r"proje içinde\s+([A-Za-z0-9_\-\.]+)\s+ara",
+            r"([A-Za-z0-9_\-\.]+)\s+nerede geçiyor",
+        ]
+
+        for pattern in search_patterns:
+            mt = re.search(pattern, msg, re.IGNORECASE)
+            if mt:
+                text = mt.group(1).strip()
+                return search_text_in_project(text)
+
+        # Kod kelimesi sayma:
+        # jarvis_brain.py dosyasında kaç tane def var
+        # brain dosyasında kaç tane elif var
+        if "kaç" in m and any(x in m for x in ["var", "geçiyor", "bulunuyor", "tane"]):
+            code_words = [
+                "elif",
+                "def",
+                "class",
+                "return",
+                "import",
+                "if",
+                "for",
+                "while",
+                "try",
+                "except",
+                "with",
+                "from",
+                "pass",
+                "break",
+                "continue",
+            ]
+
+            wanted_word = None
+
+            for word in code_words:
+                if re.search(rf"\b{re.escape(word)}\b", m):
+                    wanted_word = word
+                    break
+
+            if wanted_word:
+                file_match = re.search(r"([\w\-/\\\.]+\.py)", msg, re.IGNORECASE)
+
+                if file_match:
+                    file_path = file_match.group(1).strip()
+                elif "brain" in m or "beyin" in m or "jarvis_brain" in m:
+                    file_path = "jarvis_brain.py"
+                else:
+                    file_path = None
+
+                if file_path:
+                    return count_regex_in_file(
+                        file_path,
+                        rf"\b{re.escape(wanted_word)}\b",
+                    )
+
+        # Dosya okuma
+        read_patterns = [
+            r"([\w\-/\\\.]+\.py).*oku",
+            r"oku.*([\w\-/\\\.]+\.py)",
+            r"([\w\-/\\\.]+\.txt).*oku",
+            r"oku.*([\w\-/\\\.]+\.txt)",
+            r"([\w\-/\\\.]+\.md).*oku",
+            r"oku.*([\w\-/\\\.]+\.md)",
+            r"([\w\-/\\\.]+\.json).*oku",
+            r"oku.*([\w\-/\\\.]+\.json)",
+        ]
+
+        for pattern in read_patterns:
+            mt = re.search(pattern, msg, re.IGNORECASE)
+            if mt:
+                file_path = mt.group(1).strip()
+                return read_file(file_path)
+
+        return None
 
     def chat(self, msg):
-        self._extract_info(msg)
-        self._auto_learn(msg)
-# ✨ Faz 1: Router ve Skill
-        if getattr(self, 'router', None):
-            route_info = self.router.explain(msg)
-            console.print(f"[dim]🧭 Route: {route_info['route']}[/]")
-        self._detect_skill_pattern(msg)
+        """
+        Ana konuşma akışı.
 
-        # 1) Sistem komutu
-        cmd = self.system.detect_command(msg)
-        if cmd:
-            res = self.system.execute(cmd[0], cmd[1])
-            if res:
-                self._add_history(msg, res)
-                self._save_chat(msg, res, q=6)
-                if self.memory:
-                    self.memory.remember(msg, res, {"type": "command"})
-                return res
+        Faz -1/0/1 düzeltmesi:
+        - Her başarılı/başarısız path kesinlikle str döndürür.
+        - Explicit memory, file tool, system command, web research ve LLM cevabı net ayrılır.
+        - Önceki refactor'dan kalan erişilemeyen/ölü kod kaldırıldı.
+        """
+        msg = (msg or "").strip()
+        if not msg:
+            return "Efendim, boş bir komut aldım. Ne yapmamı istediğinizi yazarsanız hemen ilgilenirim."
 
-        # 2) Vector recall
-        mem_ctx = ""
-        if self.memory:
-            sim = self.memory.find_similar(msg, n=3, threshold=0.7)
-            if sim:
-                mem_ctx = "\n".join(
-                    f"- (Geçmiş) {s['user_msg']} → {s['jarvis_msg'][:120]}..."
-                    for s in sim[:2])
-
-        # 3) Düşün
-        thinking = self._think(msg)
-        conf = thinking.get("confidence", 0.5)
-        nr = thinking.get("needs_research", False)
-        knows = thinking.get("knows_answer", True)
-
-        # 4) Araştırma
-        research = ""
-        should_r = nr or self._is_factual(msg) or (not knows and conf < 0.6)
-        if should_r:
-            print(f"🔍 Araştır (conf:{conf:.1f}): {msg[:50]}")
-            research = self.researcher.research_and_learn(msg)
-            print(f"{'✅' if research else '❌'} {len(research)} char")
-
-        # 5) Cevap üret
-        messages = [{"role": "system", "content": self._build_prompt(research, mem_ctx)}]
-        messages.extend(self.history[-6:])
-        messages.append({"role": "user", "content": msg})
+        m = msg.lower().strip()
 
         try:
-            r = requests.post(
-                "http://localhost:11434/api/chat",
-                json={"model": self.MODEL, "messages": messages,
-                      "stream": False,
-                      "options": {"temperature": 0.4, "num_ctx": 4096,
-                                  "num_predict": 300}},
-                timeout=120)
-            cevap = r.json().get("message", {}).get("content", "Yanıt yok").strip()
-        except Exception as e:
-            return f"Hata efendim: {str(e)[:80]}"
+            if any(x in m for x in [
+                "kendini test et",
+                "self test",
+                "self-test",
+                "çekirdek test",
+                "sistem testi",
+            ]):
+                result = run_self_tests()
+                self._add_history(msg, result)
+                self._save_chat(msg, result, q=8, r=False)
+                return result
 
-        # 6) Belirsizlik → ek araştırma
-        if self._is_uncertain(cevap) and not research:
-            print("⚠️  Belirsiz, araştır...")
-            research = self.researcher.research_and_learn(msg)
-            if research:
-                messages[0] = {"role": "system",
-                               "content": self._build_prompt(research, mem_ctx)}
+            if any(x in m for x in [
+                "kendini kontrol et",
+                "sağlık kontrolü",
+                "sistem durumu",
+                "jarvis durumu",
+                "diagnostics",
+                "diag",
+            ]):
+                result = run_diagnostics()
+                self._add_history(msg, result)
+                self._save_chat(msg, result, q=8, r=False)
+                return result
+
+            if any(x in m for x in [
+                "panel zekasını göster",
+                "panel zekası",
+                "operasyon paneli",
+                "jarvis panel",
+                "durum zekası",
+            ]):
+                result = format_panel_intelligence()
+                self._add_history(msg, result)
+                self._save_chat(msg, result, q=8, r=False)
+                return result
+
+            self._extract_info(msg)
+            self._auto_learn(msg)
+
+            explicit_memory_result = self._handle_explicit_memory(msg)
+            if explicit_memory_result:
+                return explicit_memory_result
+
+            # Önce dosya/proje/kod araçları.
+            file_tool_result = self._try_file_tool(msg)
+            if file_tool_result:
+                self._add_history(msg, file_tool_result)
+                self._save_chat(msg, file_tool_result, q=8, r=False)
+                return file_tool_result
+
+            # Faz 1: Router ve skill pattern gözlemi. Hata üretirse ana akışı bozmaz.
+            if getattr(self, "router", None):
                 try:
-                    r = requests.post(
-                        "http://localhost:11434/api/chat",
-                        json={"model": self.MODEL, "messages": messages,
-                              "stream": False,
-                              "options": {"temperature": 0.3, "num_predict": 300}},
-                        timeout=120)
-                    cevap = r.json().get("message", {}).get("content", cevap).strip()
-                except:
+                    route_info = self.router.explain(msg)
+                    console.print(f"[dim]🧭 Route: {route_info.get('route', 'unknown')}[/]")
+                except Exception:
                     pass
 
-# ✨ Faz 1: Cross-Check
-        cevap = self._cross_check(msg, cevap)
-        if len(cevap) > 600:
-            cevap = cevap[:600].rsplit(".", 1)[0] + "."
+            try:
+                self._detect_skill_pattern(msg)
+            except Exception:
+                pass
 
-        self._add_history(msg, cevap)
+            # Sistem komutu.
+            if self.system:
+                try:
+                    cmd = self.system.detect_command(msg)
+                except Exception:
+                    cmd = None
+
+                if cmd:
+                    try:
+                        res = self.system.execute(cmd[0], cmd[1])
+                    except Exception as e:
+                        res = f"Sistem komutunu çalıştırırken hata aldım efendim: {str(e)[:120]}"
+
+                    if res:
+                        self._add_history(msg, res)
+                        self._save_chat(msg, res, q=6, r=False)
+                        return res
+
+            # Vector recall.
+            mem_ctx = ""
+            if self.memory:
+                try:
+                    sim = self.memory.find_similar(msg, n=3, threshold=0.7)
+                except Exception:
+                    sim = []
+
+                if sim:
+                    mem_ctx = "\n".join(
+                        f"- (Geçmiş) {s.get('user_msg', '')} → {s.get('jarvis_msg', '')[:120]}..."
+                        for s in sim[:2]
+                    )
+
+            # Düşünme/niyet analizi.
+            thinking = self._think(msg)
+            if not isinstance(thinking, dict):
+                thinking = {"knows_answer": True, "needs_research": False, "confidence": 0.5, "topic": ""}
+
+            conf = float(thinking.get("confidence", 0.5) or 0.5)
+            research = ""
+
+            # Canlı araştırma gerekiyorsa deterministik güvenli cevap dön.
+            should_r = self._needs_web_research(msg, thinking)
+            if should_r:
+                mem_ctx = ""
+                print(f"🔍 Araştır (conf:{conf:.1f}): {msg[:50]}")
+
+                try:
+                    self.researcher.cache = {}
+                except Exception:
+                    pass
+
+                try:
+                    research = self.researcher.research_and_learn(msg)
+                except Exception as e:
+                    research = ""
+                    print(f"❌ Araştırma hatası: {e}")
+
+                print(f"{'✅' if research else '❌'} {len(research)} char")
+
+                safe_answer = self._answer_from_research(research)
+                self._add_history(msg, safe_answer)
+                self._save_chat(msg, safe_answer, q=8, r=True)
+                return safe_answer
+
+            # LLM cevabı üret.
+            messages = [{"role": "system", "content": self._build_prompt(research, mem_ctx)}]
+            messages.extend(self.history[-6:])
+            messages.append({"role": "user", "content": msg})
+
+            try:
+                r = requests.post(
+                    "http://localhost:11434/api/chat",
+                    json={
+                        "model": self.MODEL,
+                        "messages": messages,
+                        "stream": False,
+                        "options": {
+                            "temperature": 0.2,
+                            "num_ctx": 4096,
+                            "num_predict": 300,
+                        },
+                    },
+                    timeout=120,
+                )
+                r.raise_for_status()
+                cevap = r.json().get("message", {}).get("content", "").strip()
+            except Exception as e:
+                cevap = f"Hata efendim: Ollama yanıtı alınamadı. Detay: {str(e)[:100]}"
+
+            if not isinstance(cevap, str) or not cevap.strip():
+                cevap = "Efendim, cevap üretildi fakat boş döndü. Alt sistemi kontrol etmek gerekiyor."
+
+            # Belirsizlik varsa bir kez araştırma ile sağlamlaştırmayı dene.
+            if self._is_uncertain(cevap) and not research:
+                try:
+                    print("⚠️  Belirsiz, araştır...")
+                    research = self.researcher.research_and_learn(msg)
+                except Exception:
+                    research = ""
+
+                if research:
+                    messages[0] = {
+                        "role": "system",
+                        "content": self._build_prompt(research, mem_ctx),
+                    }
+                    try:
+                        r = requests.post(
+                            "http://localhost:11434/api/chat",
+                            json={
+                                "model": self.MODEL,
+                                "messages": messages,
+                                "stream": False,
+                                "options": {
+                                    "temperature": 0.2,
+                                    "num_predict": 300,
+                                },
+                            },
+                            timeout=120,
+                        )
+                        r.raise_for_status()
+                        cevap = r.json().get("message", {}).get("content", cevap).strip() or cevap
+                    except Exception:
+                        pass
+
+            # Cross-check hata verse bile cevap çöpe gitmesin.
+            try:
+                cevap = self._cross_check(msg, cevap)
+            except Exception:
+                pass
+
+            if len(cevap) > 600:
+                cevap = cevap[:600].rsplit(".", 1)[0] + "."
+
+            self._add_history(msg, cevap)
+
+            q = 5
+            if research:
+                q = 7
+            if "bilmiyorum" in cevap.lower() or "araştır" in cevap.lower():
+                q = max(q, 6)
+
+            if getattr(self, "scorer", None):
+                try:
+                    q = self.scorer.score(msg, cevap)
+                except Exception:
+                    pass
+
+            mem_meta = {
+                "researched": bool(research),
+                "confidence": conf,
+                "topic": thinking.get("topic", ""),
+                "type": "chat",
+            }
+
+            if self.memory and self._should_remember(msg, cevap, mem_meta):
+                try:
+                    self.memory.remember(msg, cevap, mem_meta)
+                except Exception:
+                    pass
+
+            self._save_chat(msg, cevap, q, bool(research))
+            return cevap
+
+        except Exception as e:
+            # Son sigorta: chat() hiçbir koşulda None döndürmemeli.
+            fallback = f"Efendim, konuşma akışında beklenmeyen bir hata oluştu: {str(e)[:120]}"
+            try:
+                self._add_history(msg, fallback)
+                self._save_chat(msg, fallback, q=3, r=False)
+            except Exception:
+                pass
+            return fallback
+
+    def _should_remember(self, msg: str, answer: str = "", meta: dict | None = None) -> bool:
+        """
+        Uzun süreli hafızaya ne yazılacağına karar verir.
+        Amaç: test, dosya arama, geçici web sonucu ve debug çıktılarıyla hafızayı kirletmemek.
+        """
+        m = (msg or "").lower().strip()
+        meta = meta or {}
+
+        blocked_terms = [
+            "test_jarvis_tools",
+            "test et",
+            "deneme",
+            "debug",
+            "hata",
+            "traceback",
+            "proje dosyaları",
+            "dosyaları listele",
+            "klasör ağacı",
+            "projede",
+            "proje içinde",
+            "nerede geçiyor",
+            "dosyasını oku",
+            ".py",
+            ".json",
+            ".txt",
+            "kaç tane def",
+            "kaç tane elif",
+            "kaç tane class",
+            "kaç tane import",
+        ]
+
+        if any(t in m for t in blocked_terms):
+            return False
+
+        blocked_types = {
+            "file_tool",
+            "command",
+            "web_research_safe",
+            "debug",
+            "test",
+        }
+
+        if meta.get("type") in blocked_types:
+            return False
+
+        if meta.get("researched") is True:
+            return False
+
+        remember_terms = [
+            "bunu hatırla",
+            "bunu unutma",
+            "aklında tut",
+            "kaydet",
+            "not al",
+            "bundan sonra",
+            "ileride",
+        ]
+
+        if any(t in m for t in remember_terms):
+            return True
+
+        durable_terms = [
+            "benim adım",
+            "ismim",
+            "seviyorum",
+            "sevmiyorum",
+            "kullanıyorum",
+            "tercihim",
+            "benim için önemli",
+            "projemin amacı",
+            "hedefim",
+            "sistemim",
+            "donanımım",
+        ]
+
+        if any(t in m for t in durable_terms):
+            return True
+
+        if len(m) < 25:
+            return False
+
+        return False
+
+    def _handle_explicit_memory(self, msg: str):
+        """
+        Kullanıcı açıkça 'bunu hatırla / kaydet / not al' derse
+        LLM'e bırakmadan doğrudan uzun hafızaya yazar.
+        """
+        original = msg or ""
+        m = original.lower().strip()
+
+        remember_terms = [
+            "bunu hatırla",
+            "bunu unutma",
+            "aklında tut",
+            "kaydet",
+            "not al",
+        ]
+
+        if not any(t in m for t in remember_terms):
+            return None
+
+        clean_msg = original.strip()
+        for phrase in remember_terms:
+            clean_msg = re.sub(re.escape(phrase), "", clean_msg, flags=re.IGNORECASE)
+
+        clean_msg = clean_msg.replace(":", " ").replace(",", " ").strip()
+        clean_msg = re.sub(r"\s+", " ", clean_msg)
+
+        if not clean_msg:
+            clean_msg = original.strip()
+
+        answer = f"Kaydettim efendim: {clean_msg}"
+
         if self.memory:
-            self.memory.remember(msg, cevap, {
-                "researched": bool(research), "confidence": conf,
-                "topic": thinking.get("topic", "")
-            })
+            try:
+                self.memory.remember(
+                    original,
+                    answer,
+                    {
+                        "type": "explicit_memory",
+                        "importance": "high",
+                    },
+                )
+            except Exception:
+                pass
 
-        q = 5
-        if research: q = 7
-        if "bilmiyorum" in cevap.lower() or "araştır" in cevap.lower():
-            q = max(q, 6)
-            # ✨ Faz 1: Memory Scorer ile gerçek puan
-        if getattr(self, 'scorer', None):
-            q = self.scorer.score(msg, cevap)
-        self._save_chat(msg, cevap, q, bool(research))
-        return cevap
+        self._add_history(original, answer)
+        self._save_chat(original, answer, q=9, r=False)
+        return answer
 
     def _add_history(self, u, j):
         self.history.append({"role": "user", "content": u})
         self.history.append({"role": "assistant", "content": j})
+
         if len(self.history) > 20:
             self.history = self.history[-20:]
 
     def analyze_document(self, file_path, question=None):
-        """Dokümanı oku ve analiz et"""
+        """
+        Dokümanı oku ve analiz et.
+        """
         summary = DocumentReader.summary(file_path, max_chars=4000)
+
         if "error" in str(summary).lower():
             return summary
+
         q = question or "Bu dokümanı özetle ve ana noktaları çıkar."
+
         prompt = f"""Aşağıdaki doküman içeriğini analiz et.
 
 DOKÜMAN:
 {summary}
 
-GÖREV: {q}
+GÖREV:
+{q}
 
 Türkçe, net, kısa cevap ver."""
+
         try:
             r = requests.post(
                 "http://localhost:11434/api/generate",
-                json={"model": self.MODEL, "prompt": prompt,
-                      "stream": False,
-                      "options": {"temperature": 0.4, "num_predict": 500}},
-                timeout=180)
+                json={
+                    "model": self.MODEL,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.2,
+                        "num_predict": 500,
+                    },
+                },
+                timeout=180,
+            )
+
             return r.json().get("response", "").strip()
+
         except Exception as e:
             return f"Analiz hatası: {e}"

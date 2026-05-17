@@ -1,8 +1,0 @@
-[
-  {
-    "date": "2026-05-11",
-    "summary": "JARVIS ve kullanıcının Türkçe konuşmaları hakkında bir özet:\n\n1. **Ana Konular:**\n   - Grafen + B4C + Ti3SiC2 üçlüsü üzerine araştırma yapma\n   - SPS yöntemiyle Grafen ve MAX fazı sentezinin teknik zorlukları\n   - Ti3SiC2 ve B4C arasındaki ötektik reaksiyon sıcaklığını analiz etme\n   - Grafen katmanlarının korunması için viskoz akış hızını hesaplama\n   - Dislokasyon duvarları oluşumu ve kinetik enerji sönümleme mekanizması üzerine modelleme\n\n2. **Öğrenilen Şeyler:**\n   - Grafen'in ve MAX fazı sentezinin kontrolü zor olduğu gözlemlendi.\n   - SPS yönteminde elektrik akımıyla üretilen ısı kontrol etmeyi kolaylaştırmak için otomatik sistem kullanılabilir.\n   - Grafen katmanlarının termal bozulmaya uğramaması için akım yoğunluğu en fazla 50 mA/cm² olmalıdır.\n   - Ti3SiC2 ve B4C arasındaki ötektik reaksiyon sıcaklığı yaklaşık olarak 1600 °C'dir.\n   - Grafen katmanlarının korunması için viskoz akış hızını hesaplama yapıldı.\n\n3. **Sonraki Adım Önerileri:**\n   - Deneysel çalışmalar yapılarak en uygun değerler belirlenmelidir.\n   - Malzemenin viskoelastik faza geçtiği dar aralığı belirlemek için deneysel çalışmalar yapılmalıdır.\n   - Dislokasyon duvarları oluşumu ve kinetik enerji sönümleme mekanizması üzerine modelleme işlemini başlatılması gerekiyor",
-    "count": 71,
-    "generated": "2026-05-11T23:01:50.637708"
-  }
-]

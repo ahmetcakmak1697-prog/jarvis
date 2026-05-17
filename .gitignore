@@ -1,0 +1,79 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+
+# Local databases / vector stores
+memory/chroma_db/
+*.sqlite-shm
+*.sqlite-wal
+
+# Checkpoints / backups
+*.zip
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Additional runtime data
+data/chroma_db/
+data/rag/*.sqlite*
+data/rag/*.db
+rag/**/*.sqlite*
+rag/**/*.db
+
+# Python cache anywhere
+**/__pycache__/
+**/*.pyc
+
+# Local JARVIS runtime/export folders
+jarvis_data/
+jarvis_snapshot_export/
+jarvis_venv/
+
+# Runtime memory and personal data
+memory/*.json
+memory/*.db
+memory/*.sqlite*
+memory/*.bin
+
+# Training/runtime data
+training/*.jsonl
+training/*.json
+training/__pycache__/
+
+# Temporary maintenance scripts
+patch_*.py
+inspect_*.py
+test_*.py
+
+# Agent legacy/runtime cache
+agent/__pycache__/
+agents/__pycache__/
+mcp/__pycache__/
+memory/__pycache__/
+rag/__pycache__/
+voice/__pycache__/
