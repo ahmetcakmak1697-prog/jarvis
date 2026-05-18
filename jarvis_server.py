@@ -864,6 +864,7 @@ LOGIN_UI = """
 <!DOCTYPE html>
 <html lang="tr">
 <head>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>JARVIS Secure Access</title>
@@ -1043,6 +1044,7 @@ html,body{
     transform:translate(-50%, 0%);
   }
 }
+
 </style>
 </head>
 <body>
@@ -1565,6 +1567,7 @@ def _avg_score(cs):
 UI = """<!DOCTYPE html>
 <html lang="tr">
 <head>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>JARVIS v5</title>
@@ -2921,6 +2924,502 @@ html,body,.app{overflow:hidden!important}
 .security-actions a:hover{border-color:rgba(92,224,255,.42);background:rgba(0,234,255,.08)}
 #security-line{max-height:none!important}
 
+
+/* B2.7A Mobile Hotfix - iPhone 14 Pro usable layout */
+@media (max-width: 932px) {
+  html,
+  body {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  .app {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow: visible !important;
+  }
+
+  .brand {
+    padding: 10px 6px 8px !important;
+    transform: scale(0.74) !important;
+    transform-origin: center top !important;
+  }
+
+  .layout {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 8px !important;
+  }
+
+  .col,
+  .left-stack,
+  .right-stack,
+  .mid-stack {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding-right: 0 !important;
+  }
+
+  .left-stack {
+    order: 1 !important;
+  }
+
+  .mid-stack {
+    order: 2 !important;
+  }
+
+  .right-stack {
+    order: 3 !important;
+  }
+
+  .panel-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    border-radius: 14px !important;
+  }
+
+  .card-title {
+    min-height: 34px !important;
+    padding: 9px 10px 7px !important;
+    font-size: 10px !important;
+    gap: 8px !important;
+  }
+
+  .card-body {
+    padding: 10px !important;
+  }
+
+  .core-card {
+    height: 210px !important;
+    min-height: 210px !important;
+  }
+
+  .core-wrap {
+    width: 180px !important;
+    height: 180px !important;
+  }
+
+  .core-dot {
+    width: 54px !important;
+    height: 54px !important;
+  }
+
+  .mid-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .command-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .command-grid button {
+    min-width: 0 !important;
+    min-height: 58px !important;
+    padding: 8px 6px !important;
+    font-size: 10px !important;
+    line-height: 1.25 !important;
+  }
+
+  .advanced-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .weather-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .metric-row {
+    grid-template-columns: 48px 1fr 38px !important;
+    gap: 7px !important;
+    font-size: 11px !important;
+  }
+
+  .info-line {
+    font-size: 11px !important;
+    gap: 8px !important;
+  }
+
+  .pretext,
+  .muted {
+    font-size: 11px !important;
+    line-height: 1.35 !important;
+    word-break: break-word !important;
+  }
+
+  .timeline-row {
+    grid-template-columns: 42px 1fr !important;
+    font-size: 11px !important;
+  }
+
+  .footer {
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 50 !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    padding: 8px !important;
+    background: rgba(0, 8, 18, 0.94) !important;
+    backdrop-filter: blur(10px) !important;
+  }
+
+  .status {
+    width: 100% !important;
+    max-width: 100% !important;
+    font-size: 10px !important;
+    white-space: nowrap !important;
+  }
+
+  .input-shell {
+    grid-column: 1 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    justify-self: stretch !important;
+    min-height: 46px !important;
+    gap: 6px !important;
+    padding: 5px !important;
+    border-radius: 15px !important;
+  }
+
+  .input-brand {
+    min-width: 62px !important;
+    padding: 0 8px !important;
+    font-size: 10px !important;
+  }
+
+  #msg {
+    min-width: 0 !important;
+    width: 100% !important;
+    font-size: 12px !important;
+  }
+
+  .mic-btn {
+    width: 48px !important;
+    min-width: 48px !important;
+    padding: 0 !important;
+    font-size: 10px !important;
+  }
+
+  .send-btn {
+    min-width: 58px !important;
+    padding: 0 10px !important;
+    font-size: 10px !important;
+  }
+}
+
+
+
+
+/* B2.7A Mobile Force Layout - bypass media query issues */
+html.mobile-layout,
+html.mobile-layout body {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 100vh !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  box-sizing: border-box !important;
+}
+
+html.mobile-layout * {
+  box-sizing: border-box !important;
+}
+
+html.mobile-layout .app {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 100vh !important;
+  overflow: visible !important;
+}
+
+html.mobile-layout .brand {
+  padding: 10px 8px 8px !important;
+  transform: scale(0.74) !important;
+  transform-origin: center top !important;
+}
+
+html.mobile-layout .layout {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+  padding: 8px !important;
+  gap: 10px !important;
+}
+
+html.mobile-layout .col,
+html.mobile-layout .left-stack,
+html.mobile-layout .mid-stack,
+html.mobile-layout .right-stack {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding-right: 0 !important;
+  gap: 10px !important;
+}
+
+html.mobile-layout .left-stack { order: 1 !important; }
+html.mobile-layout .mid-stack { order: 2 !important; }
+html.mobile-layout .right-stack { order: 3 !important; }
+
+html.mobile-layout .panel-card {
+  position: relative !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: hidden !important;
+  border-radius: 14px !important;
+}
+
+html.mobile-layout .card-title {
+  min-height: 34px !important;
+  padding: 9px 10px 7px !important;
+  font-size: 10px !important;
+  line-height: 1.25 !important;
+  gap: 8px !important;
+  white-space: normal !important;
+}
+
+html.mobile-layout .card-body {
+  position: relative !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 10px !important;
+}
+
+html.mobile-layout .core-card {
+  height: 210px !important;
+  min-height: 210px !important;
+  max-height: 230px !important;
+}
+
+html.mobile-layout .core-wrap {
+  width: 180px !important;
+  height: 180px !important;
+}
+
+html.mobile-layout .core-dot {
+  width: 54px !important;
+  height: 54px !important;
+}
+
+html.mobile-layout .mid-grid {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 10px !important;
+}
+
+html.mobile-layout .command-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+
+html.mobile-layout .command-grid button {
+  min-width: 0 !important;
+  min-height: 58px !important;
+  font-size: 10px !important;
+  line-height: 1.25 !important;
+  padding: 8px 6px !important;
+}
+
+html.mobile-layout .advanced-grid,
+html.mobile-layout .weather-strip {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+
+/* Kart i?i yaz? bindirmelerini engelle */
+html.mobile-layout .info-line {
+  display: grid !important;
+  grid-template-columns: minmax(70px, auto) 1fr !important;
+  align-items: start !important;
+  gap: 8px !important;
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+  white-space: normal !important;
+}
+
+html.mobile-layout .info-line b,
+html.mobile-layout .info-line span,
+html.mobile-layout .pretext,
+html.mobile-layout .muted {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+  line-height: 1.35 !important;
+}
+
+html.mobile-layout .pretext,
+html.mobile-layout .muted {
+  font-size: 11px !important;
+}
+
+html.mobile-layout .timeline-row {
+  display: grid !important;
+  grid-template-columns: 44px 1fr !important;
+  gap: 8px !important;
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+}
+
+html.mobile-layout .metric-row {
+  display: grid !important;
+  grid-template-columns: 54px 1fr 34px !important;
+  gap: 7px !important;
+  align-items: center !important;
+  font-size: 11px !important;
+  line-height: 1.25 !important;
+}
+
+html.mobile-layout .bar {
+  min-width: 0 !important;
+}
+
+/* Footer art?k sabit de?il: sayfayla beraber akar */
+html.mobile-layout .footer {
+  position: relative !important;
+  bottom: auto !important;
+  left: auto !important;
+  right: auto !important;
+  z-index: 1 !important;
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  grid-auto-rows: auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 8px !important;
+  gap: 8px !important;
+  margin-top: 10px !important;
+  background: rgba(0, 8, 18, 0.88) !important;
+  backdrop-filter: none !important;
+}
+
+html.mobile-layout .status {
+  grid-column: 1 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  font-size: 11px !important;
+  line-height: 1.25 !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  overflow-wrap: anywhere !important;
+}
+
+html.mobile-layout .input-shell {
+  grid-column: 1 !important;
+  display: grid !important;
+  grid-template-columns: 72px 1fr 54px 70px !important;
+  align-items: center !important;
+  gap: 6px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  min-height: 52px !important;
+  padding: 6px !important;
+  border-radius: 15px !important;
+}
+
+html.mobile-layout .input-brand {
+  min-width: 0 !important;
+  width: 72px !important;
+  height: 38px !important;
+  padding: 0 6px !important;
+  border-radius: 13px !important;
+}
+
+html.mobile-layout .input-brand-text {
+  font-size: 9px !important;
+  letter-spacing: 0.14em !important;
+}
+
+html.mobile-layout #msg {
+  min-width: 0 !important;
+  width: 100% !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
+  resize: none !important;
+  overflow: hidden !important;
+  font-size: 11px !important;
+  line-height: 1.25 !important;
+  padding: 7px 8px !important;
+}
+
+html.mobile-layout .mic-btn {
+  width: 54px !important;
+  min-width: 54px !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  font-size: 10px !important;
+  padding: 0 !important;
+  border-radius: 13px !important;
+}
+
+html.mobile-layout .send-btn {
+  width: 70px !important;
+  min-width: 70px !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  font-size: 10px !important;
+  padding: 0 !important;
+  border-radius: 13px !important;
+}
+
+
 </style>
 </head>
 <body>
@@ -3730,6 +4229,24 @@ if(document.readyState === 'loading'){
   boot();
 }
 setTimeout(boot, 300);
+</script>
+
+
+<script>
+(function(){
+  function applyMobileLayout(){
+    var isMobileWidth = window.innerWidth <= 932;
+    var isIPhone = /iPhone|iPod/i.test(navigator.userAgent || "");
+    if(isMobileWidth || isIPhone){
+      document.documentElement.classList.add("mobile-layout");
+    } else {
+      document.documentElement.classList.remove("mobile-layout");
+    }
+  }
+  applyMobileLayout();
+  window.addEventListener("resize", applyMobileLayout);
+  window.addEventListener("orientationchange", applyMobileLayout);
+})();
 </script>
 
 </body>
