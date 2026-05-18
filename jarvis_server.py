@@ -3548,11 +3548,19 @@ function loadProactiveStatus(){
       setText('jarvis-comment', system.line || briefing.text || 'Durum analizi hazir.');
       setText('risk-card', security.line || 'Belirgin risk yok.');
 
+    var recentTasks = Array.isArray(tasks.recent)
+      ? tasks.recent.slice(-4).map(function(t){
+          var mark = (t.status === 'done' || t.status === 'completed') ? 'OK' : 'FAIL';
+          return mark + ' ' + (t.type || 'task') + ' ' + (t.status || '-');
+        }).join(' | ')
+      : 'yok';
+
       setText(
         'today-card',
         (p.date || '--') + ' / ' + (p.time || '--') +
         NL + 'Proaktif cekirdek: ' + (p.version || '--') +
-        NL + 'Gorevler: bekleyen ' + (tasks.pending || 0) + ', tamamlanan ' + (tasks.completed || 0)
+        NL + 'Gorevler: bekleyen ' + (tasks.pending || 0) + ', tamamlanan ' + (tasks.completed || 0) +
+      NL + 'Son gorevler: ' + recentTasks
       );
 
       var hint = el('jarvis-hint');
