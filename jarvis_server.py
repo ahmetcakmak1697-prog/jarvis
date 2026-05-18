@@ -3466,7 +3466,8 @@ function loadPanel(){
     setText('today-card', (today.date || '--') + ' / ' + (today.weekday || '--') + '\\nÖnemli günler: ' + important + '\\n' + (today.jarvis_note || ''));
 
     setText('rec-card', (rec.title || 'Öneri') + '\\n' + (rec.text || '') + '\\nEylem: ' + (rec.action || '--'));
-    setText('suggested-action', rec.action || 'Önerim hazır');
+    var taskLine = 'Görev: bekleyen ' + (tasks.pending || 0) + ' / çalışan ' + (tasks.running ? 1 : 0) + ' / hata ' + (tasks.failed || 0);
+    setText('suggested-action', taskLine);
 
     setText('web-credit', val(web.remaining, '--') + '/' + val(web.limit, '1000'));
     setText('web-cache', web.cache_status || 'Aktif');
