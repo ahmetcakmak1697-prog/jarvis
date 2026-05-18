@@ -3571,13 +3571,13 @@ function loadProactiveStatus(){
 
 
 function addDashboardTask(kind){
-  var label = kind || 'panel_task';
+  var label = kind || 'health_check';
   return fetch('/api/tasks/add', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
-      type: 'echo',
-      params: {message: 'Panel gorevi tetiklendi: ' + label},
+      type: label,
+      params: {},
       priority: 5
     })
   })
