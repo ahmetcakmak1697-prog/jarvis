@@ -124,6 +124,18 @@ except Exception as e:
 
 app = FastAPI(title="JARVIS API v5")
 proactive_core = ProactiveCore()
+
+task_executor = TaskExecutor()
+
+def _task_echo_handler(message: str = "Task OK", **kwargs):
+    return {
+        "ok": True,
+        "message": message,
+        "extra": kwargs,
+    }
+
+task_executor.register("echo", _task_echo_handler)
+
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_methods=["*"], allow_headers=["*"])
 
@@ -1175,6 +1187,75 @@ async def healthz():
         "version": "v5",
         "message": "JARVIS çekirdeği çevrimiçi."
     }
+
+
+
+
+@app.get("/api/tasks/status")
+async def api_tasks_status():
+    try:
+        return {
+            "ok": True,
+            "tasks": task_executor.status(),
+        }
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e)[:200],
+        }
+
+
+@app.post("/api/tasks/start")
+async def api_tasks_start():
+    try:
+        task_executor.start()
+        return {
+            "ok": True,
+            "message": "Task worker baslatildi.",
+            "tasks": task_executor.status(),
+        }
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e)[:200],
+        }
+
+
+@app.post("/api/tasks/stop")
+async def api_tasks_stop():
+    try:
+        task_executor.stop()
+        return {
+            "ok": True,
+            "message": "Task worker durduruldu.",
+            "tasks": task_executor.status(),
+        }
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e)[:200],
+        }
+
+
+@app.post("/api/tasks/add")
+async def api_tasks_add(payload: dict):
+    try:
+        task_type = str(payload.get("type", "echo"))
+        params = payload.get("params") or {}
+        priority = int(payload.get("priority", 5))
+
+        task_id = task_executor.add(task_type, params, priority)
+
+        return {
+            "ok": True,
+            "task_id": task_id,
+            "tasks": task_executor.status(),
+        }
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e)[:200],
+        }
 
 
 @app.get("/api/proactive-status")
