@@ -178,6 +178,59 @@ class TaskReq(BaseModel):
     priority: int = 5
 
 
+
+ALLOWED_TASK_TYPES = {
+    "health_check",
+    "self_test",
+    "project_status",
+    "memory_summary",
+}
+
+
+def _validate_task_payload(task_type, params, priority):
+    task_type = str(task_type or "").strip()
+
+    if task_type not in ALLOWED_TASK_TYPES:
+        return False, {
+            "ok": False,
+            "error": "Task type izinli degil.",
+            "type": task_type,
+            "allowed": sorted(ALLOWED_TASK_TYPES),
+        }
+
+    if params is None:
+        params = {}
+
+    if not isinstance(params, dict):
+        return False, {
+            "ok": False,
+            "error": "Task params dict olmali.",
+            "type": task_type,
+        }
+
+    try:
+        priority = int(priority)
+    except Exception:
+        return False, {
+            "ok": False,
+            "error": "Task priority sayi olmali.",
+            "type": task_type,
+        }
+
+    if priority < 1 or priority > 10:
+        return False, {
+            "ok": False,
+            "error": "Task priority 1-10 araliginda olmali.",
+            "type": task_type,
+        }
+
+    return True, {
+        "type": task_type,
+        "params": params,
+        "priority": priority,
+    }
+
+
 class SkillReq(BaseModel):
     name: str
     triggers: list
@@ -1240,11 +1293,20 @@ async def api_tasks_stop():
 @app.post("/api/tasks/add")
 async def api_tasks_add(payload: dict):
     try:
-        task_type = str(payload.get("type", "echo"))
-        params = payload.get("params") or {}
-        priority = int(payload.get("priority", 5))
+        ok, checked = _validate_task_payload(
+            payload.get("type"),
+            payload.get("params"),
+            payload.get("priority", 5),
+        )
 
-        task_id = task_executor.add(task_type, params, priority)
+        if not ok:
+            return checked
+
+        task_id = task_executor.add(
+            checked["type"],
+            checked["params"],
+            checked["priority"],
+        )
 
         return {
             "ok": True,
@@ -1316,8 +1378,21 @@ async def latest_imp():
 
 @app.post("/task")
 async def add_task(req: TaskReq):
-    tid = tasks.add(req.type, req.params, req.priority)
-    return {"task_id": tid}
+    ok, checked = _validate_task_payload(req.type, req.params, req.priority)
+
+    if not ok:
+        return checked
+
+    tid = tasks.add(
+        checked["type"],
+        checked["params"],
+        checked["priority"],
+    )
+
+    return {
+        "ok": True,
+        "task_id": tid,
+    }
 
 
 @app.get("/tasks/status")
