@@ -1,237 +1,559 @@
-# 🤖 JARVIS v5 — OPERATION OVERMIND
-
-> Iron Man'in JARVIS'i tarzında, **%100 lokal**, sürekli öğrenen, proaktif AI asistan.
-> Türkçe konuşur, hallucination yapmaz, bilmediğini araştırır, sen uyurken çalışır.
-
----
-
-## 🎯 ÖZELLİKLER (22 + 1 ekstra)
-
-### Beyin
-- 🧠 **Multi-step reasoning** — Düşün → Araştır → Cevapla
-- 🚫 **Hallucination shield** — Bilmediğini söyler, asla uydurmaz
-- 🎯 **Confidence-aware** — Güven skorla, düşükse araştır
-- 💾 **Vector memory** (ChromaDB) — Geçmişi anlamca hatırlar
-
-### Araştırma
-- 🌐 **Multi-source** — Wikipedia (TR/EN) + Google + DuckDuckGo + ArXiv
-- 📚 **Cache** — Aynı soruyu iki kez aramaz
-
-### Doküman
-- 📄 **PDF/Excel/Word/CSV oku** — Yükle, sor, analiz al
-- 📝 **Excel/Word/PDF üret** — Rapor hazırlatabilirsin
-
-### Ses
-- 🎤 **Whisper (local)** — Mikrofona Türkçe konuş
-- 🔊 **Edge-TTS** — Türkçe sesli cevap
-
-### Otonom
-- 🌅 **Sabah brifingi** (08:00 otomatik)
-- 🌙 **Akşam özeti** (22:00 otomatik)
-- 🧪 **Gece curation** (02:00 — verileri puanlar)
-- 🔍 **Self-improvement** — Saatlik zayıflık analizi
-- 📊 **Günlük özet** (23:00 — günü özetler)
-
-### Görev & Skill
-- ⚙️ **Task Queue** — Paralel görev kuyruğu
-- 📚 **Skill Library** — Tekrarlanan işleri öğrenir
-
-### Sistem
-- 🔧 **Health Monitor** — Düşerse kendini onarır
-- 🌐 **Web UI + API** — Telefondan da kullan
-- 🚀 **Tek komut çalıştırma** — `python auto_runner.py`
-
----
-
-## 🚀 KURULUM (5 dakika)
-
-### 1. Eski klasörü yedekle
-```powershell
-Copy-Item C:\Users\Ahmedov\Desktop\Jarvis\jarvis -Destination C:\Users\Ahmedov\Desktop\Jarvis\jarvis_BACKUP -Recurse
-```
-
-### 2. Yeni dosyaları yerleştir
-ZIP'i aç, içindekileri `C:\Users\Ahmedov\Desktop\Jarvis\jarvis\` içine kopyala.
-**Üzerine yaz** dediğinde **Evet**.
-
-### 3. Setup'ı çalıştır
-```powershell
 cd C:\Users\Ahmedov\Desktop\Jarvis\jarvis
-.\venv\Scripts\Activate.ps1
-python setup.py
-```
 
-### 4. Ollama hazır mı?
-```powershell
-ollama list
-# mistral-nemo:latest görmelisin. Yoksa:
-ollama pull mistral-nemo
-```
+Compress-Archive -Path .\README.md, .\BOOT_CHECK.md -DestinationPath .\jarvis_checkpoint_B1_6_before_docs_update.zip -Force
+Test-Path .\jarvis_checkpoint_B1_6_before_docs_update.zip
 
----
+$readme = @'
+# JARVIS v5 - Operation Overmind
 
-## ▶️ ÇALIŞTIRMA
+JARVIS v5; lokal calisan, web paneli olan, hafiza kullanan ve proaktif durum servisi bulunan kisisel AI asistan projesidir.
 
-### Tek komut, her şey 7/24 (önerilen)
-```powershell
-python auto_runner.py
-```
-Bu komut:
-- Server'ı başlatır (port 8000)
-- Ngrok başlatır (dünyaya açar)
-- Scheduler aktive eder (sabah/akşam brifing, gece curation)
-- Health monitor çalışır (5 dakikada bir kontrol)
+Bu sistem B1 hattindan sonra daha stabil hale getirildi:
 
-### Sadece web server
-```powershell
-python jarvis_server.py
-```
-
-### Dashboard görmek için
-```powershell
-python training/dashboard.py
-```
+- Guvenli login ve session sistemi
+- WebSocket auth korumasi
+- ProactiveCore merkezi durum servisi
+- Gercek sistem durumu: CPU, RAM, disk, GPU, VRAM, sicaklik
+- Gercek guvenlik durumu: hatali girisler, aktif session, bloklu IP
+- Gercek task snapshot: bekleyen, calisan, tamamlanan, hatali gorevler
+- Dashboard kartlari ProactiveCore verisine baglandi
+- Auto Runner onarildi
+- Smoke test paketi eklendi
 
 ---
 
-## 🎮 KULLANIM
+## 1. Yeni terminal acinca ilk komut
 
-### Web arayüzü
-- **Sohbet sekmesi**: Yaz veya 🎤 ile konuş
-- **Brifing sekmesi**: Sabah/akşam özetleri
-- **Doküman sekmesi**: PDF/Excel/Word yükle, soru sor
-- **Durum sekmesi**: Tüm istatistikler, JARVIS'in sana sorduğu şeyler
+Her yeni PowerShell veya VS Code Terminal acildiginda once proje klasorune girilir.
 
-### Komut satırı
-```powershell
-# Curation manuel
-python training/data_curator.py --once
+TERMINALE YAZ:
 
-# Dashboard
-python training/dashboard.py
-
-# Format migration
-python training/migrate_format.py
-
-# Günlük özet
-python training/conversation_summarizer.py
-```
-
-### API endpoints (programatik)
-- `POST /chat` — `{message: "..."}` → cevap
-- `POST /speak` — Metin → MP3
-- `POST /transcribe` — Audio → Metin (Whisper)
-- `POST /upload_doc` — Dosya analizi
-- `GET /briefing/morning` — Sabah brifingi
-- `GET /briefing/evening` — Akşam özeti
-- `POST /reminder` — Hatırlatma ekle
-- `POST /task` — Görev kuyruğa
-- `GET /improvement/analyze` — Zayıflık analizi
-- `GET /skills` — Skill listesi
+    cd C:\Users\Ahmedov\Desktop\Jarvis\jarvis
 
 ---
 
-## 🔧 SORUN ÇÖZME
+## 2. Server baslatma
 
-### "ChromaDB yok"
-```powershell
-pip install chromadb
-```
+JARVIS web panelini acmak icin server baslatilir.
 
-### "TTS çalışmıyor"
-```powershell
-pip install edge-tts
-```
+TERMINALE YAZ:
 
-### "Whisper yok"
-```powershell
-pip install faster-whisper
-```
+    python jarvis_server.py
 
-### Server başlamıyor (port 8000 dolu)
-```powershell
-Get-Process python | Stop-Process -Force
-python jarvis_server.py
-```
+Beklenen cikti:
 
-### Ngrok hatası
-```powershell
-Get-Process ngrok | Stop-Process -Force
-python jarvis_server.py
-```
-
-### Database hatası ("table chats has no column...")
-```powershell
-Remove-Item memory\jarvis_memory.db
-python jarvis_server.py
-```
+    JARVIS v5 - OPERATION OVERMIND
+    PC: http://localhost:8000
+    WiFi: http://192.168.1.4:8000
 
 ---
 
-## 📊 NASIL ÖĞRENİYOR?
+## 3. Paneli acma
 
-```
-Sen konuşuyorsun
-  ↓
-JARVIS kayıt eder (conversations.json + ChromaDB)
-  ↓
-Gece 02:00: Otomatik puanlama (kalite skoru 1-10)
-  ↓
-Yüksek puanlılar (≥7) → train_data.jsonl
-  ↓
-Saatlik: Self-improvement zayıflık tespiti
-  ↓
-Veri 50+ olunca: Fine-tuning hazır (donanım upgrade'inde)
-```
+Server calisirken panel tarayicidan acilir.
+
+TARAYICIYA YAZ:
+
+    http://localhost:8000
+
+Ayni WiFi agindaki baska cihazdan acmak icin:
+
+    http://192.168.1.4:8000
+
+Not: Login icin dogrudan /login adresine gitme. Ana panel adresini ac, sifreyi panelden gir.
 
 ---
 
-## 🎯 ROADMAP
+## 4. Health kontrolu
 
-- [x] v1: Temel chat
-- [x] v2: Sistem komutu + araştırma
-- [x] v3: Database + öğrenme
-- [x] v4: Hallucination shield
-- [x] **v5: 22 özellik tam paket** ← BURADAYIZ
-- [ ] v6: Fine-tuning (2x3090 ile)
-- [ ] v7: Kamera/görsel (LLaVA)
-- [ ] v8: Akıllı ev (Home Assistant)
+Server gercekten ayakta mi diye kontrol etmek icin /healthz endpointi kullanilir.
 
----
+TERMINALE YAZ:
 
-## 📂 DOSYA YAPISI
+    Invoke-RestMethod -Uri http://127.0.0.1:8000/healthz
 
-```
-jarvis/
-├── jarvis_brain.py              ⭐ Ana beyin
-├── jarvis_server.py             🌐 Web server
-├── auto_runner.py               🚀 7/24 orkestrator
-├── setup.py                     📦 Kurulum
-├── requirements.txt             📋 Bağımlılıklar
-├── README.md                    📖 Bu dosya
-├── tools/
-│   ├── web_research.py          🌐 Multi-source araştırma
-│   ├── vector_memory.py         🧠 Anlamsal hafıza
-│   ├── document_reader.py       📄 PDF/Excel/Word okur
-│   ├── document_writer.py       📝 Rapor üretir
-│   ├── voice_io.py              🎤 Whisper + TTS
-│   ├── browser_agent.py         🌐 Web kontrolü
-│   └── system_control.py        💻 (mevcut)
-├── agents/
-│   ├── self_improver.py         🔍 Zayıflık tespit
-│   ├── proactive_agent.py       🌅 Brifing
-│   ├── task_executor.py         ⚙️ Görev kuyruğu
-│   └── skill_library.py         📚 Skill öğrenme
-└── training/
-    ├── quality_evaluator.py     ⭐ Otomatik puanlama
-    ├── data_curator.py          🌙 Gece curation
-    ├── dashboard.py             📊 Görsel rapor
-    ├── migrate_format.py        🔄 Eski veri çevir
-    └── conversation_summarizer.py 📝 Günlük özet
-```
+Beklenen cikti:
+
+    ok      : True
+    service : jarvis
+    server  : online
+    auth    : enabled
+    version : v5
 
 ---
 
-**Sahibi:** Ahmet Fırat
-**Versiyon:** 5.0 — OPERATION OVERMIND
-**Donanım:** RTX 3070 (8GB) — Mistral-Nemo 12B Q4
+## 5. Smoke test
+
+Sistemin temel parcalari bozulmus mu diye smoke test calistirilir.
+
+TERMINALE YAZ:
+
+    python .\tests\run_smoke_suite.py
+
+Beklenen sonuc:
+
+    A5 smoke OK
+    Efendim, temel sistem butunlugu dogrulandi.
+
+---
+
+## 6. Proactive status
+
+Proactive status, JARVIS panelinin merkezi durum verisidir.
+
+Bu veri su bloklari icerir:
+
+    briefing
+    weather
+    music
+    security
+    system
+    suggestion
+    tasks
+
+Once panele giris yap:
+
+TARAYICIYA YAZ:
+
+    http://localhost:8000
+
+Sonra proactive status ac:
+
+TARAYICIYA YAZ:
+
+    http://localhost:8000/api/proactive-status
+
+Not: Bu URL PowerShell'e duz yazilmaz. Tarayiciya yazilir.
+
+---
+
+## 7. Sistem durumu testi
+
+CPU, RAM, disk, GPU, VRAM ve sicaklik verisi bu testle okunur.
+
+TERMINALE YAZ:
+
+    python -c "from tools.system_intelligence import get_system_status, get_health_score; import json; s=get_system_status(); h=get_health_score(s); print(json.dumps({'system':s,'health':h}, ensure_ascii=False, indent=2))"
+
+Beklenen alanlar:
+
+    cpu_percent
+    ram
+    disk
+    gpu
+    health
+
+---
+
+## 8. Guvenlik durumu testi
+
+Login denemeleri, aktif session ve bloklu IP bilgileri bu testle okunur.
+
+TERMINALE YAZ:
+
+    python .\tools\security_snapshot.py
+
+Beklenen alanlar:
+
+    level
+    shield
+    failed_login_24h
+    failed_login_total
+    blocked_ips
+    active_sessions
+    line
+
+---
+
+## 9. Task durumu testi
+
+Gorev kuyrugu ve gecmis gorevler bu testle okunur.
+
+TERMINALE YAZ:
+
+    python .\tools\task_snapshot.py
+
+Beklenen alanlar:
+
+    pending
+    running
+    completed
+    failed
+    recent
+    line
+
+---
+
+## 10. Auto Runner
+
+Auto Runner, JARVIS'in arka planda uzun sureli calismasi icin kullanilir.
+
+TERMINALE YAZ:
+
+    cd C:\Users\Ahmedov\Desktop\Jarvis\jarvis
+    python auto_runner.py
+
+Beklenen cikti:
+
+    JARVIS Auto Runner baslatildi.
+    Server zaten calisiyor. Yeni instance baslatilmadi.
+    Auto Runner aktif. Durdurmak icin Ctrl+C.
+
+Kapatmak icin terminale tikla ve Ctrl+C yap.
+
+Kapanmazsa auto_runner processini bul:
+
+    Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like "*auto_runner.py*" } | Select-Object ProcessId, CommandLine
+
+PID ile kapat:
+
+    taskkill /PID PID_NUMARASI /F
+
+---
+
+## 11. Port kontrolu
+
+Port 8000 dolu mu diye bakilir.
+
+TERMINALE YAZ:
+
+    netstat -ano | findstr :8000
+
+Eger LISTENING gorunuyorsa server calisiyordur.
+
+Kapatmak icin:
+
+    taskkill /PID PID_NUMARASI /F
+
+---
+
+## 12. Sik yapilan hata: URL'yi terminale yazmak
+
+Yanlis:
+
+    http://localhost:8000/api/proactive-status
+
+Bu PowerShell komutu degildir.
+
+Dogru kullanim:
+
+TARAYICIYA YAZ:
+
+    http://localhost:8000/api/proactive-status
+
+veya health kontrolu icin:
+
+TERMINALE YAZ:
+
+    Invoke-RestMethod -Uri http://127.0.0.1:8000/healthz
+
+---
+
+## 13. Git ve checkpoint akisi
+
+Her kritik degisiklikten sonra smoke test calistir:
+
+    python .\tests\run_smoke_suite.py
+
+Sonra git durumunu kontrol et:
+
+    git status --short
+
+Degisen dosyalari ekle:
+
+    git add DOSYA_ADI
+
+Commit al:
+
+    git commit -m "Aciklayici commit mesaji"
+
+Checkpoint al:
+
+    Compress-Archive -Path .\agents, .\tools, .\tests, .\jarvis_server.py, .\jarvis_brain.py -DestinationPath .\jarvis_checkpoint_ornek.zip -Force
+    Test-Path .\jarvis_checkpoint_ornek.zip
+
+True donerse checkpoint alinmistir.
+
+---
+
+## 14. B1 durum ozeti
+
+    B1.1   ProactiveCore state builder                    OK
+    B1.2   /api/proactive-status endpoint                 OK
+    B1.3   Dashboard kartlarini ProactiveCore'a baglama    OK
+    B1.4.1 Gercek system status                           OK
+    B1.4.2 Gercek security snapshot                       OK
+    B1.4.3 Gercek task snapshot                           OK
+    B1.4.4 Auto Runner repair                             OK
+    B1.5   Patch dosyalarini dev_patches altina arsivleme OK
+    B1.6   README / BOOT_CHECK dokumantasyonu             OK
+
+---
+
+## 15. Onemli notlar
+
+    .env dosyasi git'e alinmaz.
+    memory/ klasoru runtime verisidir.
+    logs/ klasoru runtime log verisidir.
+    .venv/ klasoru git'e alinmaz.
+    checkpoint zip dosyalari git'e alinmaz.
+    dev_patches/ eski patch scriptlerinin arsividir.
+
+Yeni terminal acinca ilk komut:
+
+    cd C:\Users\Ahmedov\Desktop\Jarvis\jarvis
+'@
+
+$boot = @'
+# JARVIS v5 - Boot Check
+
+Bu dosya JARVIS'i acmadan once veya sorun oldugunda uygulanacak hizli kontrol listesidir.
+
+---
+
+## 1. Proje klasorune gir
+
+TERMINALE YAZ:
+
+    cd C:\Users\Ahmedov\Desktop\Jarvis\jarvis
+
+---
+
+## 2. Port 8000 bos mu?
+
+TERMINALE YAZ:
+
+    netstat -ano | findstr :8000
+
+Cikti yoksa port bostur.
+
+LISTENING varsa PID numarasini kapat:
+
+    taskkill /PID PID_NUMARASI /F
+
+---
+
+## 3. Server baslat
+
+TERMINALE YAZ:
+
+    python jarvis_server.py
+
+Beklenen:
+
+    JARVIS v5 - OPERATION OVERMIND
+    PC: http://localhost:8000
+    WiFi: http://192.168.1.4:8000
+
+---
+
+## 4. Health kontrolu
+
+Yeni terminal ac.
+
+TERMINALE YAZ:
+
+    cd C:\Users\Ahmedov\Desktop\Jarvis\jarvis
+    Invoke-RestMethod -Uri http://127.0.0.1:8000/healthz
+
+Beklenen:
+
+    ok      : True
+    service : jarvis
+    server  : online
+    auth    : enabled
+    version : v5
+
+---
+
+## 5. Login kontrolu
+
+TARAYICIYA YAZ:
+
+    http://localhost:8000
+
+Sifre gir. Panel aciliyorsa login calisiyor.
+
+Sifreyi yenilemek icin:
+
+    python setup_password.py
+
+---
+
+## 6. Proactive status kontrolu
+
+Once panelden login ol.
+
+TARAYICIYA YAZ:
+
+    http://localhost:8000
+
+Sonra:
+
+    http://localhost:8000/api/proactive-status
+
+JSON icinde su alanlar gorulmeli:
+
+    briefing
+    security
+    system
+    suggestion
+    tasks
+
+---
+
+## 7. Sistem snapshot kontrolu
+
+TERMINALE YAZ:
+
+    python -c "from tools.system_intelligence import get_system_status, get_health_score; import json; s=get_system_status(); h=get_health_score(s); print(json.dumps({'system':s,'health':h}, ensure_ascii=False, indent=2))"
+
+Beklenen alanlar:
+
+    cpu_percent
+    ram
+    disk
+    gpu
+    health
+
+---
+
+## 8. Security snapshot kontrolu
+
+TERMINALE YAZ:
+
+    python .\tools\security_snapshot.py
+
+Beklenen alanlar:
+
+    level
+    shield
+    failed_login_24h
+    failed_login_total
+    blocked_ips
+    active_sessions
+    line
+
+---
+
+## 9. Task snapshot kontrolu
+
+TERMINALE YAZ:
+
+    python .\tools\task_snapshot.py
+
+Beklenen alanlar:
+
+    pending
+    running
+    completed
+    failed
+    recent
+    line
+
+---
+
+## 10. Smoke suite
+
+TERMINALE YAZ:
+
+    python .\tests\run_smoke_suite.py
+
+Beklenen:
+
+    A5 smoke OK
+    Efendim, temel sistem butunlugu dogrulandi.
+
+---
+
+## 11. Auto Runner kisa test
+
+TERMINALE YAZ:
+
+    cd C:\Users\Ahmedov\Desktop\Jarvis\jarvis
+    python auto_runner.py
+
+Beklenen:
+
+    JARVIS Auto Runner baslatildi.
+    Server zaten calisiyor. Yeni instance baslatilmadi.
+    Auto Runner aktif. Durdurmak icin Ctrl+C.
+
+Kapatmak icin terminale tikla ve Ctrl+C yap.
+
+Kapanmazsa process bul:
+
+    Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like "*auto_runner.py*" } | Select-Object ProcessId, CommandLine
+
+PID ile kapat:
+
+    taskkill /PID PID_NUMARASI /F
+
+---
+
+## 12. Sik hatalar
+
+URL'yi PowerShell'e duz yazma.
+
+Yanlis:
+
+    http://localhost:8000/api/proactive-status
+
+Dogru:
+
+    Invoke-RestMethod -Uri http://localhost:8000/healthz
+
+veya tarayiciya yaz:
+
+    http://localhost:8000/api/proactive-status
+
+---
+
+## 13. Port dolu hatasi
+
+Hata:
+
+    [Errno 10048] address already in use
+
+Cozum:
+
+    netstat -ano | findstr :8000
+    taskkill /PID PID_NUMARASI /F
+
+---
+
+## 14. Oturum gerekli hatasi
+
+Hata:
+
+    {"ok": false, "error": "Oturum gerekli."}
+
+Cozum:
+
+    Once http://localhost:8000 uzerinden login ol.
+    Sonra API endpointini tarayicida ac.
+
+---
+
+## 15. B1 sonrasi saglam durum
+
+    B1.1   ProactiveCore state builder                  OK
+    B1.2   Proactive status API                         OK
+    B1.3   Dashboard binding                            OK
+    B1.4.1 Real system status                           OK
+    B1.4.2 Real security snapshot                       OK
+    B1.4.3 Real task snapshot                           OK
+    B1.4.4 Auto Runner repair                           OK
+    B1.5   Patch archive cleanup                        OK
+
+Ana test:
+
+    python .\tests\run_smoke_suite.py
+'@
+
+Set-Content -Encoding UTF8 .\README.md $readme
+Set-Content -Encoding UTF8 .\BOOT_CHECK.md $boot
+
+Write-Host "README.md ve BOOT_CHECK.md temiz yazildi."
+Get-Content .\README.md -TotalCount 20
+Get-Content .\BOOT_CHECK.md -TotalCount 20
