@@ -2915,7 +2915,7 @@ html,body,.app{overflow:hidden!important}
         <div class="card-body">
           <div class="command-grid">
             <button onclick="jarvisPrompt(pickCommandPrompt('selftest'));quickCmd('kendini test et')"><span class="command-icon">⌁</span>Kendini Test Et</button>
-            <button onclick="jarvisPrompt(pickCommandPrompt('health'));quickCmd('kendini kontrol et')"><span class="command-icon">⬡</span>Sağlık Kontrolü</button>
+            <button onclick="addDashboardTask('health_check')"><span class="command-icon">⬡</span>Sağlık Kontrolü</button>
             <button onclick="askResearchTopic()"><span class="command-icon">◎</span>Güncel Veri Araştır</button>
             <button onclick="startProjectMode()"><span class="command-icon">▣</span>Proje Oluştur</button>
             <button onclick="quickCmd('kod analizi yap')"><span class="command-icon">&lt;/&gt;</span>Kod Analizi Yap</button>
@@ -3566,6 +3566,36 @@ function loadProactiveStatus(){
       console.error('proactive status error:', e);
       return false;
     });
+}
+
+
+
+function addDashboardTask(kind){
+  var label = kind || 'panel_task';
+  return fetch('/api/tasks/add', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      type: 'echo',
+      params: {message: 'Panel gorevi tetiklendi: ' + label},
+      priority: 5
+    })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(p){
+    if(p && p.ok){
+      addActivity('Panelden görev eklendi: ' + label);
+      addMsg('Görev kuyruğa alındı: ' + label, false);
+      if(typeof loadProactiveStatus === 'function') loadProactiveStatus();
+      return true;
+    }
+    addMsg('Görev eklenemedi: ' + ((p && p.error) || 'Bilinmeyen hata'), false);
+    return false;
+  })
+  .catch(function(e){
+    addMsg('Görev API hatası: ' + e, false);
+    return false;
+  });
 }
 
 
