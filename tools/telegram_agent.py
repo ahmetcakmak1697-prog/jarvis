@@ -121,6 +121,8 @@ def cmd_help() -> str:
         "/mem_approve <id> - hafiza adayini onaylar\n"
         "/mem_reject <id> - hafiza adayini reddeder\n"
         "/mem_defer <id> - hafiza adayini erteler\n"
+        "/audit - son audit olaylarini gosterir\n"
+        "/audit_stats - audit olay sayilarini gosterir\n"
         "/help - bu yardim\n\n"
         "Guvenlik: shell/cmd calistirma yok, sadece izinli user_id."
     )
@@ -173,6 +175,75 @@ def cmd_tasks() -> str:
         f"Hata: {failed}\n\n"
         f"Son 5:\n{recent}"
     )
+
+
+def cmd_audit(limit: int = 6) -> str:
+    try:
+        from agents.audit_logger import AuditLogger
+
+        a = AuditLogger()
+        items = a.tail(limit)
+
+        if not items:
+            return "Audit kaydi yok."
+
+        lines = ["Son audit olaylari:", ""]
+
+        for item in items:
+            payload = item.get("payload", {}) or {}
+            lines.extend([
+                f"Time: {item.get('timestamp')}",
+                f"Event: {item.get('event')}",
+                f"Action: {item.get('action')}",
+                f"Candidate: {item.get('candidate_id') or '-'}",
+                f"QueryHash: {item.get('query_hash')}",
+            ])
+
+            status = payload.get("status")
+            tier = payload.get("tier")
+            confidence = payload.get("confidence")
+
+            if status or tier or confidence is not None:
+                lines.append(f"Meta: status={status} tier={tier} confidence={confidence}")
+
+            urls = payload.get("source_urls") or []
+            if urls:
+                lines.append(f"Source: {urls[0]}")
+
+            reason = payload.get("reason")
+            if reason:
+                lines.append(f"Reason: {reason}")
+
+            lines.append("")
+
+        return "\n".join(lines).strip()
+    except Exception as exc:
+        return f"Audit okunamadi: {exc}"
+
+
+def cmd_audit_stats() -> str:
+    try:
+        from agents.audit_logger import AuditLogger
+
+        a = AuditLogger()
+        stats = a.stats()
+        events = stats.get("events", {}) or {}
+
+        lines = [
+            "Audit istatistikleri:",
+            f"Toplam: {stats.get('total', 0)}",
+            "",
+        ]
+
+        if not events:
+            lines.append("Event yok.")
+        else:
+            for name, count in sorted(events.items()):
+                lines.append(f"- {name}: {count}")
+
+        return "\n".join(lines)
+    except Exception as exc:
+        return f"Audit istatistikleri okunamadi: {exc}"
 
 
 def cmd_memory_candidates() -> str:
@@ -365,6 +436,10 @@ def handle_message(message: dict[str, Any]) -> None:
         send_message(chat_id, cmd_memory_candidate_decide(text, "reject"))
     elif text.startswith("/mem_defer"):
         send_message(chat_id, cmd_memory_candidate_decide(text, "defer"))
+    elif text.startswith("/audit_stats"):
+        send_message(chat_id, cmd_audit_stats())
+    elif text.startswith("/audit"):
+        send_message(chat_id, cmd_audit())
     else:
         send_message(chat_id, "Bilinmeyen komut. /help yaz.")
 
