@@ -183,6 +183,7 @@ ALLOWED_TASK_TYPES = {
     "health_check",
     "self_test",
     "project_status",
+    "project_report",
     "memory_summary",
 }
 
