@@ -7,6 +7,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlparse
 
+from agents.source_scorer import SourceScorer
+
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -41,6 +43,8 @@ class WebResearcher:
                 "AppleWebKit/537.36 Chrome/120 Safari/537.36"
             )
         }
+
+        self.source_scorer = SourceScorer()
 
         self.cache_path.parent.mkdir(parents=True, exist_ok=True)
         self.credit_path.parent.mkdir(parents=True, exist_ok=True)
@@ -558,14 +562,53 @@ class WebResearcher:
 
         return results
 
+    def _apply_source_scores(self, results: list) -> list:
+        """Attach D1.5 SourceScorer metadata to raw web results."""
+        enriched = []
+
+        for item in results or []:
+            if not isinstance(item, dict):
+                continue
+
+            try:
+                scored = self.source_scorer.score_source(
+                    url=str(item.get("url") or ""),
+                    title=str(item.get("title") or ""),
+                    snippet=str(item.get("content") or item.get("body") or ""),
+                ).to_dict()
+
+                item = dict(item)
+                item["source_score"] = int(scored.get("score", 0) or 0)
+                item["source_tier"] = scored.get("tier", "low")
+                item["source_reasons"] = scored.get("reasons", [])
+                item["retrieved_at"] = scored.get("retrieved_at", "")
+            except Exception:
+                item = dict(item)
+                item["source_score"] = 50
+                item["source_tier"] = "unknown"
+                item["source_reasons"] = ["source_scorer_failed"]
+
+            enriched.append(item)
+
+        return enriched
+
+
     def _format_results(self, query: str, results: list) -> str:
         if not results:
-            return "Araştırma sonucu bulunamadı."
+            return "Ara?t?rma sonucu bulunamad?."
 
-        clean = [r for r in results if r.get("score", 0) >= 8]
+        results = self._apply_source_scores(results)
+
+        # Eski lokal skor + yeni kaynak g?ven skoru birlikte ?al???r.
+        clean = [
+            r for r in results
+            if r.get("score", 0) >= 8
+            and r.get("source_tier") != "blocked"
+            and r.get("source_score", 0) >= 40
+        ]
 
         if not clean:
-            return "Araştırma sonucu bulunamadı."
+            return "Ara?t?rma sonucu bulunamad?."
 
         def priority_bonus(r):
             domain = self._domain(r.get("url", ""))
@@ -584,6 +627,10 @@ class WebResearcher:
                 "microsoft.com",
                 "huggingface.co",
                 "arxiv.org",
+                "gov.tr",
+                "gov.uk",
+                "nature.com",
+                "science.org",
             ]
 
             if any(d in domain for d in priority_domains):
@@ -593,92 +640,54 @@ class WebResearcher:
 
         clean = sorted(
             clean,
-            key=lambda x: x.get("score", 0) + priority_bonus(x),
+            key=lambda x: (
+                int(x.get("source_score", 0) or 0)
+                + int(x.get("score", 0) or 0)
+                + priority_bonus(x)
+            ),
             reverse=True,
         )
 
-        priority_domains = [
-            "openai.com",
-            "anthropic.com",
-            "deepmind.google",
-            "technologyreview.com",
-            "techcrunch.com",
-            "theverge.com",
-            "wired.com",
-            "reuters.com",
-            "apnews.com",
-            "nvidia.com",
-            "microsoft.com",
-            "huggingface.co",
-            "arxiv.org",
-        ]
-
-        priority_results = [
-            r for r in clean
-            if any(d in self._domain(r.get("url", "")) for d in priority_domains)
-        ]
-
-        final = []
+        blocks = []
         seen_domains = set()
 
-        # Önce güçlü kaynakları ekle
-        for r in priority_results:
+        for r in clean:
             domain = self._domain(r.get("url", ""))
 
             if domain in seen_domains:
                 continue
 
             seen_domains.add(domain)
-            final.append(r)
 
-            if len(final) >= 4:
-                break
+            title = (r.get("title") or "Kaynak").strip()
+            url = (r.get("url") or "").strip()
+            content = (r.get("content") or "").strip()
+            source = (r.get("source") or "WEB").strip()
 
-                   # En az 2 güçlü kaynak varsa zayıf kaynakla tamamlama.
-        # 2 kaliteli kaynak, 3 karışık kaynaktan daha iyidir.
-        if len(final) < 2:
-            blocked_fallback_domains = [
-                "shiftdelete.net",
-                "ogusto.com",
-                "karar.com",
-                "abcgazetesi.com.tr",
-                "trhaber.com",
-                "webtekno.com",
-                "tamindir.com",
-                "donanimhaber.com",
-            ]
+            source_score = int(r.get("source_score", 0) or 0)
+            source_tier = r.get("source_tier", "unknown")
+            source_reasons = r.get("source_reasons", [])
+            if isinstance(source_reasons, list):
+                source_reasons = ", ".join(str(x) for x in source_reasons[:4])
 
-            for r in clean:
-                domain = self._domain(r.get("url", ""))
+            content = re.sub(r"\s+", " ", content)[:700]
 
-                if domain in seen_domains:
-                    continue
-
-                if any(b in domain for b in blocked_fallback_domains):
-                    continue
-
-                if r.get("score", 0) < 15:
-                    continue
-
-                seen_domains.add(domain)
-                final.append(r)
-
-                if len(final) >= 4:
-                    break
-        blocks = []
-
-        for i, r in enumerate(final, start=1):
             blocks.append(
-                f"[{i}] {r['source']} | Skor: {r.get('score', 0)}\n"
-                f"Başlık: {r.get('title', '')}\n"
-                f"Kaynak: {r.get('url', '')}\n"
-                f"Özet: {r.get('content', '')[:900]}"
+                f"[{len(blocks) + 1}] {title}\n"
+                f"Kaynak: {source} | {url}\n"
+                f"G?ven: {source_tier} / {source_score}\n"
+                f"G?ven nedeni: {source_reasons}\n"
+                f"?zet: {content}"
             )
 
+            if len(blocks) >= 5:
+                break
+
         if not blocks:
-            return "Araştırma sonucu bulunamadı."
+            return "Ara?t?rma sonucu bulunamad?."
 
         return "\n\n".join(blocks)
+
 
     def research(self, query, deep=False):
         raw_query = query.strip()
