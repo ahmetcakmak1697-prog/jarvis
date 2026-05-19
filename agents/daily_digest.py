@@ -89,6 +89,28 @@ class DailyDigest:
             pass
         return ""
 
+    def _memory_allowed_for_digest(self, meta: dict) -> bool:
+        """C1.6: Only safe/useful memory entries should enter daily digest."""
+        meta = meta or {}
+
+        if meta.get("requires_review") is True:
+            return False
+
+        action = str(meta.get("memory_action", "") or "")
+
+        if action in ("ignore", "temporary", "sensitive_review"):
+            return False
+
+        if action in ("daily_summary", "keep_long_term"):
+            return bool(meta.get("allow_daily_summary", True))
+
+        # Backward compatibility for old records without C1 metadata.
+        # Keep only decent quality, non-researched items.
+        if meta.get("researched") is True:
+            return False
+
+        return int(meta.get("quality_score", 0) or 0) >= 6
+
     def _yesterday(self) -> list:
         p = Path("memory/conversations.json")
         if not p.exists():
@@ -96,8 +118,12 @@ class DailyDigest:
         try:
             cs = json.loads(p.read_text(encoding='utf-8'))
             y = (datetime.now() - timedelta(days=1)).date().isoformat()
-            yesterday = [c for c in cs
-                         if c.get("metadata", {}).get("ts", "")[:10] == y]
+            yesterday = [
+                c for c in cs
+                if c.get("metadata", {}).get("ts", "")[:10] == y
+                and self._memory_allowed_for_digest(c.get("metadata", {}))
+            ]
+
             topics = []
             for c in yesterday[-10:]:
                 u = next((m["content"] for m in c.get("messages", [])
