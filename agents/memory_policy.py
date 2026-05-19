@@ -132,6 +132,21 @@ class MemoryPolicy:
             or "not et" in norm_text
         )
 
+        if explicit_save and not sensitive:
+            tags.append("explicit_save")
+            importance = max(importance + 3, 8)
+
+            return MemoryDecision(
+                action=self.ACTION_KEEP_LONG_TERM,
+                importance=min(10, importance),
+                reason="Kullan?c? a??k?a hat?rlama/kaydetme talebi verdi.",
+                tags=tags or ["explicit_save"],
+                retention_days=None,
+                allow_vector=True,
+                allow_daily_summary=True,
+                requires_review=False,
+            )
+
         if sensitive:
             tags.append("sensitive")
             importance += 2
