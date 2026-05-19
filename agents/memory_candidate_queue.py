@@ -107,6 +107,34 @@ class MemoryCandidateQueue:
         ]
         return pending[-limit:]
 
+    def get(self, candidate_id: str) -> dict[str, Any] | None:
+        """Return a candidate by id."""
+        for item in self._load():
+            if item.get("id") == candidate_id:
+                return item
+        return None
+
+    def mark_stored(self, candidate_id: str, store_meta: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Mark candidate as stored after successful memory write."""
+        items = self._load()
+        store_meta = store_meta or {}
+
+        for item in items:
+            if item.get("id") == candidate_id:
+                item["status"] = "stored"
+                item["user_decision"] = "approved"
+                item["stored_at"] = datetime.now().isoformat(timespec="seconds")
+                item["store_meta"] = store_meta
+                self._save(items)
+                return {"ok": True, "candidate": item}
+
+        return {
+            "ok": False,
+            "error": "candidate bulunamadi.",
+            "candidate_id": candidate_id,
+        }
+
+
     def decide(self, candidate_id: str, decision: str) -> dict[str, Any]:
         """Mark candidate as approved/rejected/deferred.
 
