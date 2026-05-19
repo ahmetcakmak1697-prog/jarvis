@@ -45,6 +45,7 @@ class WebResearcher:
         }
 
         self.source_scorer = SourceScorer()
+        self.last_source_scores = []
 
         self.cache_path.parent.mkdir(parents=True, exist_ok=True)
         self.credit_path.parent.mkdir(parents=True, exist_ok=True)
@@ -598,6 +599,19 @@ class WebResearcher:
             return "Ara?t?rma sonucu bulunamad?."
 
         results = self._apply_source_scores(results)
+
+        self.last_source_scores = [
+            {
+                "url": r.get("url", ""),
+                "title": r.get("title", ""),
+                "score": r.get("source_score", 0),
+                "tier": r.get("source_tier", "unknown"),
+                "reasons": r.get("source_reasons", []),
+                "source": r.get("source", ""),
+            }
+            for r in results
+            if isinstance(r, dict)
+        ]
 
         # Eski lokal skor + yeni kaynak g?ven skoru birlikte ?al???r.
         clean = [

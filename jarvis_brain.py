@@ -10,6 +10,7 @@ from datetime import datetime
 from tools.system_control import SystemController
 from tools.web_research import WebResearcher
 from agents.web_research_policy import WebResearchPolicy
+from agents.memory_candidate_queue import MemoryCandidateQueue
 from tools.document_reader import DocumentReader
 from tools.diagnostics import run_diagnostics, run_self_tests
 from tools.system_intelligence import format_panel_intelligence
@@ -93,6 +94,7 @@ class JarvisBrain:
         # Web araştırma
         self.researcher = WebResearcher()
         self.web_policy = WebResearchPolicy()
+        self.memory_candidates = MemoryCandidateQueue()
 
         # Vector memory
         self.memory = None
@@ -369,6 +371,36 @@ class JarvisBrain:
                 "tahmin",
             ]
         )
+
+    def _queue_web_memory_candidate(self, query: str, research: str, mode: str = "sync") -> dict:
+        """Queue web research as reviewable memory candidate.
+
+        D1.7 rule:
+        - Web research must not enter long-term memory silently.
+        - It becomes pending_review candidate only.
+        """
+        if not research or "Ara?t?rma sonucu bulunamad?" in research:
+            return {"ok": False, "reason": "empty_or_no_result"}
+
+        try:
+            source_scores = []
+            if getattr(self, "researcher", None):
+                source_scores = getattr(self.researcher, "last_source_scores", []) or []
+
+            candidate = self.memory_candidates.add_web_candidate(
+                query=query,
+                research_text=research,
+                source_scores=source_scores,
+                mode=mode,
+                ttl_days=60,
+                tags=["web_research", "needs_user_review"],
+            )
+
+            self.last_memory_candidate = candidate
+            return {"ok": True, "candidate": candidate}
+        except Exception as exc:
+            return {"ok": False, "reason": str(exc)[:200]}
+
 
     def _answer_from_research(self, research: str) -> str:
         """
@@ -838,7 +870,19 @@ JSON döndür:
 
                 print(f"{'[OK]' if research else '[FAIL]'} {len(research)} char")
 
+                candidate_result = self._queue_web_memory_candidate(msg, research, mode="sync")
+                if candidate_result.get("ok"):
+                    print("[OK] Web memory candidate queued.")
+
                 safe_answer = self._answer_from_research(research)
+
+                candidate = candidate_result.get("candidate") if isinstance(candidate_result, dict) else None
+                if candidate:
+                    safe_answer += (
+                        "\n\nEfendim, bu ara?t?rmadan kal?c? haf?za aday? olu?turdum. "
+                        "Onay?n?za kadar uzun haf?zaya yazmayaca??m."
+                    )
+
                 self._add_history(msg, safe_answer)
                 self._save_chat(msg, safe_answer, q=8, r=True)
                 return safe_answer
@@ -880,6 +924,10 @@ JSON döndür:
                     research = ""
 
                 if research:
+                    candidate_result = self._queue_web_memory_candidate(msg, research, mode="sync")
+                    if candidate_result.get("ok"):
+                        print("[OK] Web memory candidate queued.")
+
                     messages[0] = {
                         "role": "system",
                         "content": self._build_prompt(research, mem_ctx),
