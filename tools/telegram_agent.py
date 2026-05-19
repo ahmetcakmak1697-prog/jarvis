@@ -117,6 +117,10 @@ def cmd_help() -> str:
         "/memory - memory klasoru ozeti\n"
         "/project - proje/git/roadmap ozeti\n"
         "/report - proje raporu uretir\n"
+        "/mem_candidates - hafiza adaylarini listeler\n"
+        "/mem_approve <id> - hafiza adayini onaylar\n"
+        "/mem_reject <id> - hafiza adayini reddeder\n"
+        "/mem_defer <id> - hafiza adayini erteler\n"
         "/help - bu yardim\n\n"
         "Guvenlik: shell/cmd calistirma yok, sadece izinli user_id."
     )
@@ -169,6 +173,80 @@ def cmd_tasks() -> str:
         f"Hata: {failed}\n\n"
         f"Son 5:\n{recent}"
     )
+
+
+def cmd_memory_candidates() -> str:
+    try:
+        from agents.memory_candidate_queue import MemoryCandidateQueue
+
+        q = MemoryCandidateQueue()
+        pending = q.list_pending(limit=5)
+        stats = q.stats()
+
+        if not pending:
+            return (
+                "Bekleyen hafiza adayi yok.\n"
+                f"Toplam: {stats.get('total', 0)} | Pending: {stats.get('pending', 0)}"
+            )
+
+        lines = [
+            "Bekleyen hafiza adaylari:",
+            f"Toplam: {stats.get('total', 0)} | Pending: {stats.get('pending', 0)}",
+            "",
+        ]
+
+        for item in pending:
+            summary = str(item.get("summary", "")).strip()
+            if len(summary) > 280:
+                summary = summary[:280].rstrip() + "..."
+
+            lines.extend([
+                f"ID: {item.get('id')}",
+                f"Tier: {item.get('tier')} | Confidence: {item.get('confidence')}",
+                f"Expires: {item.get('expires_at')}",
+                f"Ozet: {summary}",
+                "",
+            ])
+
+        lines.append("Komutlar:")
+        lines.append("/mem_approve <id>")
+        lines.append("/mem_reject <id>")
+        lines.append("/mem_defer <id>")
+
+        return "\n".join(lines)
+    except Exception as exc:
+        return f"Hafiza adaylari alinamadi: {exc}"
+
+
+def cmd_memory_candidate_decide(text: str, decision: str) -> str:
+    try:
+        from agents.memory_candidate_queue import MemoryCandidateQueue
+
+        parts = text.split()
+        if len(parts) < 2:
+            return f"Kullanim: /mem_{decision} <candidate_id>"
+
+        candidate_id = parts[1].strip()
+        q = MemoryCandidateQueue()
+
+        result = q.decide(candidate_id, {
+            "approve": "approved",
+            "reject": "rejected",
+            "defer": "deferred",
+        }[decision])
+
+        if not result.get("ok"):
+            return f"Islem basarisiz: {result.get('error')}"
+
+        candidate = result.get("candidate", {})
+        return (
+            f"Hafiza adayi guncellendi.\n"
+            f"ID: {candidate.get('id')}\n"
+            f"Status: {candidate.get('status')}\n"
+            f"Not: Bu asamada uzun hafizaya otomatik yazilmadi."
+        )
+    except Exception as exc:
+        return f"Hafiza adayi guncellenemedi: {exc}"
 
 
 def cmd_report() -> str:
@@ -258,6 +336,14 @@ def handle_message(message: dict[str, Any]) -> None:
         send_message(chat_id, cmd_project())
     elif text.startswith("/report"):
         send_message(chat_id, cmd_report())
+    elif text.startswith("/mem_candidates"):
+        send_message(chat_id, cmd_memory_candidates())
+    elif text.startswith("/mem_approve"):
+        send_message(chat_id, cmd_memory_candidate_decide(text, "approve"))
+    elif text.startswith("/mem_reject"):
+        send_message(chat_id, cmd_memory_candidate_decide(text, "reject"))
+    elif text.startswith("/mem_defer"):
+        send_message(chat_id, cmd_memory_candidate_decide(text, "defer"))
     else:
         send_message(chat_id, "Bilinmeyen komut. /help yaz.")
 
