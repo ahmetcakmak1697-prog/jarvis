@@ -33,6 +33,7 @@ class TaskExecutor:
         self.register("health_check", self._handle_health_check)
         self.register("self_test", self._handle_self_test)
         self.register("project_status", self._handle_project_status)
+        self.register("project_report", self._handle_project_report)
         self.register("memory_summary", self._handle_memory_summary)
 
     def register(self, task_type, handler):
@@ -211,7 +212,7 @@ class TaskExecutor:
         add_check("history_json", isinstance(self._load_history(), list), "task_history.json okunabilir")
         add_check("handlers", all(
             name in self._handlers
-            for name in ("health_check", "self_test", "project_status", "memory_summary")
+            for name in ("health_check", "self_test", "project_status", "project_report", "memory_summary")
         ), "B2.4 handler kayıtları kontrol edildi")
 
         ok = all(c["passed"] for c in checks)
@@ -240,6 +241,42 @@ class TaskExecutor:
         except Exception as exc:
             return {
                 "handler": "project_status",
+                "status": "failed",
+                "error": str(exc)[:300],
+            }
+
+
+    def _handle_project_report(self, **kwargs):
+        """Generate a Markdown project report under reports/."""
+        try:
+            from agents.project_reporter import ProjectReporter
+
+            reporter = ProjectReporter()
+            out = reporter.save_report()
+            report = reporter.build_report()
+
+            summary_lines = []
+            capture = False
+            for line in report.splitlines():
+                if line.startswith("## 1. Executive Summary"):
+                    capture = True
+                    continue
+                if capture and line.startswith("## 2. "):
+                    break
+                if capture and line.strip():
+                    summary_lines.append(line)
+
+            summary = "\n".join(summary_lines[:8]).strip() or "Ozet alinamadi."
+
+            return {
+                "handler": "project_report",
+                "status": "done",
+                "path": str(out),
+                "summary": summary,
+            }
+        except Exception as exc:
+            return {
+                "handler": "project_report",
                 "status": "failed",
                 "error": str(exc)[:300],
             }
