@@ -116,6 +116,7 @@ def cmd_help() -> str:
         "/tasks - gorev kuyrugu/gecmisi\n"
         "/memory - memory klasoru ozeti\n"
         "/project - proje/git/roadmap ozeti\n"
+        "/report - proje raporu uretir\n"
         "/help - bu yardim\n\n"
         "Guvenlik: shell/cmd calistirma yok, sadece izinli user_id."
     )
@@ -168,6 +169,37 @@ def cmd_tasks() -> str:
         f"Hata: {failed}\n\n"
         f"Son 5:\n{recent}"
     )
+
+
+def cmd_report() -> str:
+    try:
+        from agents.project_reporter import ProjectReporter
+
+        reporter = ProjectReporter()
+        out = reporter.save_report()
+        report = reporter.build_report()
+
+        summary_lines = []
+        capture = False
+        for line in report.splitlines():
+            if line.startswith("## 1. Executive Summary"):
+                capture = True
+                continue
+            if capture and line.startswith("## 2. "):
+                break
+            if capture and line.strip():
+                summary_lines.append(line)
+
+        summary = "\n".join(summary_lines[:8]).strip() or "Ozet alinamadi."
+
+        return (
+            "Project report uretildi.\n"
+            f"Dosya: {out}\n\n"
+            "Kisa ozet:\n"
+            f"{summary}"
+        )
+    except Exception as exc:
+        return f"Project report uretilemedi: {exc}"
 
 
 def cmd_project() -> str:
@@ -224,6 +256,8 @@ def handle_message(message: dict[str, Any]) -> None:
         send_message(chat_id, cmd_memory())
     elif text.startswith("/project"):
         send_message(chat_id, cmd_project())
+    elif text.startswith("/report"):
+        send_message(chat_id, cmd_report())
     else:
         send_message(chat_id, "Bilinmeyen komut. /help yaz.")
 
