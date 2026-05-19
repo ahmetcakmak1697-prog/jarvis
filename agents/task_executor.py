@@ -224,33 +224,26 @@ class TaskExecutor:
         }
 
     def _handle_project_status(self, **kwargs):
-        """Return safe project/git status summary."""
-        git_info = self._safe_git_status()
+        """Return read-only project/git/roadmap status using ProjectIntelligence."""
+        try:
+            from agents.project_intelligence import ProjectIntelligence
 
-        important_paths = [
-            "jarvis_server.py",
-            "jarvis_brain.py",
-            "agents",
-            "tools",
-            "memory",
-            "README.md",
-            "BOOT_CHECK.md",
-        ]
+            pi = ProjectIntelligence()
+            snap = pi.snapshot()
 
-        return {
-            "handler": "project_status",
-            "ok": True,
-            "timestamp": datetime.now().isoformat(),
-            "project": {
-                "cwd": str(Path.cwd()),
-                "important_paths": {
-                    p: Path(p).exists()
-                    for p in important_paths
-                },
-            },
-            "git": git_info,
-            "tasks": self.status(),
-        }
+            return {
+                "handler": "project_status",
+                "status": "done",
+                "project": snap,
+                "brief": pi.brief(),
+            }
+        except Exception as exc:
+            return {
+                "handler": "project_status",
+                "status": "failed",
+                "error": str(exc)[:300],
+            }
+
 
     def _handle_memory_summary(self, **kwargs):
         """Summarize safe local memory/task files."""
