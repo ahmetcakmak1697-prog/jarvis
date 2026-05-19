@@ -11,12 +11,15 @@ Rules:
 
 from __future__ import annotations
 
+import json
+
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from agents.memory_candidate_queue import MemoryCandidateQueue
 from agents.memory_policy import MemoryPolicy
+from agents.audit_logger import AuditLogger
 
 try:
     from tools.vector_memory import VectorMemory
@@ -35,12 +38,39 @@ class MemoryCandidateWriter:
         self.root = Path(root)
         self.queue = MemoryCandidateQueue(self.root)
         self.policy = MemoryPolicy()
+        self.audit = AuditLogger(self.root)
         self.memory = VectorMemory() if VM_OK else None
+
+    def _log_store_blocked(
+        self,
+        candidate_id: str,
+        candidate: dict[str, Any] | None,
+        reason: str,
+        policy: dict[str, Any] | None = None,
+    ) -> None:
+        try:
+            self.audit.log(
+                event="memory_candidate_store_blocked",
+                query=str((candidate or {}).get("query") or ""),
+                candidate_id=candidate_id,
+                action="blocked",
+                payload={
+                    "reason": reason,
+                    "status": (candidate or {}).get("status"),
+                    "tier": (candidate or {}).get("tier"),
+                    "confidence": (candidate or {}).get("confidence"),
+                    "policy": policy or {},
+                },
+            )
+        except Exception:
+            pass
+
 
     def approve_and_store(self, candidate_id: str) -> dict[str, Any]:
         candidate = self.queue.get(candidate_id)
 
         if not candidate:
+            self._log_store_blocked(candidate_id, None, "candidate bulunamadi.")
             return {
                 "ok": False,
                 "stored": False,
@@ -50,6 +80,7 @@ class MemoryCandidateWriter:
 
         status = candidate.get("status")
         if status not in {"pending_review", "approved", "deferred"}:
+            self._log_store_blocked(candidate_id, candidate, f"candidate status store icin uygun degil: {status}")
             return {
                 "ok": False,
                 "stored": False,
@@ -58,6 +89,7 @@ class MemoryCandidateWriter:
             }
 
         if not self.memory:
+            self._log_store_blocked(candidate_id, candidate, "VectorMemory kullanilamiyor.")
             return {
                 "ok": False,
                 "stored": False,
@@ -69,6 +101,7 @@ class MemoryCandidateWriter:
         summary = str(candidate.get("summary") or "").strip()
 
         if not summary:
+            self._log_store_blocked(candidate_id, candidate, "candidate summary bos.")
             return {
                 "ok": False,
                 "stored": False,
@@ -82,6 +115,7 @@ class MemoryCandidateWriter:
 
         if decision.get("requires_review") is True:
             self.queue.decide(candidate_id, "approved")
+            self._log_store_blocked(candidate_id, candidate, "MemoryPolicy inceleme istedi; otomatik yazilmadi.", decision)
             return {
                 "ok": False,
                 "stored": False,
@@ -92,6 +126,7 @@ class MemoryCandidateWriter:
 
         if decision.get("allow_vector") is not True or decision.get("action") != "keep_long_term":
             self.queue.decide(candidate_id, "approved")
+            self._log_store_blocked(candidate_id, candidate, "MemoryPolicy vector yazimina izin vermedi.", decision)
             return {
                 "ok": False,
                 "stored": False,
@@ -111,7 +146,7 @@ class MemoryCandidateWriter:
             "allow_daily_summary": bool(decision.get("allow_daily_summary", True)),
             "requires_review": False,
             "source_urls": candidate.get("source_urls", []),
-            "source_scores": candidate.get("source_scores", []),
+            "source_scores_json": json.dumps(candidate.get("source_scores", []), ensure_ascii=False),
             "confidence": candidate.get("confidence"),
             "tier": candidate.get("tier"),
             "stored_at": datetime.now().isoformat(timespec="seconds"),

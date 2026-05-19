@@ -16,6 +16,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from agents.audit_logger import AuditLogger
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -50,6 +52,7 @@ class MemoryCandidateQueue:
         self.root = Path(root)
         self.path = self.root / "memory" / "memory_candidates.json"
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.audit = AuditLogger(self.root)
 
     def add_web_candidate(
         self,
@@ -97,6 +100,23 @@ class MemoryCandidateQueue:
             items.append(candidate.to_dict())
             self._save(items)
 
+            self.audit.log(
+                event="web_candidate_queued",
+                query=query,
+                candidate_id=candidate.id,
+                action="queued",
+                payload={
+                    "source_type": candidate.source_type,
+                    "mode": candidate.mode,
+                    "status": candidate.status,
+                    "confidence": candidate.confidence,
+                    "tier": candidate.tier,
+                    "source_urls": candidate.source_urls,
+                    "expires_at": candidate.expires_at,
+                    "tags": candidate.tags,
+                },
+            )
+
         return candidate.to_dict()
 
     def list_pending(self, limit: int = 10) -> list[dict[str, Any]]:
@@ -126,6 +146,21 @@ class MemoryCandidateQueue:
                 item["stored_at"] = datetime.now().isoformat(timespec="seconds")
                 item["store_meta"] = store_meta
                 self._save(items)
+
+                self.audit.log(
+                    event="memory_candidate_stored",
+                    query=str(item.get("query") or ""),
+                    candidate_id=candidate_id,
+                    action="stored",
+                    payload={
+                        "status": item.get("status"),
+                        "tier": item.get("tier"),
+                        "confidence": item.get("confidence"),
+                        "source_urls": item.get("source_urls", []),
+                        "store_meta": store_meta,
+                    },
+                )
+
                 return {"ok": True, "candidate": item}
 
         return {
@@ -158,6 +193,20 @@ class MemoryCandidateQueue:
                 item["user_decision"] = decision
                 item["decided_at"] = datetime.now().isoformat(timespec="seconds")
                 self._save(items)
+
+                self.audit.log(
+                    event="memory_candidate_decision",
+                    query=str(item.get("query") or ""),
+                    candidate_id=candidate_id,
+                    action=decision,
+                    payload={
+                        "status": item.get("status"),
+                        "tier": item.get("tier"),
+                        "confidence": item.get("confidence"),
+                        "source_urls": item.get("source_urls", []),
+                    },
+                )
+
                 return {"ok": True, "candidate": item}
 
         return {
