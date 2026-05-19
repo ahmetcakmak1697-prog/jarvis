@@ -152,7 +152,7 @@ class JarvisBrain:
         c.commit()
         c.close()
 
-    def _save_chat(self, u, j, q=5, r=False):
+    def _save_chat(self, u, j, q=5, r=False, memory_meta: dict | None = None):
         c = sqlite3.connect(self.db_path)
         c.execute(
             "INSERT INTO chats (ts, user, jarvis, quality, researched) "
@@ -162,9 +162,9 @@ class JarvisBrain:
         c.commit()
         c.close()
 
-        self._save_train(u, j, q, r)
+        self._save_train(u, j, q, r, memory_meta)
 
-    def _save_train(self, u, j, q, r):
+    def _save_train(self, u, j, q, r, memory_meta: dict | None = None):
         cs = []
 
         if self.conv_path.exists():
@@ -173,17 +173,27 @@ class JarvisBrain:
             except Exception:
                 pass
 
+        memory_meta = memory_meta or {}
+
+        metadata = {
+            "ts": datetime.now().isoformat(),
+            "quality_score": q,
+            "researched": r,
+            "memory_action": memory_meta.get("memory_action", "unknown"),
+            "memory_importance": memory_meta.get("memory_importance", q),
+            "memory_tags": memory_meta.get("memory_tags", ""),
+            "allow_vector": bool(memory_meta.get("allow_vector", False)),
+            "allow_daily_summary": bool(memory_meta.get("allow_daily_summary", False)),
+            "requires_review": bool(memory_meta.get("requires_review", False)),
+        }
+
         cs.append(
             {
                 "messages": [
                     {"role": "user", "content": u},
                     {"role": "assistant", "content": j},
                 ],
-                "metadata": {
-                    "ts": datetime.now().isoformat(),
-                    "quality_score": q,
-                    "researched": r,
-                },
+                "metadata": metadata,
             }
         )
 
@@ -960,7 +970,7 @@ JSON döndür:
                 except Exception:
                     pass
 
-            self._save_chat(msg, cevap, q, bool(research))
+            self._save_chat(msg, cevap, q, bool(research), mem_meta)
             return cevap
 
         except Exception as e:
@@ -1124,7 +1134,7 @@ JSON döndür:
                 pass
 
         self._add_history(original, answer)
-        self._save_chat(original, answer, q=q, r=False)
+        self._save_chat(original, answer, q=q, r=False, memory_meta=mem_meta)
         return answer
 
     def _add_history(self, u, j):
