@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import time
 import urllib.parse
 import urllib.request
@@ -17,6 +18,9 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 ENV_PATH = ROOT / ".env"
 MEMORY_DIR = ROOT / "memory"
 TASK_QUEUE = MEMORY_DIR / "task_queue.json"
@@ -111,6 +115,7 @@ def cmd_help() -> str:
         "/health - lokal healthz kontrolu\n"
         "/tasks - gorev kuyrugu/gecmisi\n"
         "/memory - memory klasoru ozeti\n"
+        "/project - proje/git/roadmap ozeti\n"
         "/help - bu yardim\n\n"
         "Guvenlik: shell/cmd calistirma yok, sadece izinli user_id."
     )
@@ -165,6 +170,15 @@ def cmd_tasks() -> str:
     )
 
 
+def cmd_project() -> str:
+    try:
+        from agents.project_intelligence import ProjectIntelligence
+
+        return ProjectIntelligence().brief()
+    except Exception as exc:
+        return f"Project intelligence alinamadi: {exc}"
+
+
 def cmd_memory() -> str:
     if not MEMORY_DIR.exists():
         return "Memory klasoru yok."
@@ -208,6 +222,8 @@ def handle_message(message: dict[str, Any]) -> None:
         send_message(chat_id, cmd_tasks())
     elif text.startswith("/memory"):
         send_message(chat_id, cmd_memory())
+    elif text.startswith("/project"):
+        send_message(chat_id, cmd_project())
     else:
         send_message(chat_id, "Bilinmeyen komut. /help yaz.")
 
