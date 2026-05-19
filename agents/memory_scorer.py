@@ -6,8 +6,14 @@ Her hafızanın 0-10 puanı:
 """
 import json
 import re
+import sys
 from pathlib import Path
 from datetime import datetime, timedelta
+from typing import Any
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 
 class MemoryScorer:
@@ -27,7 +33,54 @@ class MemoryScorer:
         r"^saat kaç", r"^hava nasıl",
     ]
 
+    def policy_decision(self, user_msg: str, jarvis_msg: str = "") -> dict[str, Any]:
+        """Return MemoryPolicy decision as a plain dict.
+
+        This keeps MemoryScorer backward-compatible while allowing C1 policy
+        decisions to guide scoring and future memory routing.
+        """
+        try:
+            from agents.memory_policy import MemoryPolicy
+
+            return MemoryPolicy().decide(user_msg, jarvis_msg).to_dict()
+        except Exception as exc:
+            return {
+                "action": "temporary",
+                "importance": self._legacy_score(user_msg, jarvis_msg),
+                "reason": f"MemoryPolicy unavailable: {exc}",
+                "tags": ["policy_fallback"],
+                "retention_days": 14,
+                "allow_vector": False,
+                "allow_daily_summary": False,
+                "requires_review": False,
+            }
+
     def score(self, user_msg: str, jarvis_msg: str = "") -> int:
+        """Return a safe 0-10 importance score guided by MemoryPolicy."""
+        decision = self.policy_decision(user_msg, jarvis_msg)
+        action = decision.get("action", "temporary")
+        importance = int(decision.get("importance", 5) or 5)
+
+        if action == "ignore":
+            return 1
+
+        if action == "sensitive_review":
+            # Important enough to review, but intentionally low for automatic
+            # long-term/vector memory writes.
+            return 2
+
+        if action == "keep_long_term":
+            return max(8, min(10, importance))
+
+        if action == "daily_summary":
+            return max(5, min(7, importance))
+
+        if action == "temporary":
+            return max(3, min(5, importance))
+
+        return max(0, min(10, importance))
+
+    def _legacy_score(self, user_msg: str, jarvis_msg: str = "") -> int:
         msg = (user_msg + " " + jarvis_msg).lower()
         s = 5
 
@@ -84,5 +137,17 @@ class MemoryScorer:
 
 if __name__ == "__main__":
     s = MemoryScorer()
-    print(s.score("Benim adım Ahmet, İzmir'de yaşıyorum"))
-    print(s.score("Merhaba"))
+
+    samples = [
+        "Merhaba",
+        "Bunu hat?rla: C1 sonras? C2 proje zekas?na ge?ece?iz.",
+        "Telefon numaram 555 ile ba?l?yor.",
+        "Bug?n Telegram bot ve Tailscale testini tamamlad?k.",
+        "Bu konu?ma ge?ici bir deneme.",
+    ]
+
+    for sample in samples:
+        print("---")
+        print(sample)
+        print("score:", s.score(sample))
+        print("policy:", s.policy_decision(sample))
