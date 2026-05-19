@@ -98,7 +98,22 @@ class MemoryPolicy:
         tags: list[str] = []
         importance = 5
 
-        if self._matches_any(user_msg.lower(), self.EXPLICIT_FORGET_PATTERNS) or "bunu unut" in norm_user or "hafizadan cikar" in norm_user:
+        explicit_keep_phrase = (
+            "bunu unutma" in norm_user
+            or "unutma bunu" in norm_user
+        )
+
+        explicit_forget_phrase = (
+            ("bunu unut" in norm_user and "bunu unutma" not in norm_user)
+            or "hafizadan cikar" in norm_user
+            or "hafizadan sil" in norm_user
+            or "kaydi sil" in norm_user
+        )
+
+        if not explicit_keep_phrase and (
+            self._matches_any(user_msg.lower(), self.EXPLICIT_FORGET_PATTERNS)
+            or explicit_forget_phrase
+        ):
             return MemoryDecision(
                 action=self.ACTION_SENSITIVE_REVIEW,
                 importance=9,
@@ -130,6 +145,10 @@ class MemoryPolicy:
             or "hafizaya al" in norm_text
             or "kaydet" in norm_text
             or "not et" in norm_text
+            or ("bunu" in norm_text and "hat" in norm_text)
+            or ("bunu" in norm_text and "kay" in norm_text)
+            or ("bunu" in norm_text and "not" in norm_text)
+            or ("bunu" in norm_text and "hafiz" in norm_text)
         )
 
         if explicit_save and not sensitive:
