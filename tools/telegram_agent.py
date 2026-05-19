@@ -227,10 +227,31 @@ def cmd_memory_candidate_decide(text: str, decision: str) -> str:
             return f"Kullanim: /mem_{decision} <candidate_id>"
 
         candidate_id = parts[1].strip()
+
+        if decision == "approve":
+            from agents.memory_candidate_writer import MemoryCandidateWriter
+
+            writer = MemoryCandidateWriter()
+            result = writer.approve_and_store(candidate_id)
+
+            if result.get("stored"):
+                return (
+                    "Hafiza adayi onaylandi ve uzun hafizaya yazildi.\n"
+                    f"ID: {candidate_id}\n"
+                    "Status: stored\n"
+                    f"Policy: {(result.get('policy') or {}).get('action')}"
+                )
+
+            return (
+                "Hafiza adayi onaylandi fakat uzun hafizaya yazilmadi.\n"
+                f"ID: {candidate_id}\n"
+                f"Neden: {result.get('error')}\n"
+                "Not: Guvenlik/policy nedeniyle otomatik yazim engellenmis olabilir."
+            )
+
         q = MemoryCandidateQueue()
 
         result = q.decide(candidate_id, {
-            "approve": "approved",
             "reject": "rejected",
             "defer": "deferred",
         }[decision])
@@ -243,7 +264,7 @@ def cmd_memory_candidate_decide(text: str, decision: str) -> str:
             f"Hafiza adayi guncellendi.\n"
             f"ID: {candidate.get('id')}\n"
             f"Status: {candidate.get('status')}\n"
-            f"Not: Bu asamada uzun hafizaya otomatik yazilmadi."
+            f"Not: Uzun hafizaya yazilmadi."
         )
     except Exception as exc:
         return f"Hafiza adayi guncellenemedi: {exc}"
