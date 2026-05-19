@@ -204,6 +204,15 @@ class ProjectIntelligence:
     def _roadmap_hint(self, commits: list[str]) -> str:
         text = "\n".join(commits).lower()
 
+        if "use project intelligence for project status tasks" in text:
+            return "C2 Proje zekasi aktif; Telegram /project ve project_status task baglandi."
+
+        if "add telegram project status command" in text:
+            return "C2.2 Telegram /project komutu tamamlandi; task tarafina baglanti sirada."
+
+        if "add project intelligence snapshot agent" in text:
+            return "C2.1 ProjectIntelligence eklendi; Telegram ve task entegrasyonu sirada."
+
         if "store memory policy metadata" in text or "filter daily digest" in text:
             return "C1 Hafiza politikasi tamamlandi; C2 Proje zekasi basliyor."
 
@@ -229,10 +238,16 @@ class ProjectIntelligence:
 
         text = "\n".join(commits).lower()
 
-        if "project intelligence" not in text:
+        if "add project intelligence snapshot agent" not in text:
             return "C2.1 ProjectIntelligence testlerini calistir ve commit at."
 
-        return "C2.2 ProjectIntelligence'i Telegram /status veya yeni /project komutuna bagla."
+        if "add telegram project status command" not in text:
+            return "C2.2 ProjectIntelligence'i Telegram /project komutuna bagla."
+
+        if "use project intelligence for project status tasks" not in text:
+            return "C2.3 project_status task handler'ini ProjectIntelligence ile bagla."
+
+        return "C2.5 Proje zekasi next-step tahminini dogrula; sonra C3 Raporlama planina gec."
 
 
 if __name__ == "__main__":
