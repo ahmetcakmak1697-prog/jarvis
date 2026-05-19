@@ -9,6 +9,7 @@ from datetime import datetime
 
 from tools.system_control import SystemController
 from tools.web_research import WebResearcher
+from agents.web_research_policy import WebResearchPolicy
 from tools.document_reader import DocumentReader
 from tools.diagnostics import run_diagnostics, run_self_tests
 from tools.system_intelligence import format_panel_intelligence
@@ -91,6 +92,7 @@ class JarvisBrain:
 
         # Web araştırma
         self.researcher = WebResearcher()
+        self.web_policy = WebResearchPolicy()
 
         # Vector memory
         self.memory = None
@@ -289,78 +291,70 @@ class JarvisBrain:
         return False
 
     def _needs_web_research(self, msg: str, thinking: dict | None = None) -> bool:
+        """Decide if web research is allowed and needed.
+
+        D1 policy:
+        - local/project/code/file questions stay local
+        - sensitive/private data never leaves the machine
+        - explicit web/current-info requests may proceed after sanitizer
+        - model uncertainty alone is not enough to go online
         """
-        İnternet araştırması gerçekten gerekli mi?
-        Gereksiz web aramasını engeller.
-        """
-        m = msg.lower().strip()
         thinking = thinking or {}
 
-        # Dosya/proje/kod sorularında internete çıkma.
-        local_terms = [
-            "dosya",
-            "proje",
-            "klasör",
-            "brain",
-            "beyin",
-            ".py",
-            ".txt",
-            ".json",
-            "kod",
-            "satır",
-            "kaç tane def",
-            "kaç tane elif",
-            "nerede geçiyor",
-            "ara",
-        ]
+        if getattr(self, "web_policy", None):
+            try:
+                decision = self.web_policy.decide(msg, {
+                    "thinking": thinking,
+                    "source": "jarvis_brain",
+                })
 
-        if any(t in m for t in local_terms):
-            # Ancak kullanıcı açıkça internet istiyorsa izin ver.
-            explicit_web = [
-                "internetten",
-                "webden",
-                "google",
-                "araştır internette",
-                "online",
-            ]
+                self.last_web_policy_decision = decision.to_dict()
 
-            if not any(t in m for t in explicit_web):
-                return False
+                if not decision.allow:
+                    return False
 
-        # Kullanıcı açıkça araştırma istiyorsa.
-        explicit_research_terms = [
+                return decision.mode in ("explicit_web", "current_info")
+            except Exception:
+                pass
+
+        # Safe fallback: only explicit web/current terms.
+        m = (msg or "").lower().strip()
+
+        explicit_terms = [
             "internetten bak",
             "webden bak",
-            "google'dan bak",
+            "google\'dan bak",
             "google dan bak",
-            "araştır",
-            "güncel",
-            "son durum",
-            "haber",
-            "kaynak bul",
-            "link bul",
-            "fiyat",
-            "kaç tl",
-            "kaç dolar",
-            "bugün",
-            "bu hafta",
-            "bu ay",
-            "2025",
-            "2026",
+            "online bak",
+            "ara?t?r",
+            "arastir",
+            "web ara?t?r",
+            "web arastir",
         ]
 
-        if any(t in m for t in explicit_research_terms):
-            return True
+        current_terms = [
+            "g?ncel",
+            "guncel",
+            "son durum",
+            "son haber",
+            "bug?n",
+            "bugun",
+            "bu hafta",
+            "bu ay",
+            "fiyat",
+            "kur",
+            "d?viz",
+            "doviz",
+            "mevzuat",
+            "api de?i?ti mi",
+            "api degisti mi",
+            "model s?r?m?",
+            "model surumu",
+            "release",
+            "changelog",
+        ]
 
-        # Model düşünme sonucu net şekilde araştırma istiyorsa.
-        if thinking.get("needs_research") is True and thinking.get("confidence", 0.5) < 0.75:
-            return True
-
-        # Bilmediğini söylüyorsa ve güven düşükse.
-        if thinking.get("knows_answer") is False and thinking.get("confidence", 0.5) < 0.65:
-            return True
-
-        return False
+        return any(t in m for t in explicit_terms + current_terms)
 
     def _is_uncertain(self, r):
         return any(
@@ -878,7 +872,7 @@ JSON döndür:
                 cevap = "Efendim, cevap üretildi fakat boş döndü. Alt sistemi kontrol etmek gerekiyor."
 
             # Belirsizlik varsa bir kez araştırma ile sağlamlaştırmayı dene.
-            if self._is_uncertain(cevap) and not research:
+            if self._is_uncertain(cevap) and not research and self._needs_web_research(msg, thinking):
                 try:
                     print("[WARN]  Belirsiz, araştır...")
                     research = self.researcher.research_and_learn(msg)
