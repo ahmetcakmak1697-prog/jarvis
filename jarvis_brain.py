@@ -911,22 +911,47 @@ JSON döndür:
             self._add_history(msg, cevap)
 
             q = 5
+            memory_decision = None
+
             if research:
                 q = 7
-            if "bilmiyorum" in cevap.lower() or "araştır" in cevap.lower():
+            if "bilmiyorum" in cevap.lower() or "ara" in cevap.lower():
                 q = max(q, 6)
 
             if getattr(self, "scorer", None):
                 try:
+                    memory_decision = self.scorer.policy_decision(msg, cevap)
                     q = self.scorer.score(msg, cevap)
                 except Exception:
-                    pass
+                    memory_decision = None
+
+            if not isinstance(memory_decision, dict):
+                memory_decision = {
+                    "action": "temporary",
+                    "importance": q,
+                    "reason": "Memory policy unavailable.",
+                    "tags": ["policy_fallback"],
+                    "retention_days": 14,
+                    "allow_vector": False,
+                    "allow_daily_summary": False,
+                    "requires_review": False,
+                }
+
+            mem_tags = memory_decision.get("tags", [])
+            if isinstance(mem_tags, list):
+                mem_tags = ",".join(str(t) for t in mem_tags)
 
             mem_meta = {
                 "researched": bool(research),
                 "confidence": conf,
                 "topic": thinking.get("topic", ""),
                 "type": "chat",
+                "memory_action": memory_decision.get("action", "temporary"),
+                "memory_importance": int(memory_decision.get("importance", q) or q),
+                "memory_tags": str(mem_tags or ""),
+                "allow_vector": bool(memory_decision.get("allow_vector", False)),
+                "allow_daily_summary": bool(memory_decision.get("allow_daily_summary", False)),
+                "requires_review": bool(memory_decision.get("requires_review", False)),
             }
 
             if self.memory and self._should_remember(msg, cevap, mem_meta):
@@ -949,9 +974,12 @@ JSON döndür:
             return fallback
 
     def _should_remember(self, msg: str, answer: str = "", meta: dict | None = None) -> bool:
-        """
-        Uzun süreli hafızaya ne yazılacağına karar verir.
-        Amaç: test, dosya arama, geçici web sonucu ve debug çıktılarıyla hafızayı kirletmemek.
+        """Decide whether an exchange may be written to long-term vector memory.
+
+        C1 policy rule:
+        - only keep_long_term + allow_vector can enter vector memory
+        - sensitive_review never enters vector memory
+        - researched/debug/file/test content stays out
         """
         m = (msg or "").lower().strip()
         meta = meta or {}
@@ -961,22 +989,28 @@ JSON döndür:
             "test et",
             "deneme",
             "debug",
-            "hata",
             "traceback",
-            "proje dosyaları",
-            "dosyaları listele",
-            "klasör ağacı",
-            "projede",
-            "proje içinde",
-            "nerede geçiyor",
-            "dosyasını oku",
+            "proje dosyalari",
+            "proje dosyalar?",
+            "dosyalari listele",
+            "dosyalar? listele",
+            "klasor agaci",
+            "klas?r a?ac?",
+            "nerede geciyor",
+            "nerede ge?iyor",
+            "dosyasini oku",
+            "dosyas?n? oku",
             ".py",
             ".json",
             ".txt",
-            "kaç tane def",
-            "kaç tane elif",
-            "kaç tane class",
-            "kaç tane import",
+            "kac tane def",
+            "ka? tane def",
+            "kac tane elif",
+            "ka? tane elif",
+            "kac tane class",
+            "ka? tane class",
+            "kac tane import",
+            "ka? tane import",
         ]
 
         if any(t in m for t in blocked_terms):
@@ -996,53 +1030,40 @@ JSON döndür:
         if meta.get("researched") is True:
             return False
 
-        remember_terms = [
-            "bunu hatırla",
-            "bunu unutma",
-            "aklında tut",
-            "kaydet",
-            "not al",
-            "bundan sonra",
-            "ileride",
-        ]
-
-        if any(t in m for t in remember_terms):
-            return True
-
-        durable_terms = [
-            "benim adım",
-            "ismim",
-            "seviyorum",
-            "sevmiyorum",
-            "kullanıyorum",
-            "tercihim",
-            "benim için önemli",
-            "projemin amacı",
-            "hedefim",
-            "sistemim",
-            "donanımım",
-        ]
-
-        if any(t in m for t in durable_terms):
-            return True
-
-        if len(m) < 25:
+        if meta.get("requires_review") is True:
             return False
+
+        if meta.get("allow_vector") is False:
+            return False
+
+        action = str(meta.get("memory_action", "") or "")
+        if action:
+            return action == "keep_long_term"
+
+        if getattr(self, "scorer", None):
+            try:
+                decision = self.scorer.policy_decision(msg, answer)
+                return (
+                    decision.get("action") == "keep_long_term"
+                    and decision.get("allow_vector") is True
+                    and decision.get("requires_review") is not True
+                )
+            except Exception:
+                return False
 
         return False
 
     def _handle_explicit_memory(self, msg: str):
-        """
-        Kullanıcı açıkça 'bunu hatırla / kaydet / not al' derse
-        LLM'e bırakmadan doğrudan uzun hafızaya yazar.
-        """
+        """Handle explicit save requests with MemoryPolicy safety gate."""
         original = msg or ""
         m = original.lower().strip()
 
         remember_terms = [
-            "bunu hatırla",
+            "bunu hat?rla",
+            "bunu hatirla",
             "bunu unutma",
-            "aklında tut",
+            "akl?nda tut",
+            "aklinda tut",
             "kaydet",
             "not al",
         ]
@@ -1061,22 +1082,49 @@ JSON döndür:
             clean_msg = original.strip()
 
         answer = f"Kaydettim efendim: {clean_msg}"
+        decision = None
+        q = 9
 
-        if self.memory:
+        if getattr(self, "scorer", None):
             try:
-                self.memory.remember(
-                    original,
-                    answer,
-                    {
-                        "type": "explicit_memory",
-                        "importance": "high",
-                    },
-                )
+                decision = self.scorer.policy_decision(original, answer)
+                q = self.scorer.score(original, answer)
+            except Exception:
+                decision = None
+
+        if not isinstance(decision, dict):
+            decision = {
+                "action": "temporary",
+                "importance": q,
+                "reason": "Memory policy unavailable.",
+                "tags": ["policy_fallback"],
+                "allow_vector": False,
+                "allow_daily_summary": False,
+                "requires_review": False,
+            }
+
+        tags = decision.get("tags", [])
+        if isinstance(tags, list):
+            tags = ",".join(str(t) for t in tags)
+
+        mem_meta = {
+            "type": "explicit_memory",
+            "importance": int(decision.get("importance", q) or q),
+            "memory_action": decision.get("action", "temporary"),
+            "memory_tags": str(tags or ""),
+            "allow_vector": bool(decision.get("allow_vector", False)),
+            "allow_daily_summary": bool(decision.get("allow_daily_summary", False)),
+            "requires_review": bool(decision.get("requires_review", False)),
+        }
+
+        if self.memory and self._should_remember(original, answer, mem_meta):
+            try:
+                self.memory.remember(original, answer, mem_meta)
             except Exception:
                 pass
 
         self._add_history(original, answer)
-        self._save_chat(original, answer, q=9, r=False)
+        self._save_chat(original, answer, q=q, r=False)
         return answer
 
     def _add_history(self, u, j):
