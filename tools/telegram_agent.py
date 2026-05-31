@@ -582,7 +582,7 @@ def handle_message(message: dict[str, Any]) -> None:
         send_message(chat_id, cmd_project())
     elif text.startswith("/report"):
         send_message(chat_id, cmd_report())
-    elif text.startswith("/web"):
+    elif text == "/web" or text.startswith("/web "):
         send_message(chat_id, cmd_web(text))
     elif text.startswith("/mem_candidates"):
         send_message(chat_id, cmd_memory_candidates())
