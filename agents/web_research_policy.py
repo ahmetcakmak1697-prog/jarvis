@@ -86,6 +86,15 @@ class WebResearchPolicy:
         "model surumu",
         "release",
         "changelog",
+        # D2.2A: model/surum/release sorgu sinyalleri
+        "ne zaman cikti",
+        "ne zaman c?kt?",
+        "surumu ne",
+        "versiyon ne",
+        "son surum",
+        "yeni surum",
+        "guncel surum",
+        "g?ncel s?r?m",
     ]
 
     LOCAL_PROJECT_TERMS = [
