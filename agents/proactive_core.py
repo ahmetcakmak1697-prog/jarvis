@@ -42,6 +42,7 @@ class ProactiveCore:
         }
 
         state["proactive"] = self._proactive_stub(now, profile, state)
+        state["ride_risk"] = self._ride_weather_risk_stub(profile, state.get("weather"))
 
         self._save_state(state)
         return state
@@ -503,6 +504,174 @@ class ProactiveCore:
             "message_format": proactive_rules.get("message_format"),
             "ask_question_at_end": proactive_rules.get("ask_question_at_end"),
             "profile_aware": bool(profile),
+        }
+
+
+
+    def _as_float(self, value, default=None):
+        try:
+            if value is None:
+                return default
+            return float(value)
+        except Exception:
+            return default
+
+    def _text_has_any(self, text: str, terms: list[str]) -> bool:
+        if not isinstance(text, str):
+            return False
+        low = text.lower()
+        return any(term.lower() in low for term in terms)
+
+    def _score_ride_weather_risk(self, weather: dict | None, profile: dict | None = None) -> dict:
+        profile = profile or {}
+        weather = weather or {}
+
+        motorcycle = profile.get("motorcycle", {}) if isinstance(profile.get("motorcycle"), dict) else {}
+        uses_motorcycle = bool(motorcycle.get("uses", False))
+
+        if not uses_motorcycle:
+            return {
+                "enabled": False,
+                "status": "disabled",
+                "level": "none",
+                "score": 0,
+                "factors": [],
+                "should_warn": False,
+                "should_interrupt": False,
+                "reason": "Profilde motosiklet kullanımı aktif değil.",
+                "recommendation": "Motosiklet uyarısı kapalı.",
+                "profile_aware": bool(profile),
+            }
+
+        status = weather.get("status")
+        condition = str(weather.get("condition") or weather.get("summary") or "").lower()
+        temp_c = self._as_float(weather.get("temp_c", weather.get("temperature_c")), None)
+        wind_kph = self._as_float(weather.get("wind_kph"), 0) or 0
+        precip_prob = self._as_float(weather.get("precip_prob", weather.get("precipitation_probability")), 0) or 0
+        visibility = str(weather.get("visibility") or "").lower()
+        alerts = weather.get("alerts") or []
+        if not isinstance(alerts, list):
+            alerts = [str(alerts)]
+
+        if status == "pending" and not condition and temp_c is None and not alerts:
+            return {
+                "enabled": True,
+                "status": "pending",
+                "level": "none",
+                "score": 0,
+                "factors": [],
+                "should_warn": False,
+                "should_interrupt": False,
+                "reason": "Hava verisi henüz gerçek kaynağa bağlı değil.",
+                "recommendation": "E1.4B aşamasında gerçek hava verisi D2.4 cache ile bağlanacak.",
+                "profile_aware": bool(profile),
+            }
+
+        factors = []
+        score = 0
+
+        alert_text = " ".join(str(a) for a in alerts).lower()
+        combined = " ".join([condition, visibility, alert_text])
+
+        critical_terms = ["fırtına", "storm", "buz", "don", "ice", "black ice", "afet", "sel", "dolu"]
+        rain_terms = ["yağmur", "rain", "shower", "sağanak", "drizzle"]
+        fog_terms = ["sis", "fog", "low visibility", "düşük görüş"]
+        snow_terms = ["kar", "snow"]
+
+        if self._text_has_any(combined, critical_terms):
+            factors.append("critical_alert")
+            score += 60
+
+        if self._text_has_any(combined, snow_terms):
+            factors.append("snow")
+            score += 55
+
+        if self._text_has_any(combined, rain_terms):
+            factors.append("rain")
+            score += 25
+
+        if self._text_has_any(combined, fog_terms):
+            factors.append("low_visibility")
+            score += 30
+
+        if precip_prob >= 80:
+            factors.append("heavy_precip_probability")
+            score += 35
+        elif precip_prob >= 50:
+            factors.append("precip_probability")
+            score += 20
+        elif precip_prob >= 30:
+            factors.append("light_precip_probability")
+            score += 10
+
+        if wind_kph >= 60:
+            factors.append("dangerous_wind")
+            score += 45
+        elif wind_kph >= 40:
+            factors.append("strong_wind")
+            score += 30
+        elif wind_kph >= 25:
+            factors.append("moderate_wind")
+            score += 15
+
+        if temp_c is not None:
+            if temp_c <= 0:
+                factors.append("freezing_temperature")
+                score += 50
+            elif temp_c <= 4:
+                factors.append("very_cold")
+                score += 25
+            elif temp_c >= 40:
+                factors.append("extreme_heat")
+                score += 25
+            elif temp_c >= 35:
+                factors.append("high_heat")
+                score += 15
+
+        if score >= 75:
+            level = "critical"
+            recommendation = "Motosiklet sürüşünü ertele veya alternatif ulaşımı kullan."
+            reason = "Motosiklet için kritik hava/yol riski var."
+        elif score >= 50:
+            level = "high"
+            recommendation = "Alternatif ulaşımı ciddi şekilde değerlendir; sürüş gerekiyorsa ekipmanı ve rotayı kontrol et."
+            reason = "Motosiklet için yüksek risk var."
+        elif score >= 25:
+            level = "medium"
+            recommendation = "Sürüş öncesi rota, ekipman ve hava durumunu tekrar kontrol et."
+            reason = "Motosiklet için dikkat gerektiren koşullar var."
+        elif score > 0:
+            level = "low"
+            recommendation = "Düşük risk var; yine de ekipmanı ihmal etme."
+            reason = "Hafif hava/yol etkisi var."
+        else:
+            level = "none"
+            recommendation = "Motosiklet için özel hava uyarısı yok."
+            reason = "Belirgin bir motosiklet riski görünmüyor."
+
+        return {
+            "enabled": True,
+            "status": "evaluated",
+            "level": level,
+            "score": score,
+            "factors": sorted(set(factors)),
+            "should_warn": level in ("medium", "high", "critical"),
+            "should_interrupt": level == "critical",
+            "reason": reason,
+            "recommendation": recommendation,
+            "profile_aware": bool(profile),
+        }
+
+    def _ride_weather_risk_stub(self, profile: dict | None = None, weather: dict | None = None) -> dict:
+        profile = profile or {}
+        weather = weather or {}
+        result = self._score_ride_weather_risk(weather, profile)
+
+        return {
+            "type": "motorcycle_weather",
+            "source": "decision_schema_only",
+            "note": "E1.4A gerçek web/hava verisine çıkmaz; sadece risk karar şeması üretir.",
+            **result,
         }
 
 
