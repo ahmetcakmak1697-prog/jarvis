@@ -352,9 +352,9 @@ class JarvisBrain:
             "google\'dan bak",
             "google dan bak",
             "online bak",
-            "ara?t?r",
+            "araştır",
             "arastir",
-            "web ara?t?r",
+            "web araştır",
             "web arastir",
         ]
 
@@ -403,7 +403,7 @@ class JarvisBrain:
         - Web research must not enter long-term memory silently.
         - It becomes pending_review candidate only.
         """
-        if not research or "Ara?t?rma sonucu bulunamad?" in research:
+        if not research or "Araştırma sonucu bulunamadı" in research:
             return {"ok": False, "reason": "empty_or_no_result"}
 
         try:
@@ -903,8 +903,8 @@ JSON döndür:
                 candidate = candidate_result.get("candidate") if isinstance(candidate_result, dict) else None
                 if candidate:
                     safe_answer += (
-                        "\n\nEfendim, bu ara?t?rmadan kal?c? haf?za aday? olu?turdum. "
-                        "Onay?n?za kadar uzun haf?zaya yazmayaca??m."
+                        "\n\nEfendim, bu araştırmadan kalıcı hafıza adayı oluşturdum. "
+                        "Onayınıza kadar uzun hafızaya yazmayacağım."
                     )
 
                 self._add_history(msg, safe_answer)

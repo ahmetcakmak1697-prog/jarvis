@@ -626,7 +626,7 @@ def _verify_password(password: str) -> bool:
 
     try:
         scheme, iter_s, salt, expected = stored_hash.split("$", 3)
-        if scheme not in ("pbk2_sha256", "pbkdf2_sha256"):
+        if scheme != "pbkdf2_sha256":
             return False
         digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), int(iter_s)).hex()
         return hmac.compare_digest(digest, expected)
@@ -829,6 +829,15 @@ async def jarvis_security_middleware(request: Request, call_next):
     # Login sayfası ve favicon public kalır.
     if path.startswith(PUBLIC_PATH_PREFIXES):
         response = await call_next(request)
+
+    # P0.4: basic browser security headers.
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Content-Security-Policy"] = "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ws: wss: http: https:;"
+    if request.url.scheme == "https":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
         _log_access(request, authed=False, note="public")
         return response
 
