@@ -53,6 +53,16 @@ class WebResearcher:
         self.cache = self._load_json(self.cache_path)
         self._init_credits()
 
+        # D2.4: cache TTL + rate limit + audit
+        self._cache_ttl_seconds = 6 * 3600       # 6 saat tazelik
+        self._rate_limit_per_hour = 30            # saatlik web istegi tavani
+        self._request_times = []                  # son istek zaman damgalari
+        try:
+            from agents.audit_logger import AuditLogger
+            self._audit = AuditLogger()
+        except Exception:
+            self._audit = None
+
         try:
             wikipedia.set_lang("tr")
         except Exception:
@@ -708,6 +718,43 @@ class WebResearcher:
         clean_query = self._normalize_query(raw_query)
         key = clean_query.lower().strip()
 
+        # D2.4: cache kontrol (TTL'li). Taze cache varsa web'e cikma.
+        cached = self._cache_get(key)
+        if cached is not None:
+            self.last_source_scores = cached.get("source_scores", []) or []
+            if self._audit:
+                try:
+                    self._audit.log(event="web_cache_hit", query=clean_query,
+                                    action="cache_hit",
+                                    payload={"key": key[:120]})
+                except Exception:
+                    pass
+            print("[*] D2.4 cache hit — web'e cikilmadi.")
+            return cached.get("report", "")
+
+        # D2.4: rate limit kontrol. Tavan asildiysa web'e cikma.
+        if not self._rate_ok():
+            if self._audit:
+                try:
+                    self._audit.log(event="web_rate_limited", query=clean_query,
+                                    action="rate_limited",
+                                    payload={"limit_per_hour": self._rate_limit_per_hour})
+                except Exception:
+                    pass
+            return (
+                "Saatlik web arastirma siniri doldu efendim. "
+                "Biraz sonra tekrar deneyelim; bu sinir API kredisini korur."
+            )
+
+        # D2.4: cache miss — web arastirmasi yapilacak.
+        if self._audit:
+            try:
+                self._audit.log(event="web_cache_miss", query=clean_query,
+                                action="cache_miss", payload={"key": key[:120]})
+            except Exception:
+                pass
+        self._record_request()
+
             # if key in self.cache:
         #     print("[*] Jarvis bu bilgiyi hatırlıyor. Cache kullanıldı.")
         #     return self.cache[key]
@@ -749,10 +796,52 @@ class WebResearcher:
 
         final_report = self._format_results(clean_query, results)
 
-        # self.cache[key] = final_report
-        # self._save_cache()
+        # D2.4: sonucu cache'e yaz (source_scores dahil) + kredi kullan.
+        # Otomatik long-term memory YOK; bu sadece kisa sureli arastirma cache'i.
+        try:
+            self._cache_put(key, final_report, self.last_source_scores)
+        except Exception:
+            pass
+        self._use_credit()
 
         return final_report
+
+    # ── D2.4 cache + rate-limit yardimcilari ──────────────────────────
+    def _now_ts(self) -> float:
+        import time
+        return time.time()
+
+    def _cache_get(self, key: str):
+        """TTL'li cache okuma. Taze degilse None doner."""
+        if not key:
+            return None
+        entry = self.cache.get(key)
+        if not isinstance(entry, dict):
+            return None
+        ts = entry.get("ts", 0)
+        if (self._now_ts() - ts) > self._cache_ttl_seconds:
+            return None  # bayat
+        return entry
+
+    def _cache_put(self, key: str, report: str, source_scores) -> None:
+        """Cache'e yaz: rapor + kaynaklar + zaman damgasi."""
+        if not key:
+            return
+        self.cache[key] = {
+            "report": report,
+            "source_scores": source_scores or [],
+            "ts": self._now_ts(),
+        }
+        self._save_cache()
+
+    def _rate_ok(self) -> bool:
+        """Son 1 saatteki istek sayisi tavanin altinda mi?"""
+        now = self._now_ts()
+        self._request_times = [t for t in self._request_times if (now - t) < 3600]
+        return len(self._request_times) < self._rate_limit_per_hour
+
+    def _record_request(self) -> None:
+        self._request_times.append(self._now_ts())
 
     def research_and_learn(self, query: str) -> str:
         """
