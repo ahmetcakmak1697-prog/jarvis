@@ -41,6 +41,8 @@ class ProactiveCore:
             "tasks": self._tasks_stub(),
         }
 
+        state["proactive"] = self._proactive_stub(now, profile, state)
+
         self._save_state(state)
         return state
 
@@ -297,6 +299,212 @@ class ProactiveCore:
             "briefing_format": briefing_format,
             "profile_aware": bool(profile),
         }
+
+
+    def _time_to_minutes(self, value: str) -> int | None:
+        try:
+            if not isinstance(value, str) or ":" not in value:
+                return None
+            hh, mm = value.split(":", 1)
+            return int(hh) * 60 + int(mm)
+        except Exception:
+            return None
+
+    def _is_weekend(self, now: datetime) -> bool:
+        return now.weekday() >= 5
+
+    def _is_late_clock_time(self, now_minutes: int, threshold_minutes: int | None) -> bool:
+        if threshold_minutes is None:
+            return False
+
+        # 00:00-06:00 aral???ndaki e?ikler gece yar?s?ndan sonraki pencereyi ifade eder.
+        # ?rn. 01:00 e?i?i ??len 12:00'de de?il, sadece 01:00-06:00 aras?nda tetiklenmelidir.
+        if threshold_minutes < 6 * 60:
+            return threshold_minutes <= now_minutes < 6 * 60
+
+        return now_minutes >= threshold_minutes
+
+    def _is_late_warning_window(self, now_minutes: int, final_warning: int | None, hard_after: int | None) -> bool:
+        if final_warning is None:
+            return False
+
+        # 23:30 sonras? uyar?.
+        if now_minutes >= final_warning:
+            return True
+
+        # 00:00-01:00 aras? h?l? ?nceki gecenin final uyar? penceresi say?l?r.
+        if hard_after is not None and hard_after < 6 * 60 and now_minutes < hard_after:
+            return True
+
+        return False
+
+    def _alert(self, level: str, code: str, title: str, text: str, action: str | None = None, interrupt: bool = False) -> dict:
+        item = {
+            "level": level,
+            "code": code,
+            "title": title,
+            "text": text,
+            "interrupt": bool(interrupt),
+        }
+        if action:
+            item["action"] = action
+        return item
+
+    def _proactive_stub(self, now: datetime, profile: dict, state: dict) -> dict:
+        alerts = []
+
+        proactive_rules = profile.get("proactive_rules", {}) if isinstance(profile.get("proactive_rules"), dict) else {}
+        night = profile.get("night_warnings", {}) if isinstance(profile.get("night_warnings"), dict) else {}
+
+        dnd = proactive_rules.get("do_not_disturb", {}) if isinstance(proactive_rules.get("do_not_disturb"), dict) else {}
+        critical = proactive_rules.get("critical_thresholds", {}) if isinstance(proactive_rules.get("critical_thresholds"), dict) else {}
+
+        now_minutes = now.hour * 60 + now.minute
+        weekend = self._is_weekend(now)
+
+        # 1) Gece çalışma uyarısı — sessiz, sadece state kararı.
+        if weekend:
+            late_after = self._time_to_minutes(critical.get("weekend_late_night_after", "02:30"))
+            if self._is_late_clock_time(now_minutes, late_after):
+                alerts.append(self._alert(
+                    "warning",
+                    "late_night_weekend",
+                    "Gece çalışma uyarısı",
+                    "Saat ilerledi. Tatil esnekliği var ama uyku borcu yine borçtur.",
+                    "Checkpoint alıp kısa devam et veya kapat.",
+                    interrupt=False,
+                ))
+        else:
+            final_warning = self._time_to_minutes(night.get("workday_final_warning", "23:30"))
+            hard_after = self._time_to_minutes(critical.get("weekday_late_night_after", "01:00"))
+
+            if self._is_late_clock_time(now_minutes, hard_after):
+                alerts.append(self._alert(
+                    "critical",
+                    "late_night_workday_critical",
+                    "Kritik gece uyarısı",
+                    "Yarın mesai varsa bu saatten sonra hata riski ciddi artar.",
+                    "İşi durdur, checkpoint al ve kapat.",
+                    interrupt=True,
+                ))
+            elif self._is_late_warning_window(now_minutes, final_warning, hard_after):
+                alerts.append(self._alert(
+                    "warning",
+                    "late_night_workday",
+                    "Gece çalışma uyarısı",
+                    "Mesai gününde geç saate girdik. Hata yapmadan kapatmak daha akıllıca olabilir.",
+                    "Checkpoint alıp sonlandırmayı değerlendir.",
+                    interrupt=False,
+                ))
+
+        # 2) Sistem sağlığı eşikleri.
+        system = state.get("system", {}) if isinstance(state.get("system"), dict) else {}
+        health_score = system.get("health_score")
+
+        try:
+            health_score_num = float(health_score)
+        except Exception:
+            health_score_num = None
+
+        if health_score_num is not None:
+            if health_score_num <= float(critical.get("system_health_critical_below", 50)):
+                alerts.append(self._alert(
+                    "critical",
+                    "system_health_critical",
+                    "Sistem sağlığı kritik",
+                    f"Sistem sağlık skoru {health_score_num:.0f}. Yükü azaltmak gerekebilir.",
+                    "Ağır işlemleri durdur ve sistem durumunu kontrol et.",
+                    interrupt=True,
+                ))
+            elif health_score_num <= float(critical.get("system_health_below", 75)):
+                alerts.append(self._alert(
+                    "warning",
+                    "system_health_warning",
+                    "Sistem sağlığı düşüyor",
+                    f"Sistem sağlık skoru {health_score_num:.0f}. İzlemeye almak iyi olur.",
+                    "CPU/RAM/GPU kullanımını kontrol et.",
+                    interrupt=False,
+                ))
+
+        disk_percent = system.get("disk_percent")
+        ram_percent = system.get("ram_percent")
+
+        try:
+            if disk_percent is not None and float(disk_percent) >= float(critical.get("disk_percent_above", 85)):
+                alerts.append(self._alert(
+                    "warning",
+                    "disk_usage_high",
+                    "Disk kullanımı yüksek",
+                    f"Disk kullanımı %{float(disk_percent):.0f}.",
+                    "Gereksiz snapshot/cache dosyalarını kontrol et.",
+                    interrupt=False,
+                ))
+        except Exception:
+            pass
+
+        try:
+            if ram_percent is not None and float(ram_percent) >= float(critical.get("ram_percent_above", 90)):
+                alerts.append(self._alert(
+                    "warning",
+                    "ram_usage_high",
+                    "RAM kullanımı yüksek",
+                    f"RAM kullanımı %{float(ram_percent):.0f}.",
+                    "Açık işlemleri ve model yükünü kontrol et.",
+                    interrupt=False,
+                ))
+        except Exception:
+            pass
+
+        # 3) Güvenlik sinyali.
+        security = state.get("security", {}) if isinstance(state.get("security"), dict) else {}
+        if security.get("level") in ("warning", "critical") or security.get("failed_login_24h", 0):
+            alerts.append(self._alert(
+                "critical" if security.get("level") == "critical" else "warning",
+                "security_attention",
+                "Güvenlik uyarısı",
+                security.get("line") or "Güvenlik tarafında dikkat gerektiren bir sinyal var.",
+                "Güvenlik snapshot kontrolü yap.",
+                interrupt=security.get("level") == "critical",
+            ))
+
+        # 4) Görev hataları.
+        tasks = state.get("tasks", {}) if isinstance(state.get("tasks"), dict) else {}
+        try:
+            failed = int(tasks.get("failed", 0))
+            if failed > 0:
+                alerts.append(self._alert(
+                    "info",
+                    "task_failures",
+                    "Görev hatası var",
+                    f"{failed} görev hata vermiş görünüyor.",
+                    "Görev geçmişini kontrol et.",
+                    interrupt=False,
+                ))
+        except Exception:
+            pass
+
+        priority = {"none": 0, "info": 1, "warning": 2, "critical": 3}
+        level = "none"
+        for item in alerts:
+            if priority.get(item.get("level", "none"), 0) > priority.get(level, 0):
+                level = item.get("level", "none")
+
+        return {
+            "level": level,
+            "alerts": alerts,
+            "alert_count": len(alerts),
+            "should_interrupt": any(bool(a.get("interrupt")) for a in alerts),
+            "dnd": {
+                "enabled": bool(dnd.get("enabled", False)),
+                "behavior": dnd.get("behavior", ""),
+                "note": "E1.3 sadece karar/state üretir; bildirim göndermez.",
+            },
+            "repeat_warning_interval": proactive_rules.get("repeat_warning_interval"),
+            "message_format": proactive_rules.get("message_format"),
+            "ask_question_at_end": proactive_rules.get("ask_question_at_end"),
+            "profile_aware": bool(profile),
+        }
+
 
     def _tasks_stub(self) -> dict:
         try:
