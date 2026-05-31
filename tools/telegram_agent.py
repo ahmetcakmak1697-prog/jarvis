@@ -123,6 +123,7 @@ def cmd_help() -> str:
         "/mem_defer <id> - hafiza adayini erteler\n"
         "/audit - son audit olaylarini gosterir\n"
         "/audit_stats - audit olay sayilarini gosterir\n"
+        "/web <soru> - guvenli web arastirmasi yapar\n"
         "/help - bu yardim\n\n"
         "Guvenlik: shell/cmd calistirma yok, sadece izinli user_id."
     )
@@ -341,6 +342,159 @@ def cmd_memory_candidate_decide(text: str, decision: str) -> str:
         return f"Hafiza adayi guncellenemedi: {exc}"
 
 
+def cmd_web(text: str) -> str:
+    """D2.1 — Guvenli web arastirmasi.
+
+    WebResearchPolicy ile karar verir.
+    Hassas / yerel sorgular bloklanir.
+    Araştırma sonucu MemoryCandidateQueue'ya pending_review olarak duser.
+    Uzun hafizaya otomatik yazilmaz.
+    """
+    # Sorguyu ayikla
+    parts = text.strip().split(None, 1)
+    query = parts[1].strip() if len(parts) > 1 else ""
+
+    if not query:
+        return (
+            "Kullanim: /web <soru>\n"
+            "Ornek: /web Izmir hava durumu bugun\n\n"
+            "Not: Yerel dosya sorgusu, hassas veri veya .env "
+            "iceren sorgular guvenlik politikasi ile bloklanir."
+        )
+
+    try:
+        from agents.web_research_policy import WebResearchPolicy
+        from tools.web_research import WebResearcher
+        from agents.memory_candidate_queue import MemoryCandidateQueue
+        from agents.audit_logger import AuditLogger
+    except ImportError as exc:
+        return f"Modul hatasi: {exc}\nBu modul yuklu degil."
+
+    policy = WebResearchPolicy()
+    audit  = AuditLogger()
+    queue  = MemoryCandidateQueue()
+
+    # Policy karar
+    try:
+        decision = policy.decide(query)
+
+        if hasattr(decision, "to_dict"):
+            decision = decision.to_dict()
+    except Exception as exc:
+        return f"Policy hatasi: {exc}"
+
+    if not decision.get("allow"):
+        reason = decision.get("reason", "bilinmiyor")
+        audit.log(
+            event="web_policy_blocked",
+            action="blocked",
+            payload={"query": query[:200], "reason": reason},
+        )
+        return (
+            f"Bu sorgu web arastirmasina izin vermiyor efendim.\n"
+            f"Neden: {reason}\n\n"
+            "Yerel dosya, kod ve hassas veri sorguları bloklanır."
+        )
+
+    # Arastirma
+    researcher = WebResearcher()
+    try:
+        research = researcher.research_and_learn(query)
+    except Exception as exc:
+        audit.log(
+            event="web_research_error",
+            action="error",
+            payload={"query": query[:200], "error": str(exc)[:200]},
+        )
+        return f"Arastirma sirasinda hata olustu efendim: {exc}"
+
+    if not research or len(research.strip()) < 20:
+        audit.log(
+            event="web_research_empty",
+            action="empty",
+            payload={"query": query[:200]},
+        )
+        return "Efendim, bu sorgu icin güvenilir kaynak bulunamadi."
+
+    # Source scores (varsa)
+    source_scores = getattr(researcher, "last_source_scores", []) or []
+
+    # Candidate queue'ya ekle (pending_review)
+    try:
+        candidate = queue.add_web_candidate(
+            query=query,
+            research_text=research,
+            source_scores=source_scores,
+            mode="sync",
+            ttl_days=60,
+            tags=["web_research", "telegram", "needs_user_review"],
+        )
+        candidate_id = candidate.get("id") if isinstance(candidate, dict) else None
+    except Exception as exc:
+        candidate_id = None
+        audit.log(
+            event="web_candidate_queue_error",
+            action="error",
+            payload={"query": query[:200], "error": str(exc)[:200]},
+        )
+
+    # Audit log
+    audit.log(
+        event="web_candidate_queued",
+        action="queued",
+        candidate_id=candidate_id,
+        payload={
+            "query": query[:200],
+            "research_len": len(research),
+            "source_count": len(source_scores),
+            "tier": decision.get("tier"),
+            "confidence": decision.get("confidence"),
+        },
+    )
+
+    # Telegram cevabi: kisa ve kaynakli
+    import re
+    blocks = re.split(r"\n\s*\[\d+\]\s+", research)
+    lines  = ["Efendim, web arastirmasi tamamlandi:\n"]
+
+    for block in blocks[:3]:
+        block = block.strip()
+        if not block:
+            continue
+        title_m  = re.search(r"Baslik:\s*(.+)",  block)
+        source_m = re.search(r"Kaynak:\s*(.+)",  block)
+        summary_m= re.search(r"Ozet:\s*(.+)",    block, re.DOTALL)
+
+        title  = title_m.group(1).strip()[:120]  if title_m  else ""
+        source = source_m.group(1).strip()[:100] if source_m else ""
+        summary= summary_m.group(1).strip()      if summary_m else ""
+        summary= re.sub(r"\s+", " ", summary)[:260]
+
+        if not title and not summary:
+            continue
+
+        entry = []
+        if title:
+            entry.append(f"• {title}")
+        if summary:
+            entry.append(f"  {summary}")
+        if source:
+            entry.append(f"  Kaynak: {source}")
+
+        lines.append("\n".join(entry))
+
+    if len(lines) == 1:
+        lines.append("Kaynak bölümü cözümlenemedi; ham sonuc ekte.")
+        lines.append(research[:600])
+
+    footer = "\n\nNot: Sonuc uzun hafizaya yazilmadi."
+    if candidate_id:
+        footer += f"\nMemory aday ID: {candidate_id}"
+        footer += "\n/mem_approve ile onaylayabilirsiniz."
+
+    return "\n".join(lines) + footer
+
+
 def cmd_report() -> str:
     try:
         from agents.project_reporter import ProjectReporter
@@ -428,6 +582,8 @@ def handle_message(message: dict[str, Any]) -> None:
         send_message(chat_id, cmd_project())
     elif text.startswith("/report"):
         send_message(chat_id, cmd_report())
+    elif text.startswith("/web"):
+        send_message(chat_id, cmd_web(text))
     elif text.startswith("/mem_candidates"):
         send_message(chat_id, cmd_memory_candidates())
     elif text.startswith("/mem_approve"):
