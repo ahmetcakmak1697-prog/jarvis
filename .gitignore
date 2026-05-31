@@ -87,3 +87,6 @@ agent/
 jarvis_yeni/
 reports/
 memory/audit_log.jsonl
+sync_snapshots/
+jarvis_sync_snapshot_*.zip
+jarvis_checkpoint_*.zip
