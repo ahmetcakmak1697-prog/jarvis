@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "active_profile": "rtx3070",
+  "_doc": "JARVIS M0 - Hardware/Model Abstraction. Kod asla model adi yazmaz; ModelRegistry uzerinden 'local_main', 'research_model' vb. cozer. Profil degisince model degisir, kod degismez. Donanim kurali: bir model 'varsayilan' yapilmadan once benchmark ile dogrulanir.",
+  "profiles": {
+    "rtx3070": {
+      "label": "RTX 3070 8GB - mevcut sistem",
+      "backend": "ollama",
+      "ollama_url": "http://localhost:11434",
+      "local_small": "llama3.2:latest",
+      "local_main": "mistral-nemo:latest",
+      "research_model": "mistral-nemo:latest",
+      "vision_model": "",
+      "stt_model": "faster-whisper",
+      "tts_model": "edge",
+      "tensor_parallel_size": 1,
+      "notes": "Su an calisan profil. local_main = sistemde dogrulanmis model. Qwen'e gecis ANCAK benchmark sonrasi yapilir."
+    },
+    "dual3090": {
+      "label": "2x RTX 3090 NVLink 48GB - hedef sistem",
+      "backend": "vllm",
+      "ollama_url": "http://localhost:11434",
+      "local_small": "qwen2.5:7b",
+      "local_main": "70b-q4-placeholder",
+      "research_model": "qwen2.5:7b",
+      "vision_model": "vlm-placeholder",
+      "stt_model": "faster-whisper",
+      "tts_model": "piper",
+      "tensor_parallel_size": 2,
+      "notes": "Hedef profil. local_main bir PLACEHOLDER'dir; 70B-class model benchmark ile dogrulanmadan varsayilan yapilmaz. backend=vllm tensor-parallel (NVLink). Aktiflestirmeden once benchmark sarttir."
+    },
+    "cloud_hybrid": {
+      "label": "Yerel + API hibrit",
+      "backend": "ollama",
+      "ollama_url": "http://localhost:11434",
+      "local_small": "llama3.2:latest",
+      "local_main": "mistral-nemo:latest",
+      "research_model": "mistral-nemo:latest",
+      "vision_model": "api",
+      "stt_model": "faster-whisper",
+      "tts_model": "edge",
+      "tensor_parallel_size": 1,
+      "notes": "Zor reasoning/vision API'ye gider; gunluk trafik yerelde kalir. Maliyet ve veri-egress L1'de izlenir."
+    }
+  }
+}

@@ -47,6 +47,13 @@ try:
 except ImportError:
     ORCH_OK = False
 
+# M0 - Model Registry / runtime profile. Hata olursa hardcoded MODEL'e duser.
+try:
+    from agents.model_registry import ModelRegistry
+    REGISTRY_OK = True
+except ImportError:
+    REGISTRY_OK = False
+
 try:
     from tools.vector_memory import VectorMemory
     VM_OK = True
@@ -64,6 +71,23 @@ class JarvisBrain:
         self.conv_path = Path("memory/conversations.json")
 
         self.profile_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # M0: Aktif runtime profilinden ana modeli coz.
+        # Profil okunamazsa class-level MODEL (mistral-nemo:latest) gecerli kalir.
+        # Boylece mevcut sistem hicbir kosulda kirilmaz.
+        self.registry = None
+        if REGISTRY_OK:
+            try:
+                self.registry = ModelRegistry()
+                resolved = self.registry.local_main(fallback=self.MODEL)
+                if isinstance(resolved, str) and resolved.strip():
+                    self.MODEL = resolved
+                console.print(
+                    f"[green]M0 profil: {self.registry.active_profile_name()} "
+                    f"-> model: {self.MODEL}[/]"
+                )
+            except Exception as e:
+                print(f"[WARN] ModelRegistry devre disi, MODEL fallback: {e}")
 
         self.profile = self._load_profile()
         self._init_db()
