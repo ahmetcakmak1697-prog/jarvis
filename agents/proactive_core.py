@@ -796,7 +796,15 @@ class ProactiveCore:
                 factors.append("high_heat")
                 score += 15
 
-        if score >= 75:
+        critical_factors = {
+            "critical_alert",
+            "snow",
+            "freezing_temperature",
+            "dangerous_wind",
+        }
+        has_critical_factor = bool(critical_factors.intersection(set(factors)))
+
+        if score >= 75 and has_critical_factor:
             level = "critical"
             recommendation = "Motosiklet sürüşünü ertele veya alternatif ulaşımı kullan."
             reason = "Motosiklet için kritik hava/yol riski var."

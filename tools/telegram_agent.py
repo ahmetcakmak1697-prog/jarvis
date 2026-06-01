@@ -271,9 +271,15 @@ def cmd_brief(state: dict | None = None) -> str:
         ride_status = ride_risk.get("status", "-")
         ride_reason = ride_risk.get("reason", "")
         ride_reco = ride_risk.get("recommendation", "")
+        ride_score = ride_risk.get("score")
+        ride_factors = ride_risk.get("factors") or []
 
         lines.append("")
         lines.append(f"Motosiklet/hava riski: {ride_level} | durum: {ride_status}")
+        if ride_score is not None:
+            lines.append(f"Risk skoru: {ride_score}")
+        if isinstance(ride_factors, list) and ride_factors:
+            lines.append("Faktörler: " + ", ".join(str(x) for x in ride_factors[:8]))
         if ride_reason:
             lines.append(f"Neden: {ride_reason}")
         if ride_reco:
