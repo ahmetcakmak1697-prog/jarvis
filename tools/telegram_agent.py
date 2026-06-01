@@ -181,6 +181,123 @@ def cmd_tasks() -> str:
 
 
 
+
+def _brief_loc(profile: dict, weather: dict | None = None) -> str:
+    weather = weather or {}
+    loc = weather.get("default_location")
+    if loc:
+        return str(loc)
+    city = profile.get("city")
+    district = profile.get("district")
+    return "/".join([x for x in [city, district] if x])
+
+
+def _brief_factor_words(factors) -> list[str]:
+    if not isinstance(factors, list):
+        return []
+
+    mapping = {
+        "precip_probability": "yağış ihtimali",
+        "heavy_precip_probability": "yüksek yağış ihtimali",
+        "light_precip_probability": "hafif yağış ihtimali",
+        "rain": "yağmur",
+        "strong_wind": "kuvvetli rüzgâr",
+        "moderate_wind": "rüzgâr",
+        "dangerous_wind": "tehlikeli rüzgâr",
+        "critical_alert": "kritik hava uyarısı",
+        "snow": "kar",
+        "freezing_temperature": "don riski",
+        "very_cold": "çok soğuk",
+        "high_heat": "yüksek sıcaklık",
+        "extreme_heat": "aşırı sıcak",
+        "low_visibility": "düşük görüş",
+    }
+    return [mapping.get(str(x), str(x)) for x in factors]
+
+
+def _brief_ride_sentence(ride_risk: dict, weather: dict, loc: str) -> str:
+    level = str(ride_risk.get("level", "none")).lower()
+    status = str(ride_risk.get("status", "")).lower()
+    factors = _brief_factor_words(ride_risk.get("factors") or [])
+
+    if status == "pending":
+        return "Canlı hava şu an kapalı. Güncel hava ve motosiklet riski için /brief_live kullanabilirsiniz."
+
+    if level == "critical":
+        return f"{loc} için hava motosiklet adına iyi görünmüyor. Bu sürüşü önermiyorum; alternatif ulaşım daha doğru olur."
+
+    if level == "high":
+        if "yağış ihtimali" in factors and "kuvvetli rüzgâr" in factors:
+            return f"{loc} için güncel hava alındı. Yağış ihtimali ve kuvvetli rüzgâr birlikte motosiklet için gereksiz risk oluşturuyor. Bugün motor yerine alternatif ulaşım daha akıllıca olur."
+        if "yağmur" in factors:
+            return f"{loc} için güncel hava alındı. Yağmur motosiklet tarafında riski yükseltiyor; çıkmadan önce rota ve ekipmanı kontrol etmek iyi olur."
+        return f"{loc} için motosiklet riski yüksek görünüyor. Alternatif ulaşımı ciddi şekilde değerlendirmek mantıklı."
+
+    if level == "medium":
+        return f"{loc} için motosiklet kullanılabilir, ama dikkat istiyor. Çıkmadan önce rüzgârı, yağışı ve ekipmanı kontrol edin."
+
+    if level == "low":
+        return f"{loc} için belirgin bir sorun yok. Yine de ekipmanı ihmal etmeyin."
+
+    return f"{loc} için motosiklet adına özel bir risk görünmüyor."
+
+
+def _brief_alert_sentence(proactive: dict) -> str:
+    alerts = proactive.get("alerts") or []
+    if not isinstance(alerts, list) or not alerts:
+        return "Sistem tarafında kritik bir sorun görünmüyor."
+
+    task_count = 0
+    security = False
+    critical = False
+    other = []
+
+    for item in alerts:
+        if not isinstance(item, dict):
+            continue
+        code = str(item.get("code", ""))
+        level = str(item.get("level", "")).lower()
+        title = str(item.get("title", "")).strip()
+        text = str(item.get("text", "")).strip()
+
+        if code == "task_failures":
+            task_count += 1
+        elif "security" in code:
+            security = True
+        elif level == "critical":
+            critical = True
+            other.append(text or title)
+        else:
+            other.append(text or title)
+
+    if critical:
+        return "Dikkat isteyen kritik bir sistem uyarısı var. Ağır işlem başlatmadan önce kontrol etmek daha güvenli olur."
+
+    if security:
+        return "Güvenlik tarafında dikkat isteyen bir sinyal var. Uygun olduğunuzda güvenlik durumunu kontrol edelim."
+
+    if task_count and len(alerts) == task_count:
+        return "Sistem tarafında kritik bir sorun görünmüyor. Yalnız görev geçmişinde bir hata var; uygun olduğunuzda bakarız."
+
+    if other:
+        return "Sistem tarafında küçük bir uyarı var. Acil görünmüyor, ama gözden kaçırmayalım."
+
+    return "Sistem tarafında kritik bir sorun görünmüyor."
+
+
+def _brief_suggestion_sentence(suggestion: dict) -> str:
+    title = str(suggestion.get("title") or "").lower()
+    text = str(suggestion.get("text") or "").strip()
+
+    if "kapanış" in title or "özet" in text.lower():
+        return "Kapanış için kısa bir gün özeti iyi olur."
+
+    if text:
+        return text
+
+    return "Tek bir ana hedef seçersek daha temiz ilerleriz."
+
+
 def _brief_safe(value, default="-") -> str:
     if value is None:
         return default
@@ -196,10 +313,10 @@ def _brief_clip(text: str, limit: int = 3600) -> str:
 
 
 def cmd_brief(state: dict | None = None) -> str:
-    """E1.5A — ProactiveCore state'ini kisa Telegram brifingine cevirir.
+    """E1.5B.3 — ProactiveCore state'ini JARVIS tonunda kısa Telegram brifingine cevirir.
 
-    Not: Varsayilan olarak canli hava/web acmaz. ProactiveCore hangi state'i
-    urettiyse onu okunabilir hale getirir.
+    İçeride teknik state korunur; kullanıcıya teknik log değil, kısa karar özeti gösterilir.
+    /brief web'e çıkmaz. /brief_live ayrı komuttur.
     """
     try:
         if state is None:
@@ -207,7 +324,7 @@ def cmd_brief(state: dict | None = None) -> str:
             state = ProactiveCore().build_state()
 
         if not isinstance(state, dict):
-            return "Briefing alinamadi: state formati gecersiz."
+            return "Briefing alınamadı: state formatı geçersiz."
 
         profile = state.get("profile", {}) if isinstance(state.get("profile"), dict) else {}
         briefing = state.get("briefing", {}) if isinstance(state.get("briefing"), dict) else {}
@@ -216,103 +333,57 @@ def cmd_brief(state: dict | None = None) -> str:
         ride_risk = state.get("ride_risk", {}) if isinstance(state.get("ride_risk"), dict) else {}
         suggestion = state.get("suggestion", {}) if isinstance(state.get("suggestion"), dict) else {}
 
-        lines = []
-        lines.append("JARVIS Briefing")
-        lines.append("")
+        loc = _brief_loc(profile, weather)
+        title = str(briefing.get("title") or "").strip()
+        brief_text = str(briefing.get("text") or "").strip()
 
-        name = profile.get("name")
-        city = profile.get("city")
-        district = profile.get("district")
-        if name or city or district:
-            loc = "/".join([x for x in [city, district] if x])
-            lines.append(f"Profil: {_brief_safe(name)}" + (f" | {loc}" if loc else ""))
+        lines = [
+            "JARVIS Briefing",
+            "",
+            "Efendim, kısa durum hazır.",
+            "",
+        ]
 
-        title = briefing.get("title")
-        text = briefing.get("text")
-        if title or text:
+        if loc:
+            lines.append(f"Konum: {loc}")
             lines.append("")
-            lines.append(f"{_brief_safe(title, 'Brifing')}")
-            lines.append(_brief_safe(text, "Brifing metni yok."))
 
-        level = proactive.get("level", "none")
-        alert_count = proactive.get("alert_count", 0)
-        should_interrupt = proactive.get("should_interrupt", False)
-
-        lines.append("")
-        lines.append(f"Proaktif durum: {level} | uyarı: {alert_count} | kesinti: {'evet' if should_interrupt else 'hayır'}")
-
-        alerts = proactive.get("alerts") or []
-        if isinstance(alerts, list) and alerts:
-            for item in alerts[:3]:
-                if not isinstance(item, dict):
-                    continue
-                a_title = _brief_safe(item.get("title"), "Uyarı")
-                a_text = _brief_safe(item.get("text"), "")
-                a_action = item.get("action")
-                lines.append(f"- {a_title}: {a_text}")
-                if a_action:
-                    lines.append(f"  Aksiyon: {a_action}")
-
-            if len(alerts) > 3:
-                lines.append(f"- ... {len(alerts) - 3} ek uyarı daha var.")
-
-        weather_status = weather.get("status", "-")
-        weather_summary = weather.get("summary", "")
-        weather_location = weather.get("default_location") or "/".join(
-            [x for x in [weather.get("city"), weather.get("district")] if x]
-        )
-
-        lines.append("")
-        lines.append(f"Hava: {_brief_safe(weather_status)}" + (f" | {weather_location}" if weather_location else ""))
-        if weather_summary:
-            lines.append(_brief_safe(weather_summary))
-
-        ride_level = ride_risk.get("level", "none")
-        ride_status = ride_risk.get("status", "-")
-        ride_reason = ride_risk.get("reason", "")
-        ride_reco = ride_risk.get("recommendation", "")
-        ride_score = ride_risk.get("score")
-        ride_factors = ride_risk.get("factors") or []
-
-        lines.append("")
-        lines.append(f"Motosiklet/hava riski: {ride_level} | durum: {ride_status}")
-        if ride_score is not None:
-            lines.append(f"Risk skoru: {ride_score}")
-        if isinstance(ride_factors, list) and ride_factors:
-            lines.append("Faktörler: " + ", ".join(str(x) for x in ride_factors[:8]))
-        if ride_reason:
-            lines.append(f"Neden: {ride_reason}")
-        if ride_reco:
-            lines.append(f"Öneri: {ride_reco}")
-
-        sug_title = suggestion.get("title")
-        sug_text = suggestion.get("text")
-        sug_action = suggestion.get("action")
-
-        if sug_title or sug_text or sug_action:
+        if title or brief_text:
+            if title:
+                lines.append(title)
+            if brief_text:
+                lines.append(brief_text)
             lines.append("")
-            lines.append(f"Öneri: {_brief_safe(sug_title, 'Odak')}")
-            if sug_text:
-                lines.append(_brief_safe(sug_text))
-            if sug_action:
-                lines.append(f"Aksiyon: {sug_action}")
 
-        lines.append("")
-        lines.append("Not: /brief sadece mevcut state'i özetler; otomatik web veya push yapmaz.")
+        ride_sentence = _brief_ride_sentence(ride_risk, weather, loc or "Konum")
+        if ride_sentence:
+            lines.append(ride_sentence)
+            lines.append("")
+
+        alert_sentence = _brief_alert_sentence(proactive)
+        if alert_sentence:
+            lines.append(alert_sentence)
+            lines.append("")
+
+        suggestion_sentence = _brief_suggestion_sentence(suggestion)
+        if suggestion_sentence:
+            lines.append(suggestion_sentence)
+            lines.append("")
+
+        lines.append("Not: Bu brifing sadece durumu özetler; siz istemeden otomatik işlem yapmaz.")
 
         return _brief_clip("\n".join(lines))
 
     except Exception as e:
-        return f"Briefing alinamadi: {type(e).__name__}: {str(e)[:500]}"
-
+        return f"Briefing alınamadı: {type(e).__name__}: {str(e)[:500]}"
 
 
 def cmd_brief_live(state: dict | None = None) -> str:
-    """E1.5B — Canli hava destekli Telegram brifingi.
+    """E1.5B — Canlı hava destekli Telegram brifingi.
 
-    /brief guvenli kalir ve web'e cikmaz.
-    /brief_live ise kullanici acikca istedigi icin live_weather=True kullanir.
-    WebResearcher D2.4 cache/rate-limit korumasindan gecer.
+    /brief güvenli kalır ve web'e çıkmaz.
+    /brief_live ise kullanıcı açıkça istediği için live_weather=True kullanır.
+    WebResearcher D2.4 cache/rate-limit korumasından geçer.
     """
     try:
         if state is None:
@@ -321,12 +392,12 @@ def cmd_brief_live(state: dict | None = None) -> str:
 
         msg = cmd_brief(state)
         return msg.replace(
-            "Not: /brief sadece mevcut state'i özetler; otomatik web veya push yapmaz.",
-            "Not: /brief_live canlı hava için D2.4 cache/rate-limit korumasını kullanır; otomatik push yapmaz."
+            "Not: Bu brifing sadece durumu özetler; siz istemeden otomatik işlem yapmaz.",
+            "Not: Canlı hava D2.4 cache/rate-limit korumasıyla alındı; otomatik push yapılmadı."
         )
 
     except Exception as e:
-        return f"Canli briefing alinamadi: {type(e).__name__}: {str(e)[:500]}"
+        return f"Canlı briefing alınamadı: {type(e).__name__}: {str(e)[:500]}"
 
 
 def cmd_audit(limit: int = 6) -> str:
