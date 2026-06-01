@@ -11,14 +11,16 @@ B1 goal:
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from datetime import datetime
 
 
 class ProactiveCore:
-    def __init__(self, state_path: str = "memory/proactive_state.json", profile_path: str = "memory/user_profile.json"):
+    def __init__(self, state_path: str = "memory/proactive_state.json", profile_path: str = "memory/user_profile.json", live_weather: bool = False):
         self.state_path = Path(state_path)
         self.profile_path = Path(profile_path)
+        self.live_weather = bool(live_weather) or self._env_live_weather_enabled()
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
 
     def build_state(self) -> dict:
@@ -33,7 +35,7 @@ class ProactiveCore:
             "time": now.strftime("%H:%M"),
             "profile": self._profile_summary(profile),
             "briefing": self._briefing_stub(now, profile),
-            "weather": self._weather_stub(profile),
+            "weather": self._weather_stub(profile, live=self.live_weather),
             "music": self._music_stub(profile),
             "security": self._security_stub(),
             "system": self._system_stub(),
@@ -139,23 +141,189 @@ class ProactiveCore:
             "project": project,
         }
 
-    def _weather_stub(self, profile: dict | None = None) -> dict:
+    def _weather_stub(self, profile: dict | None = None, live: bool = False) -> dict:
         profile = profile or {}
         location = profile.get("location_context", {}) if isinstance(profile.get("location_context"), dict) else {}
         city = location.get("city") or profile.get("city") or "İzmir"
         district = location.get("district") or profile.get("district")
         default_location = "/".join([x for x in [city, district] if x])
 
+        if live:
+            return self._live_weather_from_web(profile)
+
         return {
             "city": city,
             "district": district,
             "default_location": default_location,
             "status": "pending",
-            "summary": "Hava durumu E1.4 aşamasında D2.4 cache/rate-limit korumasıyla gerçek veriye bağlanacak.",
+            "source": "stub",
+            "summary": "Canlı hava varsayılan olarak kapalı. E1.4B live_weather=True veya JARVIS_LIVE_WEATHER=1 ile D2.4 üzerinden bağlanır.",
             "temperature_c": None,
             "week": [],
             "profile_aware": bool(profile),
         }
+
+
+    def _env_live_weather_enabled(self) -> bool:
+        try:
+            import os
+            return str(os.getenv("JARVIS_LIVE_WEATHER", "")).strip().lower() in ("1", "true", "yes", "on")
+        except Exception:
+            return False
+
+    def _weather_query_from_profile(self, profile: dict) -> str:
+        location = profile.get("location_context", {}) if isinstance(profile.get("location_context"), dict) else {}
+        city = location.get("city") or profile.get("city") or "İzmir"
+        district = location.get("district") or profile.get("district") or "Buca"
+
+        return (
+            f"{city} {district} bugünkü hava durumu, yağmur ihtimali, rüzgar hızı, "
+            f"sıcaklık ve motosiklet sürüşü için riskler"
+        )
+
+    def _parse_weather_report(self, report: str) -> dict:
+        text = str(report or "")
+        low = text.lower()
+
+        def has_any(words):
+            return any(w.lower() in low for w in words)
+
+        condition = "unknown"
+        alerts = []
+
+        if has_any(["fırtına", "storm", "dolu", "sel", "afet"]):
+            condition = "fırtına"
+            alerts.append("storm")
+        elif has_any(["buz", "don", "ice", "kar", "snow"]):
+            condition = "don/buz riski"
+            alerts.append("ice")
+        elif has_any(["sağanak", "yağmur", "rain", "shower"]):
+            condition = "yağmur"
+        elif has_any(["sis", "fog", "düşük görüş"]):
+            condition = "sis"
+        elif has_any(["açık", "clear", "güneşli"]):
+            condition = "clear"
+
+        temp_c = None
+        wind_kph = None
+        precip_prob = None
+
+        # Basit ve dayanıklı metin çıkarımı. Kesin parser değil; E1.4B köprü aşaması.
+        temp_patterns = [
+            r"(-?\d{1,2})\s*°\s*c",
+            r"(-?\d{1,2})\s*derece",
+            r"sıcaklık[:\s]+(-?\d{1,2})",
+            r"temperature[:\s]+(-?\d{1,2})",
+        ]
+        for pat in temp_patterns:
+            m = re.search(pat, low)
+            if m:
+                try:
+                    temp_c = float(m.group(1))
+                    break
+                except Exception:
+                    pass
+
+        wind_patterns = [
+            r"rüzgar[:\s]+(\d{1,3})\s*km",
+            r"rüzg[aâ]r.*?(\d{1,3})\s*km",
+            r"wind[:\s]+(\d{1,3})\s*kph",
+            r"wind.*?(\d{1,3})\s*km",
+        ]
+        for pat in wind_patterns:
+            m = re.search(pat, low)
+            if m:
+                try:
+                    wind_kph = float(m.group(1))
+                    break
+                except Exception:
+                    pass
+
+        precip_patterns = [
+            r"yağış ihtimali[:\s]+%?\s*(\d{1,3})",
+            r"yağmur ihtimali[:\s]+%?\s*(\d{1,3})",
+            r"precip.*?%?\s*(\d{1,3})",
+            r"rain.*?%?\s*(\d{1,3})",
+        ]
+        for pat in precip_patterns:
+            m = re.search(pat, low)
+            if m:
+                try:
+                    precip_prob = float(m.group(1))
+                    break
+                except Exception:
+                    pass
+
+        # Metinden rakam çıkmazsa anahtar kelime bazlı güvenli varsayımlar.
+        if precip_prob is None:
+            if condition == "yağmur":
+                precip_prob = 60
+            elif condition in ("fırtına", "don/buz riski"):
+                precip_prob = 80
+            else:
+                precip_prob = 0
+
+        if wind_kph is None:
+            if condition == "fırtına":
+                wind_kph = 60
+            else:
+                wind_kph = 0
+
+        return {
+            "condition": condition,
+            "temp_c": temp_c,
+            "wind_kph": wind_kph,
+            "precip_prob": precip_prob,
+            "visibility": "low" if condition == "sis" else "unknown",
+            "alerts": alerts,
+            "raw_report": text,
+        }
+
+    def _live_weather_from_web(self, profile: dict) -> dict:
+        query = self._weather_query_from_profile(profile)
+
+        try:
+            from tools.web_research import WebResearcher
+
+            researcher = WebResearcher()
+            report = researcher.research(query, deep=False)
+            parsed = self._parse_weather_report(report)
+
+            location = profile.get("location_context", {}) if isinstance(profile.get("location_context"), dict) else {}
+            city = location.get("city") or profile.get("city") or "İzmir"
+            district = location.get("district") or profile.get("district") or "Buca"
+
+            parsed.update({
+                "city": city,
+                "district": district,
+                "default_location": "/".join([x for x in [city, district] if x]),
+                "status": "live",
+                "source": "web_research_d2_4",
+                "query": query,
+                "source_scores": getattr(researcher, "last_source_scores", []) or [],
+                "summary": "Canlı hava bilgisi D2.4 cache/rate-limit korumasıyla alındı.",
+                "profile_aware": bool(profile),
+            })
+            return parsed
+
+        except Exception as e:
+            location = profile.get("location_context", {}) if isinstance(profile.get("location_context"), dict) else {}
+            city = location.get("city") or profile.get("city") or "İzmir"
+            district = location.get("district") or profile.get("district") or "Buca"
+
+            return {
+                "city": city,
+                "district": district,
+                "default_location": "/".join([x for x in [city, district] if x]),
+                "status": "fallback",
+                "source": "web_research_d2_4",
+                "summary": f"Canlı hava verisi alınamadı: {str(e)[:120]}",
+                "temperature_c": None,
+                "week": [],
+                "alerts": [],
+                "profile_aware": bool(profile),
+            }
+
 
     def _music_stub(self, profile: dict | None = None) -> dict:
         profile = profile or {}
@@ -553,7 +721,7 @@ class ProactiveCore:
         if not isinstance(alerts, list):
             alerts = [str(alerts)]
 
-        if status == "pending" and not condition and temp_c is None and not alerts:
+        if status == "pending":
             return {
                 "enabled": True,
                 "status": "pending",
