@@ -576,7 +576,7 @@ class ProactiveCore:
             health_score_num = None
 
         if health_score_num is not None:
-            if health_score_num <= float(critical.get("system_health_critical_below", 50)):
+            if health_score_num < float(critical.get("system_health_critical_below", 50)):
                 alerts.append(self._alert(
                     "critical",
                     "system_health_critical",
@@ -585,7 +585,7 @@ class ProactiveCore:
                     "Ağır işlemleri durdur ve sistem durumunu kontrol et.",
                     interrupt=True,
                 ))
-            elif health_score_num <= float(critical.get("system_health_below", 75)):
+            elif health_score_num < float(critical.get("system_health_below", 75)):
                 alerts.append(self._alert(
                     "warning",
                     "system_health_warning",
