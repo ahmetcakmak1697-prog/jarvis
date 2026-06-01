@@ -115,6 +115,7 @@ def cmd_help() -> str:
         "/health - lokal healthz kontrolu\n"
         "/tasks - gorev kuyrugu/gecmisi\n"
         "/brief - kisa JARVIS brifingi\n"
+        "/brief_live - canli hava destekli JARVIS brifingi\n"
         "/memory - memory klasoru ozeti\n"
         "/project - proje/git/roadmap ozeti\n"
         "/report - proje raporu uretir\n"
@@ -297,6 +298,29 @@ def cmd_brief(state: dict | None = None) -> str:
 
     except Exception as e:
         return f"Briefing alinamadi: {type(e).__name__}: {str(e)[:500]}"
+
+
+
+def cmd_brief_live(state: dict | None = None) -> str:
+    """E1.5B — Canli hava destekli Telegram brifingi.
+
+    /brief guvenli kalir ve web'e cikmaz.
+    /brief_live ise kullanici acikca istedigi icin live_weather=True kullanir.
+    WebResearcher D2.4 cache/rate-limit korumasindan gecer.
+    """
+    try:
+        if state is None:
+            from agents.proactive_core import ProactiveCore
+            state = ProactiveCore(live_weather=True).build_state()
+
+        msg = cmd_brief(state)
+        return msg.replace(
+            "Not: /brief sadece mevcut state'i özetler; otomatik web veya push yapmaz.",
+            "Not: /brief_live canlı hava için D2.4 cache/rate-limit korumasını kullanır; otomatik push yapmaz."
+        )
+
+    except Exception as e:
+        return f"Canli briefing alinamadi: {type(e).__name__}: {str(e)[:500]}"
 
 
 def cmd_audit(limit: int = 6) -> str:
@@ -697,6 +721,8 @@ def handle_message(message: dict[str, Any]) -> None:
         send_message(chat_id, cmd_health())
     elif text.startswith("/tasks"):
         send_message(chat_id, cmd_tasks())
+    elif text.startswith("/brief_live"):
+        send_message(chat_id, cmd_brief_live())
     elif text.startswith("/brief"):
         send_message(chat_id, cmd_brief())
     elif text.startswith("/memory"):
