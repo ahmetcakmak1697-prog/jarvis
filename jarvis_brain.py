@@ -61,6 +61,12 @@ except ImportError:
     VM_OK = False
     print("[WARN]  ChromaDB yok — vector memory devre dışı. pip install chromadb")
 
+try:
+    from agents.memory_retrieval_policy import MemoryRetrievalPolicy
+    RETRIEVAL_POLICY_OK = True
+except ImportError:
+    RETRIEVAL_POLICY_OK = False
+
 
 class JarvisBrain:
     MODEL = "mistral-nemo:latest"
@@ -128,6 +134,16 @@ class JarvisBrain:
                 print(f"[OK] VM: {self.memory.stats()['total']} hafıza")
             except Exception as e:
                 print(f"[WARN]  VM err: {e}")
+
+        # C1.4: retrieval policy filters vector recall before LLM context.
+        self.memory_retrieval = None
+        if RETRIEVAL_POLICY_OK:
+            try:
+                self.memory_retrieval = MemoryRetrievalPolicy(max_items=5, min_similarity=0.70)
+                print("[OK] MemoryRetrievalPolicy: aktif")
+            except Exception as e:
+                self.memory_retrieval = None
+                print(f"[WARN] MemoryRetrievalPolicy devre disi: {e}")
 
     def _safe_init(self, name, factory):
         """Opsiyonel JARVIS modüllerini güvenli başlatır; hata ana çekirdeği düşürmez."""
@@ -882,14 +898,20 @@ JSON döndür:
             mem_ctx = ""
             if self.memory:
                 try:
-                    sim = self.memory.find_similar(msg, n=3, threshold=0.7)
+                    sim = self.memory.find_similar(msg, n=5, threshold=0.7)
                 except Exception:
                     sim = []
+
+                if sim and self.memory_retrieval:
+                    try:
+                        sim = self.memory_retrieval.filter_hits(sim, query=msg)
+                    except Exception:
+                        sim = []
 
                 if sim:
                     mem_ctx = "\n".join(
                         f"- (Geçmiş) {s.get('user_msg', '')} → {s.get('jarvis_msg', '')[:120]}..."
-                        for s in sim[:2]
+                        for s in sim[:3]
                     )
 
             # Düşünme/niyet analizi.
