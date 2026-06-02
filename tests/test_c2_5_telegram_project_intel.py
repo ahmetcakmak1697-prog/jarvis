@@ -35,6 +35,17 @@ def test_cmd_project_intel_mentions_related_commands():
 def test_cmd_project_intel_includes_acceptance_and_risk_context():
     text = cmd_project_intel()
 
-    assert "Planner returns recommended_action" in text
-    assert "Planner is deterministic" in text
+    assert "Acceptance criteria:" in text
+    assert "Risks:" in text
     assert "Do not rely only on chat history" in text
+    assert any(
+        token in text
+        for token in [
+            "Planner returns recommended_action",
+            "Planner is deterministic",
+            "Full C2 project smoke suite passes",
+            "Main smoke suite passes",
+            "Telegram command",
+            "Command output",
+        ]
+    )

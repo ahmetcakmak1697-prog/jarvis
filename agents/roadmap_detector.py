@@ -160,11 +160,48 @@ class RoadmapDetector:
                 "summarizer tests",
                 "c2 summarizer tests",
             ),
+            "c2.3": (
+                "roadmap detector",
+                "roadmap tests",
+            ),
+            "c2.4": (
+                "next action planner",
+                "planner tests",
+            ),
+            "c2.5": (
+                "project intelligence command",
+                "project intel",
+            ),
+        }
+
+        completed_files = {
+            "c2.1": [
+                self.root / "agents" / "project_state.py",
+                self.root / "tests" / "test_c2_1_project_state.py",
+                self.root / "tests" / "test_c2_1_telegram_project_state.py",
+            ],
+            "c2.2": [
+                self.root / "agents" / "project_summarizer.py",
+                self.root / "tests" / "test_c2_2_project_summarizer.py",
+            ],
+            "c2.3": [
+                self.root / "agents" / "roadmap_detector.py",
+                self.root / "tests" / "test_c2_3_roadmap_detector.py",
+            ],
+            "c2.4": [
+                self.root / "agents" / "next_action_planner.py",
+                self.root / "tests" / "test_c2_4_next_action_planner.py",
+            ],
+            "c2.5": [
+                self.root / "tests" / "test_c2_5_telegram_project_intel.py",
+            ],
         }
 
         completed: set[str] = set()
         for phase, markers in completed_markers.items():
-            if any(marker in joined_commits for marker in markers):
+            commit_hit = any(marker in joined_commits for marker in markers)
+            file_hit = all(path.exists() for path in completed_files.get(phase, []))
+            if commit_hit or file_hit:
                 completed.add(phase)
 
         if next_steps:
@@ -178,9 +215,21 @@ class RoadmapDetector:
                     continue
                 if low.startswith("c2.2") and "c2.2" in completed:
                     continue
+                if low.startswith("c2.3") and "c2.3" in completed:
+                    continue
+                if low.startswith("c2.4") and "c2.4" in completed:
+                    continue
+                if low.startswith("c2.5") and "c2.5" in completed:
+                    continue
 
                 return text
 
+        if "c2.5" in completed:
+            return "C2.6 project intelligence smoke tests"
+        if "c2.4" in completed:
+            return "C2.5 Telegram/project dashboard command"
+        if "c2.3" in completed:
+            return "C2.4 next-action planner"
         if "c2.2" in completed:
             return "C2.3 current roadmap detector"
         if "c2.1" in completed:

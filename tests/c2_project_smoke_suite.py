@@ -22,6 +22,7 @@ TEST_MODULES = [
     "tests/test_c2_2_project_summarizer.py",
     "tests/test_c2_3_roadmap_detector.py",
     "tests/test_c2_4_next_action_planner.py",
+    "tests/test_c2_5_telegram_project_intel.py",
 ]
 
 

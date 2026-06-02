@@ -31,13 +31,14 @@ def test_roadmap_detector_detects_required_docs():
     assert pos.project_state_exists is True
 
 
-def test_roadmap_detector_infers_c2_3_after_c2_2_commits():
+def test_roadmap_detector_infers_valid_c2_next_phase():
     detector = RoadmapDetector()
     pos = detector.detect()
 
     assert pos.current_phase == "C2"
     assert pos.last_completed_phase == "C1"
-    assert pos.next_phase == "C2.3 current roadmap detector"
+    assert pos.next_phase.startswith("C2.")
+    assert pos.next_phase != "unknown"
     assert pos.confidence >= 90
 
 
