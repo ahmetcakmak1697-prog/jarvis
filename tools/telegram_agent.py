@@ -118,6 +118,7 @@ def cmd_help() -> str:
         "/brief_live - canli hava destekli JARVIS brifingi\n"
         "/memory - memory klasoru ozeti\n"
         "/project - proje/git/roadmap ozeti\n"
+        "/project_state - C2 proje durum modelini gosterir\n"
         "/report - proje raporu uretir\n"
         "/mem_status - C1 hafiza sistem durumunu gosterir\n"
         "/mem_candidates - hafiza adaylarini listeler\n"
@@ -962,6 +963,30 @@ def cmd_web(text: str) -> str:
     return "\n".join(lines) + footer
 
 
+def cmd_project_state() -> str:
+    """Show C2 project state summary."""
+    try:
+        from agents.project_state import ProjectStateStore
+
+        store = ProjectStateStore()
+        state = store.refresh()
+        summary = store.summary()
+
+        lines = [
+            "C2 Proje Durumu",
+            "",
+            summary,
+            "",
+            f"Updated: {state.get('updated_at')}",
+            "",
+            "Komutlar: /project | /report | /mem_status",
+        ]
+
+        return "\n".join(lines)
+    except Exception as exc:
+        return f"Proje durum modeli alinamadi: {exc}"
+
+
 def cmd_report() -> str:
     try:
         from agents.project_reporter import ProjectReporter
@@ -1051,6 +1076,8 @@ def handle_message(message: dict[str, Any]) -> None:
         send_message(chat_id, cmd_memory())
     elif text.startswith("/mem_status"):
         send_message(chat_id, cmd_memory_status())
+    elif text.startswith("/project_state"):
+        send_message(chat_id, cmd_project_state())
     elif text.startswith("/project"):
         send_message(chat_id, cmd_project())
     elif text.startswith("/report"):
