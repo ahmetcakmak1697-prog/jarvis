@@ -110,7 +110,7 @@ class MemoryCandidateWriter:
             }
 
         # Explicit approval means we ask policy as an explicit-save memory.
-        policy_text = f"Bunu hat?rla: {summary}"
+        policy_text = f"Bunu hatirla: {summary}"
         decision = self.policy.decide(policy_text).to_dict()
 
         if decision.get("requires_review") is True:
