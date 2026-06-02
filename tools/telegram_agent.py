@@ -119,6 +119,7 @@ def cmd_help() -> str:
         "/memory - memory klasoru ozeti\n"
         "/project - proje/git/roadmap ozeti\n"
         "/project_state - C2 proje durum modelini gosterir\n"
+        "/project_intel - C2 proje zekasi ve sonraki aksiyonu gosterir\n"
         "/report - proje raporu uretir\n"
         "/mem_status - C1 hafiza sistem durumunu gosterir\n"
         "/mem_candidates - hafiza adaylarini listeler\n"
@@ -987,6 +988,58 @@ def cmd_project_state() -> str:
         return f"Proje durum modeli alinamadi: {exc}"
 
 
+def cmd_project_intel() -> str:
+    """Show C2 project intelligence summary and next action."""
+    try:
+        from agents.project_summarizer import ProjectSummarizer
+        from agents.roadmap_detector import RoadmapDetector
+        from agents.next_action_planner import NextActionPlanner
+
+        summary = ProjectSummarizer().summarize()
+        roadmap = RoadmapDetector().detect()
+        plan = NextActionPlanner().plan()
+
+        lines = [
+            "C2 Proje Zekasi",
+            "",
+            f"Project: {summary.project}",
+            f"Current phase: {summary.current_phase}",
+            f"Last completed: {summary.last_completed_phase}",
+            f"Branch: {summary.branch}",
+            f"Git clean: {'yes' if summary.git_clean else 'no'}",
+            f"Roadmap confidence: {roadmap.confidence}/100",
+            "",
+            f"Next phase: {roadmap.next_phase}",
+            f"Recommended action: {plan.recommended_action}",
+            f"Reason: {plan.reason}",
+            "",
+            "Acceptance criteria:",
+        ]
+
+        for item in plan.acceptance_criteria[:6]:
+            lines.append(f"- {item}")
+
+        risks = list(dict.fromkeys((roadmap.risks or []) + (plan.risks or []) + (summary.risks or [])))
+        if risks:
+            lines.extend(["", "Risks:"])
+            for risk in risks[:6]:
+                lines.append(f"- {risk}")
+
+        if roadmap.evidence:
+            lines.extend(["", "Evidence:"])
+            for item in roadmap.evidence[:5]:
+                lines.append(f"- {item}")
+
+        lines.extend([
+            "",
+            "Komutlar: /project_state | /project | /report | /mem_status",
+        ])
+
+        return "\n".join(lines)
+    except Exception as exc:
+        return f"Proje zekasi alinamadi: {exc}"
+
+
 def cmd_report() -> str:
     try:
         from agents.project_reporter import ProjectReporter
@@ -1076,6 +1129,8 @@ def handle_message(message: dict[str, Any]) -> None:
         send_message(chat_id, cmd_memory())
     elif text.startswith("/mem_status"):
         send_message(chat_id, cmd_memory_status())
+    elif text.startswith("/project_intel"):
+        send_message(chat_id, cmd_project_intel())
     elif text.startswith("/project_state"):
         send_message(chat_id, cmd_project_state())
     elif text.startswith("/project"):
