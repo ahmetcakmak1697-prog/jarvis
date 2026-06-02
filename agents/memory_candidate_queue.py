@@ -119,6 +119,143 @@ class MemoryCandidateQueue:
 
         return candidate.to_dict()
 
+    def add_conversation_candidate(
+        self,
+        user_msg: str,
+        jarvis_msg: str = "",
+        route: dict[str, Any] | None = None,
+        mode: str = "conversation",
+        ttl_days: int | None = None,
+        tags: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Queue a conversation-derived memory candidate for user review.
+
+        C1.2A:
+        - no silent semantic/vector write
+        - ignored/temporary/daily-summary routes are not queued here
+        - sensitive routes go to the same review queue
+        """
+        from agents.memory_schema import MemorySchemaMapper
+
+        user_msg = (user_msg or "").strip()
+        jarvis_msg = (jarvis_msg or "").strip()
+
+        if not user_msg and not jarvis_msg:
+            return {
+                "ok": False,
+                "queued": False,
+                "reason": "empty_exchange",
+            }
+
+        if route is None:
+            route = MemorySchemaMapper().route_exchange(
+                user_msg=user_msg,
+                jarvis_msg=jarvis_msg,
+                meta={"source": "conversation"},
+            ).to_dict()
+
+        memory_type = str(route.get("memory_type") or "")
+        storage_target = str(route.get("storage_target") or "")
+
+        should_queue = (
+            (memory_type == "semantic" and storage_target == "vector")
+            or memory_type == "sensitive_review"
+            or storage_target == "review_queue"
+            or bool(route.get("requires_review"))
+        )
+
+        if not should_queue:
+            return {
+                "ok": True,
+                "queued": False,
+                "reason": "route_not_review_candidate",
+                "route": route,
+            }
+
+        now = datetime.now()
+        if ttl_days is None:
+            ttl_days = 60 if memory_type != "sensitive_review" else 14
+
+        expires_at = None
+        if ttl_days:
+            expires_at = (now + timedelta(days=ttl_days)).isoformat(timespec="seconds")
+
+        base_tags = ["conversation", "c1_2_review"]
+        route_tags = list(route.get("tags") or [])
+        merged_tags = list(dict.fromkeys(base_tags + route_tags + (tags or [])))
+
+        summary_parts = []
+        if user_msg:
+            summary_parts.append(f"USER: {user_msg}")
+        if jarvis_msg:
+            summary_parts.append(f"JARVIS: {jarvis_msg}")
+        summary = "\n".join(summary_parts).strip()
+
+        if len(summary) > 1200:
+            summary = summary[:1200].rstrip() + "..."
+
+        confidence = int(route.get("confidence") or 50)
+        tier = self._tier_from_confidence(confidence)
+
+        candidate = MemoryCandidate(
+            id=self._make_id(user_msg or "conversation", summary),
+            created_at=now.isoformat(timespec="seconds"),
+            source_type="conversation",
+            mode=mode,
+            status="pending_review",
+            query=user_msg[:500],
+            summary=summary,
+            confidence=confidence,
+            tier=tier,
+            source_urls=[],
+            source_scores=[],
+            retrieved_at=now.isoformat(timespec="seconds"),
+            expires_at=expires_at,
+            tags=merged_tags,
+        )
+
+        item = candidate.to_dict()
+        item["route"] = route
+        item["schema_version"] = route.get("schema_version", "c1.1")
+        item["memory_type"] = memory_type
+        item["storage_target"] = storage_target
+        item["sensitivity"] = route.get("sensitivity")
+        item["delete_id"] = route.get("delete_id")
+
+        items = self._load()
+        existing_ids = {entry.get("id") for entry in items if isinstance(entry, dict)}
+
+        if candidate.id not in existing_ids:
+            items.append(item)
+            self._save(items)
+
+            self.audit.log(
+                event="conversation_candidate_queued",
+                query=user_msg,
+                candidate_id=candidate.id,
+                action="queued",
+                payload={
+                    "source_type": candidate.source_type,
+                    "mode": candidate.mode,
+                    "status": candidate.status,
+                    "confidence": candidate.confidence,
+                    "tier": candidate.tier,
+                    "expires_at": candidate.expires_at,
+                    "tags": candidate.tags,
+                    "memory_type": memory_type,
+                    "storage_target": storage_target,
+                    "sensitivity": route.get("sensitivity"),
+                    "delete_id": route.get("delete_id"),
+                },
+            )
+
+        return {
+            "ok": True,
+            "queued": True,
+            "candidate": item,
+            "route": route,
+        }
+
     def list_pending(self, limit: int = 10) -> list[dict[str, Any]]:
         items = self._load()
         pending = [
