@@ -119,6 +119,7 @@ def cmd_help() -> str:
         "/memory - memory klasoru ozeti\n"
         "/project - proje/git/roadmap ozeti\n"
         "/report - proje raporu uretir\n"
+        "/mem_status - C1 hafiza sistem durumunu gosterir\n"
         "/mem_candidates - hafiza adaylarini listeler\n"
         "/mem_approve <id> - hafiza adayini onaylar\n"
         "/mem_reject <id> - hafiza adayini reddeder\n"
@@ -606,6 +607,93 @@ def _format_memory_candidate_item(item: dict) -> list[str]:
     return lines
 
 
+def cmd_memory_status() -> str:
+    """Show C1 memory system status."""
+    try:
+        from agents.memory_candidate_queue import MemoryCandidateQueue
+
+        q = MemoryCandidateQueue()
+        stats = q.stats()
+        counts = stats.get("counts", {}) if isinstance(stats.get("counts"), dict) else {}
+        pending = q.list_pending(limit=3)
+
+        vector_total = "unavailable"
+        try:
+            from tools.vector_memory import VectorMemory
+
+            vector_total = VectorMemory().stats().get("total", 0)
+        except Exception as exc:
+            vector_total = f"unavailable ({str(exc)[:60]})"
+
+        modules = {
+            "MemoryPolicy": False,
+            "MemorySchemaMapper": False,
+            "MemoryRetrievalPolicy": False,
+            "MemoryCandidateQueue": True,
+        }
+
+        try:
+            from agents.memory_policy import MemoryPolicy
+            modules["MemoryPolicy"] = MemoryPolicy is not None
+        except Exception:
+            pass
+
+        try:
+            from agents.memory_schema import MemorySchemaMapper
+            modules["MemorySchemaMapper"] = MemorySchemaMapper is not None
+        except Exception:
+            pass
+
+        try:
+            from agents.memory_retrieval_policy import MemoryRetrievalPolicy
+            modules["MemoryRetrievalPolicy"] = MemoryRetrievalPolicy is not None
+        except Exception:
+            pass
+
+        lines = [
+            "C1 Hafiza Sistem Durumu",
+            "",
+            f"Vector memory: {vector_total}",
+            f"Candidate total: {stats.get('total', 0)}",
+            f"Pending: {stats.get('pending', 0)}",
+            f"Stored: {counts.get('stored', 0)}",
+            f"Rejected: {counts.get('rejected', 0)}",
+            f"Deferred: {counts.get('deferred', 0)}",
+            f"Expired: {counts.get('expired', 0)}",
+            "",
+            "Moduller:",
+        ]
+
+        for name, ok in modules.items():
+            lines.append(f"- {name}: {'OK' if ok else 'YOK'}")
+
+        if pending:
+            lines.extend(["", "Son pending adaylar:"])
+            for item in pending:
+                route = item.get("route") if isinstance(item.get("route"), dict) else {}
+                memory_type = item.get("memory_type") or route.get("memory_type") or "-"
+                storage_target = item.get("storage_target") or route.get("storage_target") or "-"
+                sensitivity = item.get("sensitivity") or route.get("sensitivity") or "-"
+                summary = str(item.get("summary") or "").strip()
+                if len(summary) > 120:
+                    summary = summary[:120].rstrip() + "..."
+
+                lines.extend([
+                    f"- ID: {item.get('id')}",
+                    f"  Source: {item.get('source_type')} | Type: {memory_type}->{storage_target} | Sens: {sensitivity}",
+                    f"  Ozet: {summary}",
+                ])
+
+        lines.extend([
+            "",
+            "Komutlar: /mem_candidates | /mem_expire | /mem_approve <id>",
+        ])
+
+        return "\n".join(lines)
+    except Exception as exc:
+        return f"Hafiza sistem durumu alinamadi: {exc}"
+
+
 def cmd_memory_candidates() -> str:
     try:
         from agents.memory_candidate_queue import MemoryCandidateQueue
@@ -961,6 +1049,8 @@ def handle_message(message: dict[str, Any]) -> None:
         send_message(chat_id, cmd_brief())
     elif text.startswith("/memory"):
         send_message(chat_id, cmd_memory())
+    elif text.startswith("/mem_status"):
+        send_message(chat_id, cmd_memory_status())
     elif text.startswith("/project"):
         send_message(chat_id, cmd_project())
     elif text.startswith("/report"):
