@@ -41,14 +41,43 @@ class VectorMemory:
                                n_results=min(n, self.col.count()))
             if not r.get('documents') or not r['documents'][0]:
                 return []
+
+            docs = r.get("documents", [[]])[0] or []
+            metas = r.get("metadatas", [[]])[0] or []
+            distances = r.get("distances", [[]])[0] or []
+            ids = r.get("ids", [[]])[0] or []
+
             out = []
-            for doc, m, d in zip(r['documents'][0], r['metadatas'][0], r['distances'][0]):
-                if d < threshold:
-                    out.append({"user_msg": m.get("user_msg", ""),
-                                "jarvis_msg": m.get("jarvis_msg", ""),
-                                "ts": m.get("ts", ""), "distance": d})
+            for idx, doc in enumerate(docs):
+                m = metas[idx] if idx < len(metas) and isinstance(metas[idx], dict) else {}
+                d = distances[idx] if idx < len(distances) else None
+                doc_id = ids[idx] if idx < len(ids) else ""
+
+                try:
+                    distance = float(d) if d is not None else None
+                except Exception:
+                    distance = None
+
+                # Existing threshold is Chroma cosine distance based: lower is better.
+                if distance is not None and distance >= threshold:
+                    continue
+
+                similarity = None
+                if distance is not None:
+                    similarity = max(0.0, min(1.0, 1.0 - distance))
+
+                out.append({
+                    "id": doc_id,
+                    "user_msg": m.get("user_msg", ""),
+                    "jarvis_msg": m.get("jarvis_msg", ""),
+                    "ts": m.get("ts", ""),
+                    "distance": distance,
+                    "similarity": similarity,
+                    "metadata": m,
+                    "document": doc,
+                })
             return out
-        except:
+        except Exception:
             return []
 
 # Mevcut VectorMemory sınıfının içine ekle:
