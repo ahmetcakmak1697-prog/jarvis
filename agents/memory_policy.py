@@ -117,7 +117,7 @@ class MemoryPolicy:
             return MemoryDecision(
                 action=self.ACTION_SENSITIVE_REVIEW,
                 importance=9,
-                reason="Kullan?c? haf?zadan silme/unutma talebi verdi.",
+                reason="Kullanıcı hafızadan silme/unutma talebi verdi.",
                 tags=["forget_request"],
                 retention_days=None,
                 allow_vector=False,
@@ -129,7 +129,7 @@ class MemoryPolicy:
             return MemoryDecision(
                 action=self.ACTION_IGNORE,
                 importance=1,
-                reason="K?sa nezaket/onay mesaj?; kal?c? haf?za de?eri d???k.",
+                reason="Kısa nezaket/onay mesajı; kalıcı hafıza değeri düşük.",
                 tags=["low_value"],
                 retention_days=0,
                 allow_vector=False,
@@ -158,7 +158,7 @@ class MemoryPolicy:
             return MemoryDecision(
                 action=self.ACTION_KEEP_LONG_TERM,
                 importance=min(10, importance),
-                reason="Kullan?c? a??k?a hat?rlama/kaydetme talebi verdi.",
+                reason="Kullanıcı açıkça hatırlama/kaydetme talebi verdi.",
                 tags=tags or ["explicit_save"],
                 retention_days=None,
                 allow_vector=True,
@@ -175,7 +175,7 @@ class MemoryPolicy:
                 return MemoryDecision(
                     action=self.ACTION_SENSITIVE_REVIEW,
                     importance=min(10, importance),
-                    reason="Hassas bilgi i?eriyor ve kullan?c? kaydetme istedi; inceleme gerekli.",
+                    reason="Hassas bilgi içeriyor ve kullanıcı kaydetme istedi; inceleme gerekli.",
                     tags=tags,
                     retention_days=None,
                     allow_vector=False,
@@ -186,7 +186,7 @@ class MemoryPolicy:
             return MemoryDecision(
                 action=self.ACTION_SENSITIVE_REVIEW,
                 importance=min(8, importance),
-                reason="Hassas bilgi i?eriyor; otomatik uzun haf?zaya al?nmamal?.",
+                reason="Hassas bilgi içeriyor; otomatik uzun hafızaya alınmamalı.",
                 tags=tags,
                 retention_days=7,
                 allow_vector=False,
@@ -221,7 +221,7 @@ class MemoryPolicy:
             return MemoryDecision(
                 action=self.ACTION_KEEP_LONG_TERM,
                 importance=importance,
-                reason="Y?ksek ?nem: proje/tercih/kal?c? sinyal tespit edildi.",
+                reason="Yüksek önem: proje/tercih/kalıcı sinyal tespit edildi.",
                 tags=tags or ["important"],
                 retention_days=None,
                 allow_vector=True,
@@ -233,7 +233,7 @@ class MemoryPolicy:
             return MemoryDecision(
                 action=self.ACTION_DAILY_SUMMARY,
                 importance=importance,
-                reason="G?nl?k ?zet/proje takibi i?in de?erli.",
+                reason="Günlük özet/proje takibi için değerli.",
                 tags=tags or ["daily"],
                 retention_days=30,
                 allow_vector=False,
@@ -244,7 +244,7 @@ class MemoryPolicy:
         return MemoryDecision(
             action=self.ACTION_TEMPORARY,
             importance=importance,
-            reason="Orta de?erli konu?ma; ge?ici tutulabilir.",
+            reason="Orta değerli konuşma; geçici tutulabilir.",
             tags=tags or ["temporary"],
             retention_days=14,
             allow_vector=False,
@@ -253,57 +253,42 @@ class MemoryPolicy:
         )
 
     def _normalize(self, text: str) -> str:
-        table = str.maketrans({
-            "?": "i", "?": "i",
-            "?": "g", "?": "g",
-            "?": "u", "?": "u",
-            "?": "s", "?": "s",
-            "?": "o", "?": "o",
-            "?": "c", "?": "c",
-        })
-        return (text or "").translate(table).lower()
+        """Return lowercase ASCII-friendly Turkish-normalized text.
 
+        C1.0A: fixes old encoding-damaged normalization. This keeps matching
+        deterministic without storing or exposing corrupted Turkish strings.
+        """
+        text = (text or "").lower()
+        table = str.maketrans({
+            "ç": "c",
+            "ğ": "g",
+            "ı": "i",
+            "i": "i",
+            "ö": "o",
+            "ş": "s",
+            "ü": "u",
+            "Ç": "c",
+            "Ğ": "g",
+            "İ": "i",
+            "I": "i",
+            "Ö": "o",
+            "Ş": "s",
+            "Ü": "u",
+        })
+        return text.translate(table)
 
     def _matches_any(self, text: str, patterns: list[str]) -> bool:
+        """Match patterns against raw and Turkish-normalized text."""
+        raw = text or ""
+        normalized = self._normalize(raw)
+
         for pattern in patterns:
             try:
-                if re.search(pattern, text, flags=re.IGNORECASE):
+                if re.search(pattern, raw, flags=re.IGNORECASE):
+                    return True
+                if normalized != raw and re.search(pattern, normalized, flags=re.IGNORECASE):
                     return True
             except re.error:
-                # Defensive guard: one malformed pattern must not crash memory policy.
-                # Fall back to a conservative plain-text containment check.
-                plain = (
-                    pattern
-                    .replace(r"\\b", "")
-                    .replace("\\b", "")
-                    .replace("(", "")
-                    .replace(")", "")
-                    .replace("|", " ")
-                    .replace(r"\\s", " ")
-                    .replace("*", "")
-                    .replace("+", "")
-                    .replace("?", "")
-                    .strip()
-                    .lower()
-                )
-                if plain and plain in text.lower():
-                    return True
+                continue
+
         return False
-
-
-if __name__ == "__main__":
-    policy = MemoryPolicy()
-    samples = [
-        "Merhaba",
-        "Bundan sonra Jarvis yol haritas?nda C1 haf?za politikas?n? unutma.",
-        "Bug?n Telegram bot ve Tailscale testini tamamlad?k.",
-        "Telefon numaram 555 ile ba?l?yor.",
-        "Bunu hat?rla: projede C2 proje zekas?na ge?ece?iz.",
-        "Bunu unut ve haf?zadan ??kar.",
-    ]
-
-    for sample in samples:
-        decision = policy.decide(sample)
-        print("---")
-        print(sample)
-        print(decision.to_dict())
