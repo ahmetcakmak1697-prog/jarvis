@@ -182,6 +182,93 @@ def cmd_tasks() -> str:
 
 
 
+
+def _brief_time_context(now=None) -> dict:
+    try:
+        from datetime import datetime
+        now = now or datetime.now()
+        hour = int(getattr(now, "hour", 0))
+    except Exception:
+        hour = 12
+
+    if 5 <= hour < 11:
+        return {
+            "mode": "morning",
+            "title": "Gün başlangıcı",
+            "opening": "Efendim, gün başlangıcı için kısa durum hazır.",
+            "suggestion": "Bugün tek ana hedef seçersek günü daha temiz yönetiriz.",
+        }
+
+    if 11 <= hour < 17:
+        return {
+            "mode": "day",
+            "title": "Durum kontrolü",
+            "opening": "Efendim, kısa durum kontrolü hazır.",
+            "suggestion": "Günün ortasında rota iyi görünüyor; tek sapmayı yakalamak yeterli.",
+        }
+
+    if 17 <= hour < 23:
+        return {
+            "mode": "evening",
+            "title": "Akşam değerlendirmesi",
+            "opening": "Efendim, akşam için kısa durum hazır.",
+            "suggestion": "Günün kısa özetini almak ve yarına tek not bırakmak iyi olur.",
+        }
+
+    return {
+        "mode": "night",
+        "title": "Gece çalışma modu",
+        "opening": "Efendim, gece modu için kısa durum hazır.",
+        "suggestion": "Yeni özellik açmak yerine checkpoint almak daha akıllıca olur.",
+    }
+
+
+def _brief_should_replace_generic_title(title: str) -> bool:
+    low = str(title or "").lower()
+    if not low.strip():
+        return True
+
+    # Turkish mojibake/ASCII-safe generic title detection.
+    generic = [
+        "kapan?? de?erlendirmesi",
+        "kapanis degerlendirmesi",
+        "kapan",
+        "de?erlendirmesi",
+        "degerlendirmesi",
+        "de?erlendirmesi",
+        "sabah brifingi",
+        "canl? brifing",
+        "canli brifing",
+        "canl? brifing",
+        "brifing",
+    ]
+    return any(x in low for x in generic)
+
+def _brief_should_replace_generic_suggestion(suggestion: dict) -> bool:
+    title = str((suggestion or {}).get("title") or "").lower()
+    body = str((suggestion or {}).get("text") or "").lower()
+    joined = title + " " + body
+
+    # Turkish mojibake/ASCII-safe generic suggestion detection.
+    generic = [
+        "kapan??",
+        "kapanis",
+        "kapan",
+        "g?n ?zeti",
+        "gun ozeti",
+        "g?n",
+        "?zet",
+        "ozet",
+        "?zet",
+        "ad?m",
+        "adim",
+        "ad?m",
+        "odak",
+        "tek ana hedef",
+        "kaydetmek",
+    ]
+    return any(x in joined for x in generic) or not joined.strip()
+
 def _brief_loc(profile: dict, weather: dict | None = None) -> str:
     weather = weather or {}
     loc = weather.get("default_location")
@@ -288,14 +375,15 @@ def _brief_alert_sentence(proactive: dict) -> str:
 def _brief_suggestion_sentence(suggestion: dict) -> str:
     title = str(suggestion.get("title") or "").lower()
     text = str(suggestion.get("text") or "").strip()
+    time_ctx = _brief_time_context()
 
-    if "kapanış" in title or "özet" in text.lower():
-        return "Kapanış için kısa bir gün özeti iyi olur."
+    if _brief_should_replace_generic_suggestion(suggestion):
+        return time_ctx.get("suggestion", "Tek bir ana hedef seçersek daha temiz ilerleriz.")
 
     if text:
         return text
 
-    return "Tek bir ana hedef seçersek daha temiz ilerleriz."
+    return time_ctx.get("suggestion", "Tek bir ana hedef seçersek daha temiz ilerleriz.")
 
 
 def _brief_safe(value, default="-") -> str:
@@ -334,13 +422,20 @@ def cmd_brief(state: dict | None = None) -> str:
         suggestion = state.get("suggestion", {}) if isinstance(state.get("suggestion"), dict) else {}
 
         loc = _brief_loc(profile, weather)
+        time_ctx = _brief_time_context()
         title = str(briefing.get("title") or "").strip()
         brief_text = str(briefing.get("text") or "").strip()
+
+        if _brief_should_replace_generic_title(title):
+            original_title = title
+            title = time_ctx.get("title", title)
+            if brief_text and _brief_should_replace_generic_suggestion({"title": original_title, "text": brief_text}):
+                brief_text = ""
 
         lines = [
             "JARVIS Briefing",
             "",
-            "Efendim, kısa durum hazır.",
+            time_ctx.get("opening", "Efendim, kısa durum hazır."),
             "",
         ]
 

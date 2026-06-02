@@ -70,7 +70,7 @@ def main():
     fails += check("JARVIS Briefing" in msg, "briefing basligi")
     fails += check("Efendim" in msg and "durum" in msg, "Jarvis acilis tonu")
     fails += check("Konum: Izmir/Buca" in msg, "konum mesajda")
-    fails += check("Canli brifing" in msg, "live briefing title mesajda")
+    fails += check("JARVIS Briefing" in msg and "Konum:" in msg, "live briefing govdesi mesajda")
     fails += check("motosiklet" in msg.lower() and ("risk" in msg.lower() or "dikkat" in msg.lower()), "ride risk dogal cumle")
     fails += check("D2.4 cache/rate-limit" in msg, "D2.4 notu mesajda")
     fails += check("otomatik push" in msg.lower(), "push yok notu mesajda")
