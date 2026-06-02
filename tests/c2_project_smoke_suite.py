@@ -19,6 +19,7 @@ if str(ROOT) not in sys.path:
 TEST_MODULES = [
     "tests/test_c2_1_project_state.py",
     "tests/test_c2_1_telegram_project_state.py",
+    "tests/test_c2_2_project_summarizer.py",
 ]
 
 
