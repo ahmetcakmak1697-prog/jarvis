@@ -123,6 +123,7 @@ def cmd_help() -> str:
         "/mem_approve <id> - hafiza adayini onaylar\n"
         "/mem_reject <id> - hafiza adayini reddeder\n"
         "/mem_defer <id> - hafiza adayini erteler\n"
+        "/mem_expire - suresi gecen hafiza adaylarini expired yapar\n"
         "/audit - son audit olaylarini gosterir\n"
         "/audit_stats - audit olay sayilarini gosterir\n"
         "/web <soru> - guvenli web arastirmasi yapar\n"
@@ -638,6 +639,36 @@ def cmd_memory_candidates() -> str:
         return f"Hafiza adaylari alinamadi: {exc}"
 
 
+def cmd_memory_expire() -> str:
+    """Expire old memory candidates without deleting data."""
+    try:
+        from agents.memory_candidate_queue import MemoryCandidateQueue
+
+        q = MemoryCandidateQueue()
+        before = q.stats()
+        result = q.expire_old()
+        after = q.stats()
+
+        expired_ids = result.get("expired_ids", [])
+        lines = [
+            "Hafiza aday TTL temizligi tamamlandi.",
+            f"Degisen: {result.get('changed', 0)}",
+            f"Once pending: {before.get('pending', 0)}",
+            f"Sonra pending: {after.get('pending', 0)}",
+        ]
+
+        if expired_ids:
+            lines.append("Expired ID:")
+            lines.extend(f"- {cid}" for cid in expired_ids[:10])
+            if len(expired_ids) > 10:
+                lines.append(f"... +{len(expired_ids) - 10} daha")
+
+        lines.append("Not: Kayitlar silinmedi; sadece expired durumuna alindi.")
+        return "\n".join(lines)
+    except Exception as exc:
+        return f"Hafiza aday TTL temizligi basarisiz: {exc}"
+
+
 def cmd_memory_candidate_decide(text: str, decision: str) -> str:
     try:
         from agents.memory_candidate_queue import MemoryCandidateQueue
@@ -944,6 +975,8 @@ def handle_message(message: dict[str, Any]) -> None:
         send_message(chat_id, cmd_memory_candidate_decide(text, "reject"))
     elif text.startswith("/mem_defer"):
         send_message(chat_id, cmd_memory_candidate_decide(text, "defer"))
+    elif text.startswith("/mem_expire"):
+        send_message(chat_id, cmd_memory_expire())
     elif text.startswith("/audit_stats"):
         send_message(chat_id, cmd_audit_stats())
     elif text.startswith("/audit"):
