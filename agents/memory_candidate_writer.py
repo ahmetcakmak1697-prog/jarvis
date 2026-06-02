@@ -99,6 +99,7 @@ class MemoryCandidateWriter:
 
         query = str(candidate.get("query") or "").strip()
         summary = str(candidate.get("summary") or "").strip()
+        route = candidate.get("route") if isinstance(candidate.get("route"), dict) else {}
 
         if not summary:
             self._log_store_blocked(candidate_id, candidate, "candidate summary bos.")
@@ -107,6 +108,37 @@ class MemoryCandidateWriter:
                 "stored": False,
                 "error": "candidate summary bos.",
                 "candidate_id": candidate_id,
+            }
+
+        # C1.5A: route-aware hard safety gate before any vector write.
+        memory_type = str(candidate.get("memory_type") or route.get("memory_type") or "").strip()
+        storage_target = str(candidate.get("storage_target") or route.get("storage_target") or "").strip()
+        sensitivity = str(candidate.get("sensitivity") or route.get("sensitivity") or "").strip()
+        route_requires_review = bool(route.get("requires_review"))
+
+        blocked_by_route = (
+            memory_type == "sensitive_review"
+            or storage_target == "review_queue"
+            or sensitivity in {"sensitive", "secret"}
+            or route_requires_review is True
+        )
+
+        if blocked_by_route:
+            self.queue.decide(candidate_id, "approved")
+            route_policy = {
+                "memory_type": memory_type,
+                "storage_target": storage_target,
+                "sensitivity": sensitivity,
+                "requires_review": route_requires_review,
+                "route": route,
+            }
+            self._log_store_blocked(candidate_id, candidate, "C1 route vector yazimina izin vermedi.", route_policy)
+            return {
+                "ok": False,
+                "stored": False,
+                "error": "C1 route vector yazimina izin vermedi.",
+                "candidate_id": candidate_id,
+                "policy": route_policy,
             }
 
         # Explicit approval means we ask policy as an explicit-save memory.
@@ -135,13 +167,25 @@ class MemoryCandidateWriter:
                 "policy": decision,
             }
 
+        source_type = str(candidate.get("source_type") or "memory_candidate")
+        route_tags = route.get("tags") if isinstance(route.get("tags"), list) else []
+        candidate_tags = candidate.get("tags") if isinstance(candidate.get("tags"), list) else []
+        decision_tags = decision.get("tags", []) if isinstance(decision.get("tags", []), list) else []
+        merged_tags = list(dict.fromkeys([str(t) for t in (candidate_tags + route_tags + decision_tags) if t]))
+
         mem_meta = {
-            "type": "web_memory_candidate",
+            "type": f"{source_type}_memory_candidate",
             "source": "memory_candidate_queue",
+            "source_type": source_type,
             "candidate_id": candidate_id,
+            "schema_version": candidate.get("schema_version") or route.get("schema_version"),
+            "memory_type": memory_type or route.get("memory_type") or "semantic",
+            "storage_target": storage_target or route.get("storage_target") or "vector",
+            "sensitivity": sensitivity or route.get("sensitivity") or "normal",
+            "delete_id": candidate.get("delete_id") or route.get("delete_id"),
             "memory_action": decision.get("action", "keep_long_term"),
             "memory_importance": int(decision.get("importance", 8) or 8),
-            "memory_tags": ",".join(decision.get("tags", []) or ["web_research"]),
+            "memory_tags": ",".join(merged_tags or ["memory_candidate"]),
             "allow_vector": True,
             "allow_daily_summary": bool(decision.get("allow_daily_summary", True)),
             "requires_review": False,
