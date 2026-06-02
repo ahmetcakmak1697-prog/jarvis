@@ -564,6 +564,47 @@ def cmd_audit_stats() -> str:
         return f"Audit istatistikleri okunamadi: {exc}"
 
 
+def _format_memory_candidate_item(item: dict) -> list[str]:
+    """Format one memory candidate for Telegram display.
+
+    C1.2C: shows conversation-derived memory route fields when present.
+    """
+    summary = str(item.get("summary", "")).strip()
+    if len(summary) > 280:
+        summary = summary[:280].rstrip() + "..."
+
+    route = item.get("route") if isinstance(item.get("route"), dict) else {}
+
+    source_type = item.get("source_type") or route.get("source") or "-"
+    memory_type = item.get("memory_type") or route.get("memory_type") or "-"
+    storage_target = item.get("storage_target") or route.get("storage_target") or "-"
+    sensitivity = item.get("sensitivity") or route.get("sensitivity") or "-"
+    action = route.get("action") or "-"
+    tags = item.get("tags") or []
+    if isinstance(tags, list):
+        tag_text = ", ".join(str(t) for t in tags[:6])
+    else:
+        tag_text = str(tags)
+
+    lines = [
+        f"ID: {item.get('id')}",
+        f"Source: {source_type} | Type: {memory_type} -> {storage_target}",
+        f"Sensitivity: {sensitivity} | Action: {action}",
+        f"Tier: {item.get('tier')} | Confidence: {item.get('confidence')}",
+        f"Expires: {item.get('expires_at')}",
+    ]
+
+    if tag_text:
+        lines.append(f"Tags: {tag_text}")
+
+    lines.extend([
+        f"Ozet: {summary}",
+        "",
+    ])
+
+    return lines
+
+
 def cmd_memory_candidates() -> str:
     try:
         from agents.memory_candidate_queue import MemoryCandidateQueue
@@ -585,17 +626,7 @@ def cmd_memory_candidates() -> str:
         ]
 
         for item in pending:
-            summary = str(item.get("summary", "")).strip()
-            if len(summary) > 280:
-                summary = summary[:280].rstrip() + "..."
-
-            lines.extend([
-                f"ID: {item.get('id')}",
-                f"Tier: {item.get('tier')} | Confidence: {item.get('confidence')}",
-                f"Expires: {item.get('expires_at')}",
-                f"Ozet: {summary}",
-                "",
-            ])
+            lines.extend(_format_memory_candidate_item(item))
 
         lines.append("Komutlar:")
         lines.append("/mem_approve <id>")
