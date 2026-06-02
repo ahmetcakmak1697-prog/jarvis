@@ -69,6 +69,7 @@ training/__pycache__/
 patch_*.py
 inspect_*.py
 test_*.py
+!tests/test_*.py
 
 # Agent legacy/runtime cache
 agent/__pycache__/
