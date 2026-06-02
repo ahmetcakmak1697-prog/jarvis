@@ -51,6 +51,11 @@ def main():
         "Proactive core smoke"
     )
 
+    run(
+        [sys.executable, "tests/c1_memory_smoke_suite.py"],
+        "C1 memory smoke suite"
+    )
+
     tracked_sensitive = run(
         ["git", "ls-files"],
         "Git tracked files scan"
