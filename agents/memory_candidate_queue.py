@@ -352,6 +352,70 @@ class MemoryCandidateQueue:
             "candidate_id": candidate_id,
         }
 
+    def expire_old(self, now: datetime | None = None) -> dict[str, Any]:
+        """Mark expired review candidates without deleting data.
+
+        C1.3A:
+        - pending_review/deferred candidates with past expires_at become expired
+        - stored/rejected records are kept as audit history
+        - no physical deletion in this phase
+        """
+        now = now or datetime.now()
+        items = self._load()
+        changed = 0
+        expired_ids: list[str] = []
+
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+
+            status = str(item.get("status") or "")
+            if status not in {"pending_review", "deferred"}:
+                continue
+
+            expires_at = item.get("expires_at")
+            if not expires_at:
+                continue
+
+            try:
+                expires_dt = datetime.fromisoformat(str(expires_at))
+            except Exception:
+                continue
+
+            if expires_dt <= now:
+                item["status"] = "expired"
+                item["user_decision"] = item.get("user_decision") or "expired"
+                item["decided_at"] = now.isoformat(timespec="seconds")
+                changed += 1
+                expired_ids.append(str(item.get("id") or ""))
+
+                self.audit.log(
+                    event="memory_candidate_expired",
+                    query=str(item.get("query") or ""),
+                    candidate_id=item.get("id"),
+                    action="expired",
+                    payload={
+                        "previous_status": status,
+                        "expires_at": expires_at,
+                        "source_type": item.get("source_type"),
+                        "memory_type": item.get("memory_type"),
+                        "storage_target": item.get("storage_target"),
+                        "sensitivity": item.get("sensitivity"),
+                        "tags": item.get("tags", []),
+                    },
+                )
+
+        if changed:
+            self._save(items)
+
+        return {
+            "ok": True,
+            "changed": changed,
+            "expired_ids": [cid for cid in expired_ids if cid],
+            "path": str(self.path),
+        }
+
+
     def stats(self) -> dict[str, Any]:
         items = self._load()
         counts: dict[str, int] = {}
