@@ -50,18 +50,18 @@ class WebResearchPolicy:
         "google'dan bak",
         "google dan bak",
         "online bak",
-        "ara?t?r",
+        "araştır",
         "arastir",
-        "g?ncel ara?t?r",
+        "güncel araştır",
         "guncel arastir",
-        "son durumu ara?t?r",
+        "son durumu araştır",
         "son durumu arastir",
-        "web ara?t?r",
+        "web araştır",
         "web arastir",
     ]
 
     CURRENT_INFO_TERMS = [
-        "g?ncel",
+        "güncel",
         "guncel",
         "son durum",
         "son haber",
@@ -94,7 +94,7 @@ class WebResearchPolicy:
         "son surum",
         "yeni surum",
         "guncel surum",
-        "g?ncel s?r?m",
+        "güncel sürüm",
     ]
 
     LOCAL_PROJECT_TERMS = [
@@ -197,7 +197,7 @@ class WebResearchPolicy:
             return self._decision(
                 False,
                 self.MODE_LOCAL_FILE,
-                "Sorgu lokal dosya/proje i?eri?iyle ilgili; web yerine lokal ara?lar kullan?lmal?.",
+                "Sorgu lokal dosya/proje içeriğiyle ilgili; web yerine lokal araçlar kullanılmalı.",
                 q,
                 ["local_file"],
             )
@@ -226,7 +226,7 @@ class WebResearchPolicy:
             return self._decision(
                 True,
                 self.MODE_EXPLICIT_WEB,
-                "Kullan?c? a??k?a web ara?t?rmas? istedi; sorgu sanitizer'dan ge?ti.",
+                "Kullanıcı açıkça web araştırması istedi; sorgu sanitizer'dan geçti.",
                 sanitized,
                 risk_flags,
             )
@@ -235,7 +235,7 @@ class WebResearchPolicy:
             return self._decision(
                 True,
                 self.MODE_CURRENT_INFO,
-                "Sorgu g?ncel/de?i?ken bilgi gerektiriyor; sorgu sanitizer'dan ge?ti.",
+                "Sorgu güncel/değişken bilgi gerektiriyor; sorgu sanitizer'dan geçti.",
                 sanitized,
                 risk_flags,
             )
@@ -243,7 +243,7 @@ class WebResearchPolicy:
         return self._decision(
             False,
             self.MODE_GENERAL_QA,
-            "A??k web iste?i veya g?ncel bilgi ihtiyac? yok; lokal cevap tercih edildi.",
+            "Açık web isteği veya güncel bilgi ihtiyacı yok; lokal cevap tercih edildi.",
             sanitized,
             risk_flags,
         )
@@ -326,9 +326,9 @@ if __name__ == "__main__":
         "Merhaba nas?ls?n?",
         "jarvis_brain.py i?inde research_and_learn nerede ge?iyor?",
         "internetten bak: OpenAI son model fiyatlar? 2026",
-        "g?ncel dolar kuru nedir?",
+        "güncel dolar kuru nedir?",
         "TELEGRAM_BOT_TOKEN=123456 bunu webden kontrol et",
-        "Telefon numaram 555 ile ba?l?yor, bunu ara?t?r",
+        "Telefon numaram 555 ile başlıyor, bunu araştır",
         "Python traceback hatas?n? dosyada bul",
         "OpenAI API de?i?ti mi?",
     ]
