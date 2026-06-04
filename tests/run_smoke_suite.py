@@ -77,13 +77,26 @@ def main():
         "__pycache__",
         "logs/",
         ".zip",
+        ".db",
+        ".sqlite",
+        ".sqlite3",
         "chroma_db",
-        "sqlite",
         "jarvis_memory.db",
         "train_data",
+        "data/rag/",
+        "data/memory/",
+        "memory/conversations.backup",
+        "audit_log.jsonl",
+        "internal_trace.jsonl",
+        "reporting_state.json",
+        "world/backups/",
+        "inventory/backups/",
     ]
 
-    allowed = {".env.example"}
+    allowed = {
+        ".env.example",
+        "data/documents/Izmir Buyuksehir Belediyesi Elektrik Su Havagazi Otobus ve Troleybus Genel Mudurlugu Yolculuk Kurallari Yonetmeligi.pdf",
+    }
 
     bad = []
     for file in tracked_sensitive:

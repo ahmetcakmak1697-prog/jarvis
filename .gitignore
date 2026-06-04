@@ -91,3 +91,13 @@ memory/audit_log.jsonl
 sync_snapshots/
 jarvis_sync_snapshot_*.zip
 jarvis_checkpoint_*.zip
+
+# H1.6 Repo hygiene - runtime data / personal state
+data/memory/
+data/rag/
+memory/conversations.backup_*.json
+logs/internal_trace.jsonl
+data/reporting_state.json
+world/backups/
+inventory/backups/
+
