@@ -25,6 +25,7 @@ TEST_MODULES = [
     "tests/test_c4_mini_internal_trace.py",
     "tests/test_h1_5_organ_contract.py",
     "tests/test_m0_world_model.py",
+    "tests/test_m0_2_inventory_model.py",
 ]
 
 
