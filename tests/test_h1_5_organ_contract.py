@@ -87,3 +87,34 @@ def test_mock_organ_trace_hook_is_core_safe():
     assert trace["ok"] is True
     assert trace["permission_level"] == "read_only"
     assert "secret" not in trace
+
+class WriteLimitedMockOrgan(JarvisOrgan):
+    name = "write_limited_mock"
+    permission_level = "write_limited"
+
+    def health(self):
+        return OrganHealth(name=self.name, status="ok")
+
+    def capabilities(self):
+        return [
+            OrganCapability(
+                name="write_note",
+                description="Mock write capability",
+                permission_level=self.permission_level,
+            )
+        ]
+
+    def invoke(self, action, payload=None):
+        return OrganResult(ok=True, data={"permission_level": self.permission_level})
+
+
+def test_organ_permission_level_can_be_overridden_by_subclass():
+    organ = WriteLimitedMockOrgan()
+
+    assert organ.permission_level == "write_limited"
+    assert organ.capabilities()[0].permission_level == "write_limited"
+
+    trace = organ.trace_hook("write_note", organ.invoke("write_note", {}))
+
+    assert trace["permission_level"] == "write_limited"
+

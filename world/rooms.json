@@ -1,11 +1,33 @@
-﻿{
+{
   "schema_version": 1,
   "rooms": [
     {
       "id": "hobby_room",
       "name": "Hobi Odası",
-      "purpose": ["electronics_learning", "jarvis_development", "future_3d_printing"],
-      "status": "planned"
+      "purpose": [
+        "jarvis_development",
+        "electronics_learning",
+        "arduino_learning",
+        "esp32_iot_learning",
+        "future_3d_printing",
+        "maker_projects"
+      ],
+      "status": "planned",
+      "notes": [
+        "Jarvis'in Ahmet'in gerçek dünyasına bağlanacağı ilk mini atölye alanı.",
+        "Arduino kit ile başlangıç, sonra ESP32 ve akıllı ev entegrasyonu hedefleniyor."
+      ]
+    },
+    {
+      "id": "work_area",
+      "name": "Çalışma Alanı",
+      "purpose": [
+        "coding",
+        "reporting",
+        "eshot_reports",
+        "jarvis_daily_work"
+      ],
+      "status": "active"
     }
   ]
 }

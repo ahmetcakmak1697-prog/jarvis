@@ -1,15 +1,24 @@
-﻿{
+{
   "schema_version": 1,
   "people": [
     {
       "id": "ahmet",
       "name": "Ahmet",
-      "role": "primary_user"
+      "role": "primary_user",
+      "preferences": [
+        "local_first_systems",
+        "low_api_cost",
+        "step_by_step_guidance",
+        "practical_but_cinematic_jarvis_feel"
+      ]
     },
     {
       "id": "dilara",
       "name": "Dilara",
-      "role": "trusted_family"
+      "role": "trusted_family",
+      "notes": [
+        "Jarvis ilerlemesinde g?sterilebilir somut demo ??kt?lar? ?nemli."
+      ]
     }
   ]
 }

@@ -1,12 +1,67 @@
-﻿{
+{
   "schema_version": 1,
   "devices": [
     {
       "id": "jarvis_pc",
       "name": "Jarvis PC",
       "type": "desktop_pc",
+      "room_id": "work_area",
+      "status": "active",
+      "known_profile": "rtx3070_current",
+      "future_profile": "dual_rtx3090_target",
+      "roles": [
+        "jarvis_core",
+        "local_ai_runtime",
+        "development_machine",
+        "telegram_agent_host",
+        "tailscale_remote_access_host"
+      ]
+    },
+    {
+      "id": "arduino_01_kit",
+      "name": "Hallederiz Arduino 01 E?itim Kiti",
+      "type": "electronics_learning_kit",
       "room_id": "hobby_room",
-      "status": "active"
+      "status": "planned_purchase",
+      "roles": [
+        "electronics_basics",
+        "sensor_learning",
+        "relay_learning",
+        "lcd_servo_buzzer_learning"
+      ],
+      "notes": [
+        "?lk ay sadece bu kit ile 12 proje tamamlanacak.",
+        "Lehim ve breadboard gerektirmeden temel Arduino projeleri yap?lacak."
+      ]
+    },
+    {
+      "id": "esp32_devkit",
+      "name": "ESP32 DevKit",
+      "type": "microcontroller_wifi",
+      "room_id": "hobby_room",
+      "status": "future_purchase",
+      "roles": [
+        "wifi_bridge",
+        "iot_node",
+        "jarvis_sensor_gateway",
+        "future_home_automation_bridge"
+      ],
+      "notes": [
+        "Arduino kit sonras? al?nacak.",
+        "Kit sens?r verilerini Wi-Fi ?zerinden Jarvis'e ta??mak i?in kullan?lacak."
+      ]
+    },
+    {
+      "id": "future_3d_printer",
+      "name": "Future 3D Printer",
+      "type": "fabrication_tool",
+      "room_id": "hobby_room",
+      "status": "future_target",
+      "roles": [
+        "enclosure_printing",
+        "jarvis_prop_projects",
+        "electronics_case_design"
+      ]
     }
   ]
 }

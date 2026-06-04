@@ -1,8 +1,15 @@
-﻿{
+{
   "schema_version": 1,
   "name": "Ahmet Home",
   "description": "Jarvis world model root for Ahmet's personal environment.",
   "timezone": "Europe/Istanbul",
   "primary_user": "Ahmet",
-  "updated_at": ""
+  "goals": [
+    "local_first_jarvis",
+    "personal_reality_os",
+    "maker_learning",
+    "electronics_and_esp32",
+    "future_3d_printing",
+    "safe_home_automation"
+  ]
 }
