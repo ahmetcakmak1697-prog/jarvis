@@ -61,6 +61,11 @@ def main():
         "C2 project smoke suite"
     )
 
+    run(
+        [sys.executable, "tests/c3_reporting_smoke_suite.py"],
+        "C3 reporting smoke suite"
+    )
+
     tracked_sensitive = run(
         ["git", "ls-files"],
         "Git tracked files scan"
