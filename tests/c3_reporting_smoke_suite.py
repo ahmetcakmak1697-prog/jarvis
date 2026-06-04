@@ -21,6 +21,7 @@ if str(ROOT) not in sys.path:
 TEST_MODULES = [
     "tests/test_c3_1_reporting_state.py",
     "tests/test_c3_1_structured_output_guard.py",
+    "tests/test_a6_mini_redaction_guard.py",
 ]
 
 
