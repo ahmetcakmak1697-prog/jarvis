@@ -90,6 +90,14 @@ Aşağıdaki tablodaki tüm "✅" işaretleri git log + test dosyaları + çalı
 | D2.1–D2.4 | Telegram `/web`, policy eval (20/20), lifecycle, cache + rate limit (18/18) | ✅ |
 | N1 | Persona few-shot prompt | ✅ |
 | E1.1–E1.5C | Profil, proaktif briefing, koşullu uyarı, motosiklet/hava riski, canlı hava, `/brief` + `/brief_live`, JARVIS tonu, saat bağlamı | ✅ |
+| C3 | Raporlama state, structured output guard, redaction, internal trace | ✅ |
+| C4 | Internal trace logger | ✅ |
+| H1.5 | Organ contract (JarvisOrgan adapter sözleşmesi) | ✅ |
+| H1.6 | Repo hygiene guard | ✅ |
+| M0 | World model foundation (home/rooms/people/devices/modes) | ✅ |
+| M0.2 | Inventory model (tools/electronics/materials/safety) | ✅ |
+| M0.3 | World–inventory linker (room_id join) | ✅ |
+| M0.4 | Project workspace model (projects.json + ProjectWorkspaceStore) | ✅ |
 3.2 Olgunluk — iki ölçek
 
 Çalışan MVP açısından: ~%65–70.
