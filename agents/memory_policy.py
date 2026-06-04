@@ -43,14 +43,14 @@ class MemoryPolicy:
     ACTION_SENSITIVE_REVIEW = "sensitive_review"
 
     LOW_VALUE_PATTERNS = [
-        r"^\s*(merhaba|selam|hi|hello|tamam|ok|evet|hayir|hay?r|te?ekk?r|tesekkur)\s*[.!]*\s*$",
+        r"^\s*(merhaba|selam|hi|hello|tamam|ok|evet|hayir|hayır|teşekkür|tesekkur)\s*[.!]*\s*$",
         r"^\s*(sa? ol|sag ol|eyvallah)\s*[.!]*\s*$",
     ]
 
     LONG_TERM_PATTERNS = [
-        r"\b(projem|hedefim|plan?m|planim|tercihim|sevdi?im|sevdigim|sevmedi?im|sevmedigim)\b",
-        r"\b(bundan sonra|ileride|gelecekte|hep|s?rekli|surekli|unutma|hat?rla|hatirla)\b",
-        r"\b(jarvis|yerel asistan|roadmap|yol haritas?|yol haritasi)\b",
+        r"\b(projem|hedefim|planım|planim|tercihim|sevdiğim|sevdigim|sevmediğim|sevmedigim)\b",
+        r"\b(bundan sonra|ileride|gelecekte|hep|sürekli|surekli|unutma|hatırla|hatirla)\b",
+        r"\b(jarvis|yerel asistan|roadmap|yol haritası|yol haritasi)\b",
     ]
 
     DAILY_SUMMARY_PATTERNS = [
@@ -60,7 +60,7 @@ class MemoryPolicy:
 
     PROJECT_PATTERNS = [
         r"\b(commit|git|patch|server|telegram|tailscale|api|endpoint|dashboard|task|handler)\b",
-        r"\b(c1|c2|c3|b2\.7|b2\.6|haf?za|hafiza|proje zekas?|proje zekasi)\b",
+        r"\b(c1|c2|c3|b2\.7|b2\.6|hafıza|hafiza|proje zeka|proje|projem|roadmap|geliştirme)\b",
     ]
 
     # Sensitive data should not be silently stored as long-term vector memory.
@@ -200,7 +200,7 @@ class MemoryPolicy:
 
         if self._matches_any(text, self.LONG_TERM_PATTERNS):
             tags.append("long_term_signal")
-            importance += 2
+            importance += 3
 
         if self._matches_any(text, self.DAILY_SUMMARY_PATTERNS):
             tags.append("daily_signal")
