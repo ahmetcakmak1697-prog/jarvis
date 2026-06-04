@@ -89,3 +89,66 @@ class MemorySynthesizerStore:
 
     def is_processed(self, delete_id: str) -> bool:
         return self.load_or_default().is_processed(delete_id)
+
+
+class MemorySynthesizerCandidateCollector:
+    ELIGIBLE_STATUSES = {"pending_review", "approved", "stored"}
+    BLOCKED_MEMORY_TYPES = {"sensitive_review"}
+
+    def __init__(self, queue_root=None, state_path=None):
+        from agents.memory_candidate_queue import MemoryCandidateQueue
+        self.queue = MemoryCandidateQueue(root=queue_root or ROOT)
+        self.store = MemorySynthesizerStore(path=state_path)
+
+    def _extract_text(self, item):
+        return str(
+            item.get("summary") or item.get("content")
+            or item.get("user_msg") or item.get("text") or ""
+        ).strip()
+
+    def _is_expired(self, item):
+        from datetime import datetime
+        e = item.get("expires_at")
+        if not e:
+            return False
+        try:
+            return datetime.fromisoformat(str(e)) < datetime.now()
+        except (ValueError, TypeError):
+            return False
+
+    def collect(self, limit=50):
+        if limit <= 0:
+            return []
+        items = self.queue._load()
+        eligible = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("source_type") or "") != "conversation":
+                continue
+            if str(item.get("status") or "") not in self.ELIGIBLE_STATUSES:
+                continue
+            if str(item.get("memory_type") or "") in self.BLOCKED_MEMORY_TYPES:
+                continue
+            if self._is_expired(item):
+                continue
+            text = self._extract_text(item)
+            if not text:
+                continue
+            delete_id = str(item.get("delete_id") or item.get("id") or "")
+            if delete_id and self.store.is_processed(delete_id):
+                continue
+            enriched = dict(item)
+            enriched["_synthesis_text"] = text
+            eligible.append(enriched)
+            if len(eligible) >= limit:
+                break
+        return eligible
+
+    def summary_texts(self, limit=50):
+        return [
+            i["_synthesis_text"]
+            for i in self.collect(limit=limit)
+            if i.get("_synthesis_text")
+        ]
+
