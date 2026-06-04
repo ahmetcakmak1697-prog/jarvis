@@ -24,7 +24,7 @@ class RedactionGuard:
     PATTERNS: list[tuple[str, str, str]] = [
         (
             "named_secret",
-            r"(?i)\b(api[_-]?key|token|secret|password|passwd|parola|sifre|?ifre)\s*[:=]\s*['\"]?[^'\"\s,;]+",
+            r"(?i)\b(api[_-]?key|token|secret|password|passwd|parola|sifre|şifre)\s*[:=]\s*['\"]?[^'\"\s,;]+",
             r"\1=[REDACTED]",
         ),
         (
