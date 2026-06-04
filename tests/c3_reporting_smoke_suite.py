@@ -26,6 +26,7 @@ TEST_MODULES = [
     "tests/test_h1_5_organ_contract.py",
     "tests/test_m0_world_model.py",
     "tests/test_m0_2_inventory_model.py",
+    "tests/test_m0_3_world_inventory_linker.py",
 ]
 
 
