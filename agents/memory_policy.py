@@ -68,10 +68,10 @@ class MemoryPolicy:
     SENSITIVE_PATTERNS = [
         r"telefon\s+numaram",
         r"numaram\s+\d",
-        r"\b(adresim|ev adresim|tc kimlik|kimlik numaram|telefonum|telefon no|gsm|?ifrem|sifrem|parolam)\b",
-        r"\b(kredi kart?|kredi karti|iban|banka hesab?|banka hesabi)\b",
-        r"\b(hastal???m|hastaligim|alerjim|ila?|ilac|tan?|tani|te?his|teshis)\b",
-        r"\b(siyasi g?r???m|siyasi gorusum|dinim|mezhebim|?rk?m|irkim|etnik)\b",
+        r"\b(adresim|ev adresim|tc kimlik|kimlik numaram|telefonum|telefon no|gsm|sifrem|şifrem|parolam|esim|eşim)\b",
+        r"\b(kredi kart|iban|banka hesab)\w*\b",
+        r"\b(hastaligim|hastalığım|alerjim|ilac|tanı|tani|teshis|teśhis)\b",
+        r"\b(siyasi gorusum|siyasi görüşüm|dinim|mezhebim|irkim|ırkım|etnik)\b",
     ]
 
     EXPLICIT_SAVE_PATTERNS = [
