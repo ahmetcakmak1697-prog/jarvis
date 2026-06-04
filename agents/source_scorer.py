@@ -146,7 +146,7 @@ class SourceScorer:
             score += 10
             reasons.append("documentation_or_research_signal")
 
-        if re.search(r"\b(2025|2026|latest|current|g?ncel|guncel|son durum|release|changelog)\b", text):
+        if re.search(r"\b(2025|2026|latest|current|güncel|guncel|son durum|release|changelog)\b", text):
             score += 5
             reasons.append("current_info_signal")
 
