@@ -1,4 +1,4 @@
-﻿"""
+"""
 JARVIS Proactive Core
 Central state builder for daily briefing, security, system, music and suggestions.
 

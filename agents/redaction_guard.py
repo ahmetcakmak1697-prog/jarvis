@@ -73,7 +73,7 @@ class RedactionGuard:
         "passwd",
         "parola",
         "sifre",
-        "?ifre",
+        "şifre",
         "private key",
         ".env",
         "iban",

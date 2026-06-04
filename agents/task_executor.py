@@ -1,4 +1,4 @@
-﻿"""Task Executor - background task queue."""
+"""Task Executor - background task queue."""
 from __future__ import annotations
 
 import json

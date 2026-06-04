@@ -65,7 +65,7 @@ class WebResearchPolicy:
         "guncel",
         "son durum",
         "son haber",
-        "bug?n",
+        "bugün",
         "bugun",
         "bu hafta",
         "bu ay",
@@ -73,22 +73,22 @@ class WebResearchPolicy:
         "2026",
         "fiyat",
         "kur",
-        "d?viz",
+        "döviz",
         "doviz",
         "stok",
         "mevzuat",
         "kanun",
-        "y?netmelik",
+        "yönetmelik",
         "yonetmelik",
-        "api de?i?ti mi",
+        "api değişti mi",
         "api degisti mi",
-        "model s?r?m?",
+        "model sürümü",
         "model surumu",
         "release",
         "changelog",
         # D2.2A: model/surum/release sorgu sinyalleri
         "ne zaman cikti",
-        "ne zaman c?kt?",
+        "ne zaman çıktı",
         "surumu ne",
         "versiyon ne",
         "son surum",
@@ -101,10 +101,10 @@ class WebResearchPolicy:
         "jarvis",
         "proje",
         "projede",
-        "proje i?inde",
+        "proje içinde",
         "proje icinde",
         "dosyada",
-        "klas?rde",
+        "klasörde",
         "klasorde",
         "repo",
         "git status",
@@ -140,7 +140,7 @@ class WebResearchPolicy:
         "import ",
         "endpoint",
         "api/tasks",
-        "sat?r",
+        "satır",
         "satir",
         "select-string",
         "get-content",
@@ -148,7 +148,7 @@ class WebResearchPolicy:
     ]
 
     SENSITIVE_PATTERNS = [
-        r"(?i)\b(api[_-]?key|token|secret|password|passwd|parola|?ifre|sifre)\b",
+        r"(?i)\b(api[_-]?key|token|secret|password|passwd|parola|şifre|sifre)\b",
         r"(?i)\bTELEGRAM_BOT_TOKEN\b",
         r"(?i)\bTAVILY_API_KEY\b",
         r"(?i)\bOPENAI_API_KEY\b",
@@ -158,13 +158,13 @@ class WebResearchPolicy:
         r"(?i)\btelefon\s*numaram\b",
         r"(?i)\badresim\b",
         r"(?i)\biban\b",
-        r"(?i)\bkredi\s*kart[?i]\b",
+        r"(?i)\bkredi\s*kart[ıi]\b",
         r"(?i)\bssh\s+key\b",
         r"(?i)-----BEGIN .*PRIVATE KEY-----",
     ]
 
     REDACTION_PATTERNS = [
-        (r"(?i)(api[_-]?key|token|secret|password|passwd|parola|?ifre|sifre)\s*[:=]\s*['\"]?[^'\"\s]+", r"\1=[REDACTED]"),
+        (r"(?i)(api[_-]?key|token|secret|password|passwd|parola|şifre|sifre)\s*[:=]\s*['\"]?[^'\"\s]+", r"\1=[REDACTED]"),
         (r"(?i)(TELEGRAM_BOT_TOKEN|TAVILY_API_KEY|OPENAI_API_KEY)\s*[:=]\s*['\"]?[^'\"\s]+", r"\1=[REDACTED]"),
         (r"(?i)(telefon\s*numaram)\s*[:=]?\s*[\d\s\-\+\(\)]{6,}", r"\1 [REDACTED]"),
         (r"(?i)(iban)\s*[:=]?\s*[A-Z]{2}\d[\w\s]{10,}", r"\1 [REDACTED]"),
@@ -188,7 +188,7 @@ class WebResearchPolicy:
             return self._decision(
                 False,
                 self.MODE_SENSITIVE_BLOCKED,
-                "Sorgu hassas/?zel bilgi i?eriyor; web'e g?nderilmedi.",
+                "Sorgu hassas/özel bilgi içeriyor; web'e gönderilmedi.",
                 sanitized,
                 risk_flags,
             )
@@ -206,7 +206,7 @@ class WebResearchPolicy:
             return self._decision(
                 False,
                 self.MODE_LOCAL_CODE,
-                "Sorgu kod/hata/proje analiziyle ilgili; web'e ??k?lmad?.",
+                "Sorgu kod/hata/proje analiziyle ilgili; web'e çıkılmadı.",
                 q,
                 ["local_code"],
             )
@@ -215,7 +215,7 @@ class WebResearchPolicy:
             return self._decision(
                 False,
                 self.MODE_PROJECT_QA,
-                "Sorgu JARVIS/proje ba?lam?nda; a??k web iste?i yok.",
+                "Sorgu JARVIS/proje bağlamında; açık web isteği yok.",
                 q,
                 ["project_local"],
             )
@@ -305,7 +305,7 @@ class WebResearchPolicy:
     def _is_local_file_query(self, q: str, q_low: str) -> bool:
         if any(re.search(pattern, q) for pattern in self.LOCAL_FILE_PATTERNS):
             return True
-        return any(self._normalize(term) in q_low for term in ["dosya", "klasor", "klas?r", "satir", "sat?r"])
+        return any(self._normalize(term) in q_low for term in ["dosya", "klasor", "klasör", "satir",
 
     def _sensitive_hits(self, q: str) -> list[str]:
         hits = []
@@ -323,14 +323,14 @@ if __name__ == "__main__":
     policy = WebResearchPolicy()
 
     samples = [
-        "Merhaba nas?ls?n?",
-        "jarvis_brain.py i?inde research_and_learn nerede ge?iyor?",
+        "Merhaba nasılsın?",
+        "jarvis_brain.py içinde research_and_learn nerede geçiyor?",
         "internetten bak: OpenAI son model fiyatlar? 2026",
         "güncel dolar kuru nedir?",
         "TELEGRAM_BOT_TOKEN=123456 bunu webden kontrol et",
         "Telefon numaram 555 ile başlıyor, bunu araştır",
-        "Python traceback hatas?n? dosyada bul",
-        "OpenAI API de?i?ti mi?",
+        "Python traceback hatasını dosyada bul",
+        "OpenAI API değişti mi?",
     ]
 
     for sample in samples:

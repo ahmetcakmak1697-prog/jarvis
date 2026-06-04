@@ -54,8 +54,8 @@ class MemoryPolicy:
     ]
 
     DAILY_SUMMARY_PATTERNS = [
-        r"\b(bug?n|bugun|yar?n|yarin|d?n|dun|bu hafta|toplant?|toplanti|g?rev|gorev)\b",
-        r"\b(yap?lacak|yapilacak|not al|rapor|analiz|test|commit)\b",
+        r"\b(bugün|bugun|yarın|yarin|dün|dun|bu hafta|toplantı|toplanti|görev|gorev)\b",
+        r"\b(yapılacak|yapilacak|not al|rapor|analiz|test|commit)\b",
     ]
 
     PROJECT_PATTERNS = [
@@ -75,16 +75,16 @@ class MemoryPolicy:
     ]
 
     EXPLICIT_SAVE_PATTERNS = [
-        r"bunu\s+hat?rla",
+        r"bunu\s+hatırla",
         r"bunu\s+hatirla",
         r"bunu\s+unutma",
-        r"haf?zaya\s+al",
+        r"hafızaya\s+al",
         r"hafizaya\s+al",
         r"\b(kaydet|not et)\b",
     ]
 
     EXPLICIT_FORGET_PATTERNS = [
-        r"\b(bunu unut|sil|haf?zadan ??kar|hafizadan cikar|kayd? sil|kaydi sil)\b",
+        r"\b(bunu unut|sil|hafızadan çıkar|hafizadan cikar|kaydı sil|kaydi sil)\b",
     ]
 
     def decide(self, user_msg: str, jarvis_msg: str = "", meta: dict[str, Any] | None = None) -> MemoryDecision:

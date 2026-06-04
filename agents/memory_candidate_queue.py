@@ -535,8 +535,8 @@ if __name__ == "__main__":
     sample = """[1] OpenAI API Pricing
 Kaynak: TEST | https://openai.com/api/pricing
 Güven: high / 100
-G?ven nedeni: high_trust_domain, documentation_or_research_signal
-?zet: Official documentation and current API pricing information for models."""
+Güven nedeni: high_trust_domain, documentation_or_research_signal
+Özet: Official documentation and current API pricing information for models."""
 
     c = q.add_web_candidate(
         query="OpenAI API fiyatlar? 2026",
