@@ -305,7 +305,7 @@ class WebResearchPolicy:
     def _is_local_file_query(self, q: str, q_low: str) -> bool:
         if any(re.search(pattern, q) for pattern in self.LOCAL_FILE_PATTERNS):
             return True
-        return any(self._normalize(term) in q_low for term in ["dosya", "klasor", "klasör", "satir",
+        return any(self._normalize(term) in q_low for term in ["dosya", "klasor", "klasör", "satir", "satır"])
 
     def _sensitive_hits(self, q: str) -> list[str]:
         hits = []
