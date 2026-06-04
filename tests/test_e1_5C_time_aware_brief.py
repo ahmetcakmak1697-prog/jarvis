@@ -20,27 +20,27 @@ def check(cond, label, detail=""):
 TIME_CONTEXTS = {
     "morning": {
         "mode": "morning",
-        "title": "G?n ba?lang?c?",
-        "opening": "Efendim, g?n ba?lang?c? i?in k?sa durum haz?r.",
-        "suggestion": "Bug?n tek ana hedef se?ersek g?n? daha temiz y?netiriz.",
+        "title": "Gün başlangıcı",
+        "opening": "Efendim, gün başlangıcı için kısa durum hazır.",
+        "suggestion": "Bugün tek ana hedef seçersek günü daha temiz yönetiriz.",
     },
     "day": {
         "mode": "day",
         "title": "Durum kontrol?",
-        "opening": "Efendim, k?sa durum kontrol? haz?r.",
-        "suggestion": "G?n?n ortas?nda rota iyi g?r?n?yor; tek sapmay? yakalamak yeterli.",
+        "opening": "Efendim, kısa durum kontrolü hazır.",
+        "suggestion": "Günün ortasında rota iyi görünüyor; tek sapmayı yakalamak yeterli.",
     },
     "evening": {
         "mode": "evening",
-        "title": "Ak?am de?erlendirmesi",
-        "opening": "Efendim, ak?am i?in k?sa durum haz?r.",
-        "suggestion": "G?n?n k?sa ?zetini almak ve yar?na tek not b?rakmak iyi olur.",
+        "title": "Akşam değerlendirmesi",
+        "opening": "Efendim, akşam için kısa durum hazır.",
+        "suggestion": "Günün kısa özetini almak ve yarına tek not bırakmak iyi olur.",
     },
     "night": {
         "mode": "night",
-        "title": "Gece ?al??ma modu",
-        "opening": "Efendim, gece modu i?in k?sa durum haz?r.",
-        "suggestion": "Yeni ?zellik a?mak yerine checkpoint almak daha ak?ll?ca olur.",
+        "title": "Gece çalışma modu",
+        "opening": "Efendim, gece modu için kısa durum hazır.",
+        "suggestion": "Yeni özellik açmak yerine checkpoint almak daha akıllıca olur.",
     },
 }
 
@@ -50,13 +50,13 @@ def state():
         "ok": True,
         "profile": {"name": "Ahmet Firat Cakmak", "city": "Izmir", "district": "Buca"},
         "briefing": {
-            "title": "Kapan?? de?erlendirmesi",
-            "text": "Kapan?? i?in k?sa kontrol iyi olur. Detay isterseniz ba?l?klar? a?ar?m.",
+            "title": "Kapanış değerlendirmesi",
+            "text": "Kapanış için kısa kontrol iyi olur. Detay isterseniz başlıkları açarım.",
         },
         "proactive": {"level": "none", "alert_count": 0, "should_interrupt": False, "alerts": []},
         "weather": {"status": "pending", "default_location": "Izmir/Buca", "summary": "Canli hava kapali."},
         "ride_risk": {"level": "none", "status": "pending", "score": 0, "factors": []},
-        "suggestion": {"title": "Kapan?? rutini", "text": "G?n?n k?sa ?zetini ve bir sonraki ad?m? kaydetmek iyi olur."},
+        "suggestion": {"title": "Kapanış rutini", "text": "Günün kısa özetini ve bir sonraki günü planlamak için idealdir."},
     }
 
 
@@ -73,18 +73,18 @@ def main():
     evening = render_with("evening")
     night = render_with("night")
 
-    fails += check("g?n ba?lang?c?" in morning.lower() or "gun baslangici" in morning.lower(), "sabah gun baslangici")
+    fails += check("gün başlangıcı" in morning.lower() or "gun baslangici" in morning.lower(), "sabah basligi"),
     fails += check("durum kontrol" in day.lower(), "ogle/gunduz durum kontrolu")
-    fails += check("ak?am" in evening.lower() or "aksam" in evening.lower(), "aksam degerlendirmesi")
+    fails += check("akşam" in evening.lower() or "aksam" in evening.lower(), "aksam degerlendirmesi"),
     fails += check("gece" in night.lower(), "gece modu")
 
-    fails += check("G?n?n k?sa ?zetini almak" in evening or "yar?na tek not" in evening, "aksam onerisi")
+    fails += check("Günün kısa özetini almak" in evening or "yarına tek not" in evening, "aksam oneri"),
     fails += check("checkpoint" in night.lower(), "gece checkpoint onerisi")
     fails += check("tek ana hedef" in morning.lower(), "sabah tek hedef onerisi")
 
     fails += check("/brief_live" in day and "D2.4" not in day, "brief guvenli kalir web yok")
     fails += check("Risk skoru:" not in day, "teknik skor yok")
-    fails += check("Fakt?rler:" not in day and "Faktorler:" not in day, "teknik faktor yok")
+    fails += check("Faktörler:" not in day and "Faktorler:" not in day, "teknik faktor yok"),
 
     source = Path("tools/telegram_agent.py").read_text(encoding="utf-8", errors="ignore")
     fails += check("def _brief_time_context(" in source, "time context helper var")

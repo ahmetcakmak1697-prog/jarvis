@@ -61,11 +61,11 @@ def main():
     fails += check("Konum: Izmir/Buca" in msg, "konum mesajda")
     fails += check("JARVIS Briefing" in msg and "Konum:" in msg, "briefing govdesi mesajda")
     fails += check("/brief_live" in msg, "pending durumda brief_live yonlendirmesi")
-    fails += check("gorev" in low or "g?rev" in low or "sistem" in low or "kritik bir sorun" in low, "gorev/sistem notu dogal")
-    fails += check("Not:" in msg and "Risk skoru:" not in msg and "Fakt?rler:" not in msg and "Faktorler:" not in msg, "suggestion dogal")
+    fails += check("gorev" in low or "görev" in low or "sistem" in low or "kritik bir sorun" in low, "gorev/sistem ifadesi"),
+    fails += check("Not:" in msg and "Risk skoru:" not in msg and "Faktörler:" not in msg and "Faktorler:" not in msg, "not baslik var ama risk/faktor yok"),
     fails += check("otomatik" in low or "siz istemeden" in low, "guvenlik notu dogal")
     fails += check("Risk skoru:" not in msg, "risk skoru teknik olarak gizli")
-    fails += check("Fakt?rler:" not in msg and "Faktorler:" not in msg, "faktor basligi gizli")
+    fails += check("Faktörler:" not in msg and "Faktorler:" not in msg, "faktor basligi gibi alan yok"),
     fails += check("evaluated" not in msg, "evaluated teknik ifadesi yok")
     fails += check(len(msg) < 3600, "telegram mesaj uzunlugu makul", str(len(msg)))
 

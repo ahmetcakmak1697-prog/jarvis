@@ -75,7 +75,7 @@ def main():
     fails += check("D2.4 cache/rate-limit" in msg, "D2.4 notu mesajda")
     fails += check("otomatik push" in msg.lower(), "push yok notu mesajda")
     fails += check("Risk skoru:" not in msg, "risk skoru gizli")
-    fails += check("Fakt?rler:" not in msg and "Faktorler:" not in msg, "faktorler gizli")
+    fails += check("Faktörler:" not in msg and "Faktorler:" not in msg, "faktorler gizli")
     fails += check(len(msg) < 3600, "telegram mesaj uzunlugu makul", str(len(msg)))
     fails += check("Bu brifing sadece durumu" in safe_msg or "siz istemeden" in safe_msg, "/brief guvenli notu korunuyor")
 

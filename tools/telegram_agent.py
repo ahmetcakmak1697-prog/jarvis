@@ -234,12 +234,12 @@ def _brief_should_replace_generic_title(title: str) -> bool:
 
     # Turkish mojibake/ASCII-safe generic title detection.
     generic = [
-        "kapan?? de?erlendirmesi",
+        "kapanış değerlendirmesi",
         "kapanis degerlendirmesi",
         "kapan",
-        "de?erlendirmesi",
+        "değerlendirmesi",
         "degerlendirmesi",
-        "de?erlendirmesi",
+        "değerlendirmesi",
         "sabah brifingi",
         "canl? brifing",
         "canli brifing",
@@ -255,18 +255,18 @@ def _brief_should_replace_generic_suggestion(suggestion: dict) -> bool:
 
     # Turkish mojibake/ASCII-safe generic suggestion detection.
     generic = [
-        "kapan??",
+        "kapanış",
         "kapanis",
         "kapan",
-        "g?n ?zeti",
+        "gün özeti",
         "gun ozeti",
-        "g?n",
-        "?zet",
+        "gün",
+        "özet",
         "ozet",
-        "?zet",
-        "ad?m",
+        "özet",
+        "adım",
         "adim",
-        "ad?m",
+        "adım",
         "odak",
         "tek ana hedef",
         "kaydetmek",

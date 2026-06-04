@@ -606,7 +606,7 @@ class WebResearcher:
 
     def _format_results(self, query: str, results: list) -> str:
         if not results:
-            return "Ara?t?rma sonucu bulunamad?."
+            return "Araştırma sonucu bulunamadı."
 
         results = self._apply_source_scores(results)
 
@@ -623,7 +623,7 @@ class WebResearcher:
             if isinstance(r, dict)
         ]
 
-        # Eski lokal skor + yeni kaynak g?ven skoru birlikte ?al???r.
+        # Eski lokal skor + yeni kaynak güven skoru birlikte çalışır.
         clean = [
             r for r in results
             if r.get("score", 0) >= 8
@@ -632,7 +632,7 @@ class WebResearcher:
         ]
 
         if not clean:
-            return "Ara?t?rma sonucu bulunamad?."
+            return "Araştırma sonucu bulunamadı."
 
         def priority_bonus(r):
             domain = self._domain(r.get("url", ""))
@@ -699,16 +699,16 @@ class WebResearcher:
             blocks.append(
                 f"[{len(blocks) + 1}] {title}\n"
                 f"Kaynak: {source} | {url}\n"
-                f"G?ven: {source_tier} / {source_score}\n"
-                f"G?ven nedeni: {source_reasons}\n"
-                f"?zet: {content}"
+                f"Güven: {source_tier} / {source_score}\n"
+                f"Güven nedeni: {source_reasons}\n"
+                f"Özet: {content}"
             )
 
             if len(blocks) >= 5:
                 break
 
         if not blocks:
-            return "Ara?t?rma sonucu bulunamad?."
+            return "Araştırma sonucu bulunamadı."
 
         return "\n\n".join(blocks)
 

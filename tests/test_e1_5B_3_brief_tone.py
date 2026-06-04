@@ -104,17 +104,17 @@ def main():
     fails += check("Konum: Izmir/Buca" in msg, "konum var")
     fails += check("motosiklet" in low_msg and ("risk" in low_msg or "dikkat" in low_msg), "high risk dogal cumle")
     fails += check("Sistem taraf" in msg or "kritik bir sorun" in low_msg, "sistem cumlesi dogal")
-    fails += check("gorev" in low_msg or "g?rev" in low_msg or "sistem" in low_msg, "gorev/sistem notu dogal")
-    fails += check("Not:" in msg and "Risk skoru:" not in msg and "Fakt?rler:" not in msg and "Faktorler:" not in msg, "zaman baglamli onerisi dogal")
+    fails += check("gorev" in low_msg or "görev" in low_msg or "sistem" in low_msg, "gorev/sistem ifadesi"),
+    fails += check("Not:" in msg and "Risk skoru:" not in msg and "Faktörler:" not in msg and "Faktorler:" not in msg, "not baslik var ama risk/faktor yok"),
 
     fails += check("Risk skoru:" not in msg, "risk skoru gizli")
-    fails += check("Fakt?rler:" not in msg and "Faktorler:" not in msg, "faktor basligi gizli")
+    fails += check("Faktörler:" not in msg and "Faktorler:" not in msg, "faktor basligi gibi alan yok"),
     fails += check("precip_probability" not in msg, "teknik faktor gizli")
     fails += check("evaluated" not in msg, "evaluated gizli")
     fails += check("kesinti" not in low_msg, "kesinti gizli")
 
     fails += check("/brief_live" in pending_msg, "pending durumda /brief_live yonlendirmesi")
-    fails += check("Bu s?r??? ?nermiyorum" in critical_msg or "Bu surusu onermiyorum" in critical_msg or "alternatif" in critical_msg.lower(), "critical durumda net uyari")
+    fails += check("Bu sürücüyü önermiyorum" in critical_msg or "Bu surusu onermiyorum" in critical_msg, "surucu oneri mesaji"),
     fails += check("D2.4 cache/rate-limit" in live_msg, "brief_live notu korunuyor")
 
     source = Path("tools/telegram_agent.py").read_text(encoding="utf-8", errors="ignore")

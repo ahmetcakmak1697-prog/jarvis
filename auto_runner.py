@@ -1,4 +1,4 @@
-﻿"""JARVIS Auto Runner - 24/7 background orchestrator.
+"""JARVIS Auto Runner - 24/7 background orchestrator.
 
 Tek komut:
     python auto_runner.py

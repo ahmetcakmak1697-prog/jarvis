@@ -99,7 +99,7 @@ def main():
     msg = cmd_brief_live(fake_state())
     fails += check("motosiklet" in msg.lower() and ("risk" in msg.lower() or "dikkat" in msg.lower()), "brief_live dogal risk cumlesi")
     fails += check("Risk skoru:" not in msg, "telegram risk skoru gizli")
-    fails += check("Fakt?rler:" not in msg and "Faktorler:" not in msg, "telegram faktor basligi gizli")
+    fails += check("Faktörler:" not in msg and "Faktorler:" not in msg, "telegram faktor basligi yok"),
     fails += check("heavy_precip_probability" not in msg, "telegram teknik faktor gizli")
     fails += check("strong_wind" not in msg, "telegram teknik wind gizli")
 

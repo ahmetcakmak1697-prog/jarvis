@@ -1,4 +1,4 @@
-﻿import getpass
+import getpass
 import hashlib
 import secrets
 from pathlib import Path
