@@ -26,6 +26,7 @@ class WorldModelSnapshot:
     people: dict[str, Any]
     devices: dict[str, Any]
     modes: dict[str, Any]
+    projects: dict[str, Any]
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -34,6 +35,7 @@ class WorldModelSnapshot:
             "people": self.people,
             "devices": self.devices,
             "modes": self.modes,
+            "projects": self.projects,
         }
 
 
@@ -46,6 +48,7 @@ class WorldModelStore:
         "people": "people.json",
         "devices": "devices.json",
         "modes": "modes.json",
+        "projects": "projects.json",
     }
 
     def __init__(self, root: Path | str = ROOT):
@@ -90,6 +93,7 @@ class WorldModelStore:
         people = snapshot.people.get("people", [])
         devices = snapshot.devices.get("devices", [])
         modes = snapshot.modes.get("modes", [])
+        projects = snapshot.projects.get("projects", [])
 
         lines = [
             "World Model",
@@ -101,6 +105,7 @@ class WorldModelStore:
             f"People: {len(people)}",
             f"Devices: {len(devices)}",
             f"Modes: {len(modes)}",
+            f"Projects: {len(projects)}",
         ]
 
         if rooms:
@@ -112,6 +117,11 @@ class WorldModelStore:
             lines.extend(["", "Devices:"])
             for device in devices:
                 lines.append(f"- {device.get('name', device.get('id', 'unknown'))}: {device.get('status', 'unknown')}")
+
+        if projects:
+            lines.extend(["", "Projects:"])
+            for project in projects:
+                lines.append(f"- {project.get('name', project.get('id', 'unknown'))}: {project.get('status', 'unknown')}")
 
         return "\n".join(lines)
 

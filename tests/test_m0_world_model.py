@@ -11,6 +11,7 @@ def test_world_model_loads_default_files():
     assert snapshot.home["primary_user"] == "Ahmet"
     assert snapshot.rooms["rooms"][0]["id"] == "hobby_room"
     assert snapshot.devices["devices"][0]["id"] == "jarvis_pc"
+    assert snapshot.projects["projects"][0]["id"] == "jarvis_v5"
 
 
 def test_world_model_validate_passes_for_default_files():
@@ -30,13 +31,14 @@ def test_world_model_summary_contains_core_fields():
     assert "Ahmet Home" in text
     assert "hobby_room" in store.load().rooms["rooms"][0]["id"]
     assert "Jarvis PC" in text
+    assert "Jarvis v5" in text
 
 
 def test_world_model_validate_reports_missing_file(tmp_path):
     world = tmp_path / "world"
     world.mkdir()
 
-    for name in ["home.json", "rooms.json", "people.json", "devices.json"]:
+    for name in ["home.json", "rooms.json", "people.json", "devices.json", "projects.json"]:
         (world / name).write_text('{"schema_version": 1}', encoding="utf-8")
 
     store = WorldModelStore(root=tmp_path)
