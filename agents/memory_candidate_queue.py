@@ -460,7 +460,7 @@ class MemoryCandidateQueue:
         text = (research_text or "").strip()
 
         if not text:
-            return "Ara?t?rma sonucu bo? d?nd?."
+            return "Araştırma sonucu boş döndü."
 
         # Remove excessive whitespace while keeping core meaning.
         text = " ".join(text.split())
@@ -510,11 +510,11 @@ class MemoryCandidateQueue:
             return max(0, min(100, int(sum(scores) / len(scores))))
 
         # Fallback: formatted research text contains confidence markers.
-        if "G?ven: high" in research_text or "Guven: high" in research_text:
+        if "Güven: high" in research_text or "Guven: high" in research_text:
             return 80
-        if "G?ven: medium" in research_text or "Guven: medium" in research_text:
+        if "Güven: medium" in research_text or "Guven: medium" in research_text:
             return 60
-        if "G?ven:" in research_text or "Guven:" in research_text:
+        if "Güven:" in research_text or "Guven:" in research_text:
             return 45
 
         return 40
@@ -534,7 +534,7 @@ if __name__ == "__main__":
 
     sample = """[1] OpenAI API Pricing
 Kaynak: TEST | https://openai.com/api/pricing
-G?ven: high / 100
+Güven: high / 100
 G?ven nedeni: high_trust_domain, documentation_or_research_signal
 ?zet: Official documentation and current API pricing information for models."""
 
