@@ -1,0 +1,11 @@
+﻿{
+  "schema_version": 1,
+  "rooms": [
+    {
+      "id": "hobby_room",
+      "name": "Hobi Odası",
+      "purpose": ["electronics_learning", "jarvis_development", "future_3d_printing"],
+      "status": "planned"
+    }
+  ]
+}

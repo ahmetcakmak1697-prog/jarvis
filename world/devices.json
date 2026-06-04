@@ -1,0 +1,12 @@
+﻿{
+  "schema_version": 1,
+  "devices": [
+    {
+      "id": "jarvis_pc",
+      "name": "Jarvis PC",
+      "type": "desktop_pc",
+      "room_id": "hobby_room",
+      "status": "active"
+    }
+  ]
+}

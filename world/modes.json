@@ -1,0 +1,15 @@
+﻿{
+  "schema_version": 1,
+  "modes": [
+    {
+      "id": "development_mode",
+      "name": "Geliştirme Modu",
+      "description": "Jarvis coding and roadmap work mode."
+    },
+    {
+      "id": "maker_learning_mode",
+      "name": "Maker Öğrenme Modu",
+      "description": "Arduino, ESP32 and electronics learning mode."
+    }
+  ]
+}

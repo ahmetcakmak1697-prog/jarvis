@@ -1,0 +1,8 @@
+﻿{
+  "schema_version": 1,
+  "name": "Ahmet Home",
+  "description": "Jarvis world model root for Ahmet's personal environment.",
+  "timezone": "Europe/Istanbul",
+  "primary_user": "Ahmet",
+  "updated_at": ""
+}

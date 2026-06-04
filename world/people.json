@@ -1,0 +1,15 @@
+﻿{
+  "schema_version": 1,
+  "people": [
+    {
+      "id": "ahmet",
+      "name": "Ahmet",
+      "role": "primary_user"
+    },
+    {
+      "id": "dilara",
+      "name": "Dilara",
+      "role": "trusted_family"
+    }
+  ]
+}
