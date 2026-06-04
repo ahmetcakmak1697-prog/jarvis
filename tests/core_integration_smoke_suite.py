@@ -1,6 +1,6 @@
-"""C3 reporting smoke suite.
+"""Core integration smoke suite.
 
-Runs C3 reporting tests without requiring pytest.
+Runs core integration tests without requiring pytest.
 """
 
 from __future__ import annotations
@@ -78,7 +78,7 @@ def _run_module(path: Path) -> int:
 
 
 def main() -> None:
-    print("JARVIS C3 REPORTING SMOKE SUITE")
+    print("JARVIS CORE INTEGRATION SMOKE SUITE")
 
     total = 0
     for rel in TEST_MODULES:
@@ -88,7 +88,7 @@ def main() -> None:
 
         total += _run_module(path)
 
-    print(f"\nC3 reporting smoke OK: {total} tests")
+    print(f"\nCore integration smoke OK: {total} tests")
 
 
 if __name__ == "__main__":

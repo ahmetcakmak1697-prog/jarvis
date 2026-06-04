@@ -62,8 +62,8 @@ def main():
     )
 
     run(
-        [sys.executable, "tests/c3_reporting_smoke_suite.py"],
-        "C3 reporting smoke suite"
+        [sys.executable, "tests/core_integration_smoke_suite.py"],
+        "Core integration smoke suite"
     )
 
     tracked_sensitive = run(
