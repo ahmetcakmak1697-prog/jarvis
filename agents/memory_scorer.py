@@ -140,10 +140,10 @@ if __name__ == "__main__":
 
     samples = [
         "Merhaba",
-        "Bunu hat?rla: C1 sonras? C2 proje zekas?na ge?ece?iz.",
-        "Telefon numaram 555 ile ba?l?yor.",
-        "Bug?n Telegram bot ve Tailscale testini tamamlad?k.",
-        "Bu konu?ma ge?ici bir deneme.",
+        "Bunu hatırla: C1 sonrası C2 proje zekasına geçeceğiz.",
+        "Telefon numaram 555 ile başlıyor.",
+        "Bugün Telegram bot ve Tailscale testini tamamladık.",
+        "Bu konuşma geçici bir deneme.",
     ]
 
     for sample in samples:

@@ -486,8 +486,8 @@ class ProactiveCore:
         if threshold_minutes is None:
             return False
 
-        # 00:00-06:00 aral???ndaki e?ikler gece yar?s?ndan sonraki pencereyi ifade eder.
-        # ?rn. 01:00 e?i?i ??len 12:00'de de?il, sadece 01:00-06:00 aras?nda tetiklenmelidir.
+        # 00:00-06:00 aralığındaki eşikler gece yarısından sonraki pencereyi ifade eder.
+        # Örn. 01:00 eşiği öğlen 12:00'de değil, sadece 01:00-06:00 arasında tetiklenmelidir.
         if threshold_minutes < 6 * 60:
             return threshold_minutes <= now_minutes < 6 * 60
 
@@ -501,7 +501,7 @@ class ProactiveCore:
         if now_minutes >= final_warning:
             return True
 
-        # 00:00-01:00 aras? h?l? ?nceki gecenin final uyar? penceresi say?l?r.
+        # 00:00-01:00 arası hâlâ önceki gecenin final uyardı penceresi sayılır.
         if hard_after is not None and hard_after < 6 * 60 and now_minutes < hard_after:
             return True
 
