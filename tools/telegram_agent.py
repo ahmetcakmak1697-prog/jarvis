@@ -707,7 +707,7 @@ def cmd_memory_status() -> str:
 
         lines.extend([
             "",
-            "Komutlar: /mem_candidates | /mem_expire | /mem_approve <id>",
+            "Komutlar: /mem_candidates | /mem_expire | /mem_approve <id> | /mem_store <id>",
         ])
 
         return "\n".join(lines)
@@ -740,6 +740,7 @@ def cmd_memory_candidates() -> str:
 
         lines.append("Komutlar:")
         lines.append("/mem_approve <id>")
+        lines.append("/mem_store <id>")
         lines.append("/mem_reject <id>")
         lines.append("/mem_defer <id>")
 
