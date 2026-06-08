@@ -150,6 +150,26 @@ C1.6D teknik olarak tamamlandi ve commitlendi.
 - Debt: `MemoryCandidateQueue.list_candidates/list_all` public API eklendi; synthesizer private `_load` kullanmiyor.
 - Not: Pytest `TestCore __init__` collection warning'leri bu bloktan once de vardir; bloklayici degildir.
 
+### [DONE] C1.6E-1 Kapanis Notu
+
+C1.6E'nin ilk guvenlik/gorunurluk halkasi tamamlandi ve commitlendi.
+
+- Commit: `de8cb9273 Add C1.6E synthesis review status tests`
+- Commit: `a5aaec685 Show synthesis review metadata in Telegram memory display`
+- Test: `tests/test_c1_2_telegram_memory_display.py` -> `4 passed`
+- Test: `tests/test_c1_5_memory_candidate_writer_route_guard.py` -> `4 passed`
+- Test: `tests/test_c1_6_memory_synthesizer.py` -> `32 passed`
+- Memory/C1 smoke: `52 passed, 90 deselected, 2 warnings`
+- Core smoke: `22 passed, 120 deselected, 2 warnings`
+- Kapsam: synthesis candidate approved/rejected/deferred lifecycle test altina alindi.
+- Kapsam: invalid decision reddediliyor.
+- Kapsam: `decide()` basarili durumda `candidate_id` donduruyor.
+- Guvenlik: approved synthesis candidate bile `review_queue` nedeniyle vector memory'ye otomatik yazilmiyor.
+- Gorunurluk: Telegram memory display synthesis metadata gosteriyor (`status`, `decision`, `proposal_type`, `theme`, `source_ids`).
+- Not: Pytest `TestCore __init__` collection warning'leri bu bloktan once de vardir; bloklayici degildir.
+
+Siradaki kontrollu adim: [ACTIVE] C1.6E-2 - approved synthesis candidate icin semantic write tasarimi.
+
 ## 5. Kritik Yol — C1.6 Sentez Omurgası (sırayla)
 
 | Blok | İçerik |
@@ -344,4 +364,4 @@ Akış: pahalı modelden (L6) kaliteli cevap al → özet + kaynak + yapısal bi
 ---
 
 *Son güncelleme: 5 Haziran 2026 · Üçlü AI mutabakatı (Claude vizyon/mimari · GPT ritim/güvenlik · Gemini denge)*
-*Siradaki teknik adim: 🟧 C1.6E - Synthesized Memory Review/Status*
+*Siradaki teknik adim: [ACTIVE] C1.6E-2 - Approved Synthesis Semantic Write Design*
