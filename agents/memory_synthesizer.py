@@ -119,7 +119,7 @@ class MemorySynthesizerCandidateCollector:
     def collect(self, limit=50):
         if limit <= 0:
             return []
-        items = self.queue._load()
+        items = self.queue.list_candidates()
         eligible = []
         for item in items:
             if not isinstance(item, dict):

@@ -256,6 +256,41 @@ class MemoryCandidateQueue:
             "route": route,
         }
 
+    def list_candidates(
+        self,
+        limit: int | None = None,
+        statuses: set[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return review candidates through a public read API.
+
+        C1.6D-debt:
+        - callers must not use private _load()
+        - optional status filtering keeps synthesizer/review code simple
+        - limit returns the newest N items, matching list_pending behavior
+        """
+        items = [
+            item for item in self._load()
+            if isinstance(item, dict)
+        ]
+
+        if statuses is not None:
+            allowed = {str(status) for status in statuses}
+            items = [
+                item for item in items
+                if str(item.get("status") or "") in allowed
+            ]
+
+        if limit is not None:
+            if limit <= 0:
+                return []
+            return items[-limit:]
+
+        return items
+
+    def list_all(self, limit: int | None = None) -> list[dict[str, Any]]:
+        """Return all candidates through the public queue API."""
+        return self.list_candidates(limit=limit)
+
     def list_pending(self, limit: int = 10) -> list[dict[str, Any]]:
         items = self._load()
         pending = [

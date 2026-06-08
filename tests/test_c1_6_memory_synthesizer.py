@@ -344,3 +344,81 @@ def test_c1_6c_returns_proposals_only_without_side_effect_fields():
     assert "memory" not in proposal
     assert "vector" not in proposal
     assert "approval" not in proposal
+
+# C1.6D-debt public queue API tests
+
+def test_memory_candidate_queue_list_candidates_public_api(tmp_path):
+    import json
+    from agents.memory_candidate_queue import MemoryCandidateQueue
+
+    q = MemoryCandidateQueue(root=tmp_path)
+    q.path.write_text(
+        json.dumps(
+            [
+                {"id": "c1", "status": "pending_review", "summary": "one"},
+                {"id": "c2", "status": "approved", "summary": "two"},
+                {"id": "c3", "status": "stored", "summary": "three"},
+                {"id": "c4", "status": "rejected", "summary": "four"},
+            ],
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    all_items = q.list_candidates()
+    assert [item["id"] for item in all_items] == ["c1", "c2", "c3", "c4"]
+
+    active_items = q.list_candidates(statuses={"pending_review", "approved", "stored"})
+    assert [item["id"] for item in active_items] == ["c1", "c2", "c3"]
+
+    limited = q.list_candidates(limit=2)
+    assert [item["id"] for item in limited] == ["c3", "c4"]
+
+    assert q.list_all() == all_items
+
+
+def test_collector_uses_public_list_candidates_api(tmp_path):
+    import json
+    from agents.memory_synthesizer import MemorySynthesizerCandidateCollector
+
+    queue_root = tmp_path / "queue"
+    queue_path = queue_root / "memory" / "memory_candidates.json"
+    queue_path.parent.mkdir(parents=True, exist_ok=True)
+    queue_path.write_text(
+        json.dumps(
+            [
+                {
+                    "id": "1",
+                    "source_type": "conversation",
+                    "status": "pending_review",
+                    "memory_type": "semantic",
+                    "summary": "jarvis roadmap notu",
+                    "delete_id": "md_001",
+                }
+            ],
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    collector = MemorySynthesizerCandidateCollector(
+        queue_root=queue_root,
+        state_path=tmp_path / "synthesis_state.json",
+    )
+
+    calls = {"list_candidates": 0}
+    original_list_candidates = collector.queue.list_candidates
+
+    def spy_list_candidates(*args, **kwargs):
+        calls["list_candidates"] += 1
+        return original_list_candidates(*args, **kwargs)
+
+    collector.queue.list_candidates = spy_list_candidates
+
+    result = collector.collect()
+    assert calls["list_candidates"] == 1
+    assert len(result) == 1
+    assert result[0]["delete_id"] == "md_001"
+    assert result[0]["_synthesis_text"] == "jarvis roadmap notu"
