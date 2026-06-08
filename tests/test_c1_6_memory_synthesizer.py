@@ -422,3 +422,94 @@ def test_collector_uses_public_list_candidates_api(tmp_path):
     assert len(result) == 1
     assert result[0]["delete_id"] == "md_001"
     assert result[0]["_synthesis_text"] == "jarvis roadmap notu"
+
+# C1.6D synthesis proposal queue tests
+
+def test_queue_add_synthesis_candidate_creates_pending_review_item(tmp_path):
+    from agents.memory_candidate_queue import MemoryCandidateQueue
+
+    q = MemoryCandidateQueue(root=tmp_path)
+
+    proposal = {
+        "theme": "jarvis",
+        "summary": "Jarvis gelistirme calismalari aktif gorunuyor.",
+        "source_count": 3,
+        "confidence": 80,
+        "source_ids": ["md_001", "md_002", "md_003"],
+        "proposal_type": "synthesized_memory",
+    }
+
+    result = q.add_synthesis_candidate(proposal)
+
+    assert result["ok"] is True
+    assert result["queued"] is True
+
+    candidate = result["candidate"]
+    assert candidate["source_type"] == "synthesis"
+    assert candidate["mode"] == "memory_synthesis"
+    assert candidate["status"] == "pending_review"
+    assert candidate["query"] == "synthesis:jarvis"
+    assert candidate["summary"] == "Jarvis gelistirme calismalari aktif gorunuyor."
+    assert candidate["confidence"] == 80
+    assert candidate["memory_type"] == "semantic"
+    assert candidate["storage_target"] == "review_queue"
+    assert candidate["sensitivity"] == "normal"
+    assert candidate["proposal_type"] == "synthesized_memory"
+    assert candidate["theme"] == "jarvis"
+    assert candidate["source_count"] == 3
+    assert candidate["source_ids"] == ["md_001", "md_002", "md_003"]
+    assert "synthesis" in candidate["tags"]
+    assert "c1_6" in candidate["tags"]
+    assert "theme:jarvis" in candidate["tags"]
+
+    pending = q.list_pending(limit=10)
+    assert len(pending) == 1
+    assert pending[0]["id"] == candidate["id"]
+
+
+def test_queue_add_synthesis_candidate_is_idempotent(tmp_path):
+    from agents.memory_candidate_queue import MemoryCandidateQueue
+
+    q = MemoryCandidateQueue(root=tmp_path)
+
+    proposal = {
+        "theme": "eshot",
+        "summary": "ESHOT raporlama ve telemetri calismalari aktif gorunuyor.",
+        "source_count": 3,
+        "confidence": 80,
+        "source_ids": ["a", "b", "c"],
+        "proposal_type": "synthesized_memory",
+    }
+
+    first = q.add_synthesis_candidate(proposal)
+    second = q.add_synthesis_candidate(proposal)
+
+    assert first["ok"] is True
+    assert second["ok"] is True
+    assert first["candidate"]["id"] == second["candidate"]["id"]
+
+    all_items = q.list_candidates()
+    assert len(all_items) == 1
+    assert all_items[0]["source_type"] == "synthesis"
+
+
+def test_queue_add_synthesis_candidate_rejects_non_synthesis_proposal(tmp_path):
+    from agents.memory_candidate_queue import MemoryCandidateQueue
+
+    q = MemoryCandidateQueue(root=tmp_path)
+
+    result = q.add_synthesis_candidate(
+        {
+            "theme": "jarvis",
+            "summary": "bad proposal",
+            "source_count": 3,
+            "confidence": 80,
+            "source_ids": ["x", "y", "z"],
+            "proposal_type": "not_synthesis",
+        }
+    )
+
+    assert result["ok"] is False
+    assert result["queued"] is False
+    assert result["reason"] == "invalid_proposal_type"
+    assert q.list_candidates() == []

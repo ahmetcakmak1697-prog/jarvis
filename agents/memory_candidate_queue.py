@@ -256,6 +256,120 @@ class MemoryCandidateQueue:
             "route": route,
         }
 
+    def add_synthesis_candidate(
+        self,
+        proposal: dict[str, Any],
+        ttl_days: int | None = 60,
+    ) -> dict[str, Any]:
+        """Queue a synthesized memory proposal for review.
+
+        C1.6D:
+        - takes C1.6C proposal output
+        - writes only to review queue
+        - never writes directly to vector/long-term memory
+        """
+        if not isinstance(proposal, dict):
+            return {
+                "ok": False,
+                "queued": False,
+                "reason": "invalid_proposal",
+            }
+
+        if proposal.get("proposal_type") != "synthesized_memory":
+            return {
+                "ok": False,
+                "queued": False,
+                "reason": "invalid_proposal_type",
+            }
+
+        theme = str(proposal.get("theme") or "").strip()
+        summary = str(proposal.get("summary") or "").strip()
+        if not theme or not summary:
+            return {
+                "ok": False,
+                "queued": False,
+                "reason": "missing_theme_or_summary",
+            }
+
+        try:
+            confidence = int(proposal.get("confidence") or 50)
+        except (TypeError, ValueError):
+            confidence = 50
+        confidence = max(0, min(100, confidence))
+
+        try:
+            source_count = int(proposal.get("source_count") or 0)
+        except (TypeError, ValueError):
+            source_count = 0
+
+        source_ids = proposal.get("source_ids") or []
+        if not isinstance(source_ids, list):
+            source_ids = []
+
+        now = datetime.now()
+        expires_at = None
+        if ttl_days:
+            expires_at = (now + timedelta(days=ttl_days)).isoformat(timespec="seconds")
+
+        query = f"synthesis:{theme}"
+        tags = list(dict.fromkeys([
+            "synthesis",
+            "c1_6",
+            f"theme:{theme}",
+        ]))
+
+        candidate = MemoryCandidate(
+            id=self._make_id(query, summary),
+            created_at=now.isoformat(timespec="seconds"),
+            source_type="synthesis",
+            mode="memory_synthesis",
+            status="pending_review",
+            query=query,
+            summary=summary,
+            confidence=confidence,
+            tier=self._tier_from_confidence(confidence),
+            source_urls=[],
+            source_scores=[],
+            retrieved_at=now.isoformat(timespec="seconds"),
+            expires_at=expires_at,
+            tags=tags,
+        )
+
+        item = candidate.to_dict()
+        item["schema_version"] = "c1.6d"
+        item["memory_type"] = "semantic"
+        item["storage_target"] = "review_queue"
+        item["sensitivity"] = "normal"
+        item["proposal_type"] = "synthesized_memory"
+        item["theme"] = theme
+        item["source_count"] = source_count
+        item["source_ids"] = [str(source_id) for source_id in source_ids]
+        item["route"] = {
+            "schema_version": "c1.6d",
+            "memory_type": "semantic",
+            "storage_target": "review_queue",
+            "sensitivity": "normal",
+            "requires_review": True,
+            "allow_vector": False,
+            "allow_daily_summary": True,
+            "tags": tags,
+            "confidence": confidence,
+        }
+
+        items = self._load()
+        existing_ids = {entry.get("id") for entry in items if isinstance(entry, dict)}
+
+        if candidate.id not in existing_ids:
+            items.append(item)
+            self._save(items)
+
+        return {
+            "ok": True,
+            "queued": True,
+            "candidate": item,
+            "route": item["route"],
+        }
+
     def list_candidates(
         self,
         limit: int | None = None,
