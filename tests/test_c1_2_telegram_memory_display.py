@@ -68,3 +68,39 @@ def test_format_candidate_truncates_long_summary():
 
     assert summary_line.endswith("...")
     assert len(summary_line) <= 290
+
+
+def test_format_synthesis_candidate_shows_review_metadata():
+    item = {
+        "id": "mc_synthesis",
+        "source_type": "synthesis",
+        "mode": "memory_synthesis",
+        "status": "approved",
+        "memory_type": "semantic",
+        "storage_target": "review_queue",
+        "sensitivity": "normal",
+        "proposal_type": "synthesized_memory",
+        "theme": "jarvis",
+        "source_count": 2,
+        "source_ids": ["md_001", "md_002"],
+        "tier": "project_or_session_candidate",
+        "confidence": 70,
+        "expires_at": "2026-08-01T20:38:43",
+        "tags": ["synthesis", "c1_6", "theme:jarvis"],
+        "summary": "Jarvis gelistirme calismalari aktif gorunuyor.",
+        "route": {"action": "synthesis_review"},
+        "user_decision": "approved",
+        "decided_at": "2026-06-05T20:38:43",
+    }
+
+    lines = _format_memory_candidate_item(item)
+    text = "\n".join(lines)
+
+    assert "ID: mc_synthesis" in text
+    assert "Source: synthesis | Type: semantic -> review_queue" in text
+    assert "Status: approved | Decision: approved" in text
+    assert "Proposal: synthesized_memory | Theme: jarvis | Sources: 2" in text
+    assert "Source IDs: md_001, md_002" in text
+    assert "Tags: synthesis, c1_6, theme:jarvis" in text
+    assert "Ozet: Jarvis gelistirme calismalari aktif gorunuyor." in text
+

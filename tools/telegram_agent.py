@@ -598,6 +598,24 @@ def _format_memory_candidate_item(item: dict) -> list[str]:
         f"Expires: {item.get('expires_at')}",
     ]
 
+    status = item.get("status")
+    user_decision = item.get("user_decision")
+    if status or user_decision:
+        lines.append(f"Status: {status or '-'} | Decision: {user_decision or '-'}")
+
+    proposal_type = item.get("proposal_type")
+    theme = item.get("theme")
+    source_count = item.get("source_count")
+    if proposal_type or theme or source_count is not None:
+        lines.append(f"Proposal: {proposal_type or '-'} | Theme: {theme or '-'} | Sources: {source_count if source_count is not None else '-'}")
+
+    source_ids = item.get("source_ids")
+    if isinstance(source_ids, list) and source_ids:
+        source_id_text = ", ".join(str(source_id) for source_id in source_ids[:8])
+        if len(source_ids) > 8:
+            source_id_text += ", ..."
+        lines.append(f"Source IDs: {source_id_text}")
+
     if tag_text:
         lines.append(f"Tags: {tag_text}")
 
