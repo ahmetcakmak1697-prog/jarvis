@@ -595,3 +595,94 @@ def test_synthesis_submitter_does_not_mark_processed_when_queue_write_fails(tmp_
     state = MemorySynthesizerStore(path=state_path).load_or_default()
     assert state.is_processed("md_001") is False
     assert state.is_processed("md_002") is False
+
+# C1.6D end-to-end integration tests
+
+def test_c1_6d_collector_synthesizer_submitter_end_to_end(tmp_path):
+    import json
+    from agents.memory_candidate_queue import MemoryCandidateQueue
+    from agents.memory_synthesizer import (
+        KeywordFrequencySynthesizer,
+        MemorySynthesisReviewSubmitter,
+        MemorySynthesizerCandidateCollector,
+        MemorySynthesizerStore,
+    )
+
+    queue_root = tmp_path / "queue"
+    queue_path = queue_root / "memory" / "memory_candidates.json"
+    queue_path.parent.mkdir(parents=True, exist_ok=True)
+
+    queue_path.write_text(
+        json.dumps(
+            [
+                {
+                    "id": "c1",
+                    "source_type": "conversation",
+                    "status": "pending_review",
+                    "memory_type": "semantic",
+                    "storage_target": "vector",
+                    "summary": "jarvis roadmap commit notu hazirlandi",
+                    "delete_id": "md_001",
+                },
+                {
+                    "id": "c2",
+                    "source_type": "conversation",
+                    "status": "approved",
+                    "memory_type": "semantic",
+                    "storage_target": "vector",
+                    "summary": "jarvis patch test ve repo calismasi yapildi",
+                    "delete_id": "md_002",
+                },
+            ],
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    state_path = tmp_path / "synthesis_state.json"
+
+    collector = MemorySynthesizerCandidateCollector(
+        queue_root=queue_root,
+        state_path=state_path,
+    )
+    candidates = collector.collect()
+    assert len(candidates) == 2
+
+    synthesizer = KeywordFrequencySynthesizer(min_mentions=2)
+    proposals = synthesizer.synthesize(candidates)
+    assert len(proposals) == 1
+    assert proposals[0]["theme"] == "jarvis"
+    assert proposals[0]["source_ids"] == ["md_001", "md_002"]
+
+    submitter = MemorySynthesisReviewSubmitter(
+        queue=MemoryCandidateQueue(root=queue_root),
+        store=MemorySynthesizerStore(path=state_path),
+    )
+    result = submitter.submit(proposals)
+
+    assert result["ok"] is True
+    assert result["submitted_count"] == 1
+    assert result["processed_source_ids"] == ["md_001", "md_002"]
+
+    items = MemoryCandidateQueue(root=queue_root).list_candidates()
+    synthesis_items = [item for item in items if item.get("source_type") == "synthesis"]
+    assert len(synthesis_items) == 1
+
+    synthesis_item = synthesis_items[0]
+    assert synthesis_item["status"] == "pending_review"
+    assert synthesis_item["storage_target"] == "review_queue"
+    assert synthesis_item["memory_type"] == "semantic"
+    assert synthesis_item["proposal_type"] == "synthesized_memory"
+    assert synthesis_item["source_ids"] == ["md_001", "md_002"]
+
+    state = MemorySynthesizerStore(path=state_path).load_or_default()
+    assert state.is_processed("md_001") is True
+    assert state.is_processed("md_002") is True
+
+    # Processed source ids must not be collected again on the next run.
+    second_collect = MemorySynthesizerCandidateCollector(
+        queue_root=queue_root,
+        state_path=state_path,
+    ).collect()
+    assert second_collect == []

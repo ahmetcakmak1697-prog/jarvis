@@ -310,10 +310,15 @@ class KeywordFrequencySynthesizer:
 
         data_class = str(cand.get("data_class") or cand.get("classification") or "").lower()
         route = str(cand.get("route") or cand.get("memory_route") or "").lower()
-        decision = str(cand.get("decision") or cand.get("status") or "").lower()
+        decision = str(cand.get("decision") or "").lower()
         trust = str(cand.get("trust") or "").lower()
+        memory_type = str(cand.get("memory_type") or "").lower()
+        storage_target = str(cand.get("storage_target") or "").lower()
 
-        marker_text = " ".join((data_class, route, decision, trust))
+        # Do not treat normal queue status such as "pending_review" as blocked.
+        # C1.6B intentionally allows pending_review/approved/stored candidates.
+        # Blocking is based on data class, memory type, route, decision and trust.
+        marker_text = " ".join((data_class, route, decision, trust, memory_type, storage_target))
 
         blocked_markers = (
             "personal-sensitive",
