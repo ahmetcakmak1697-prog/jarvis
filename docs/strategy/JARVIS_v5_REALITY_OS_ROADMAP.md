@@ -132,14 +132,32 @@ C1.6C teknik olarak tamamlandi ve commitlendi.
 
 ---
 
+
+### ? C1.6D Kapanis Notu
+
+C1.6D teknik olarak tamamlandi ve commitlendi.
+
+- Commit: `3a43c63e5 Add public memory candidate listing API`
+- Commit: `d2195c6c4 Add C1.6D synthesis proposal review queue`
+- Commit: `70ac0652e Add transactional C1.6D synthesis submitter`
+- Commit: `bd2b38b09 Add C1.6D synthesis end-to-end test`
+- Test: `tests/test_c1_6_memory_synthesizer.py` -> `29 passed`
+- Memory/C1 smoke: `42 passed, 95 deselected, 2 warnings`
+- Core smoke: `22 passed, 115 deselected, 2 warnings`
+- Kapsam: synthesized proposal -> `pending_review` review queue.
+- Guvenlik: queue yazimi basarili olmadan `source_ids` processed isaretlenmez.
+- Guvenlik: dogrudan VectorMemory/long-term memory yazimi yoktur.
+- Debt: `MemoryCandidateQueue.list_candidates/list_all` public API eklendi; synthesizer private `_load` kullanmiyor.
+- Not: Pytest `TestCore __init__` collection warning'leri bu bloktan once de vardir; bloklayici degildir.
+
 ## 5. Kritik Yol — C1.6 Sentez Omurgası (sırayla)
 
 | Blok | İçerik |
 |------|--------|
 | ✅ C1.6C | Keyword/tema frekans sentezleyici (tamamlandi: proposal-only, Turkish fold, source_ids, sensitive guard) |
-| 🟧 C1.6D | Synthesis proposal -> approval queue (dogrudan vector'e YAZMAZ) |
-| ⬜ C1.6D-debt | **Tech debt:** `MemoryCandidateQueue` public `list_all`/`list_candidates` API ekle; synthesizer private `_load` kullanmasın (C1.6B'de geçici kabul edildi) |
-| ⬜ C1.6E | Synthesized memory review/status (onay sonrası semantic'e yazım) |
+| ✅ C1.6D | Synthesis proposal -> approval queue (dogrudan vector'e YAZMAZ) |
+| ✅ C1.6D-debt | Tech debt tamamlandi: MemoryCandidateQueue.list_candidates/list_all eklendi; synthesizer private _load kullanmiyor |
+| 🟧 C1.6E | Synthesized memory review/status (onay sonrasi semantic'e yazim) |
 | ⬜ C1.6F | Session/day closure summary ("bugün şunları öğrendim efendim") |
 | ⬜ C1.6G | Source-linked memory consolidation |
 | ⬜ **C1.6H** | **Answer Crystallization** ⭐ (aşağıda) |
@@ -302,8 +320,8 @@ Akış: pahalı modelden (L6) kaliteli cevap al → özet + kaynak + yapısal bi
 ## 9. Stratejik Sıra (sıra DEĞİŞMEZ)
 
 1. ✅ **C1.6C** — Keyword Frequency Synthesizer <- **tamamlandi**
-2. 🟧 C1.6D -> C1.6E (proposal -> approval -> review) <- **su an buradayiz**
-3. ⬜ Küçük roadmap update + Z2 "bugün kaldığımız yer" mini görünür çıktı (motivasyon)
+2. ✅ C1.6D -> review queue entegrasyonu <- tamamlandi
+3. 🟧 C1.6E -> Synthesized memory review/status <- su an buradayiz
 4. ⬜ C1.6F → C1.6G → **C1.6H (Answer Crystallization)**
 5. ⬜ Sonra seçim: Z0 (persona) / Y0 (gateway) / G1 (benchmark) / D-serisi
 6. ⬜ V0–V2 (yerel ses + butler voice)
@@ -326,4 +344,4 @@ Akış: pahalı modelden (L6) kaliteli cevap al → özet + kaynak + yapısal bi
 ---
 
 *Son güncelleme: 5 Haziran 2026 · Üçlü AI mutabakatı (Claude vizyon/mimari · GPT ritim/güvenlik · Gemini denge)*
-*Siradaki teknik adim: 🟧 C1.6D — Proposal -> Approval Queue*
+*Siradaki teknik adim: 🟧 C1.6E - Synthesized Memory Review/Status*
