@@ -686,3 +686,105 @@ def test_c1_6d_collector_synthesizer_submitter_end_to_end(tmp_path):
         state_path=state_path,
     ).collect()
     assert second_collect == []
+
+# C1.6E synthesized memory review/status tests
+
+def test_c1_6e_synthesis_candidate_decide_approved_updates_review_status(tmp_path):
+    from agents.memory_candidate_queue import MemoryCandidateQueue
+
+    q = MemoryCandidateQueue(root=tmp_path)
+
+    proposal = {
+        "theme": "jarvis",
+        "summary": "Jarvis gelistirme calismalari aktif gorunuyor.",
+        "source_count": 2,
+        "confidence": 70,
+        "source_ids": ["md_001", "md_002"],
+        "proposal_type": "synthesized_memory",
+    }
+
+    candidate = q.add_synthesis_candidate(proposal)["candidate"]
+    result = q.decide(candidate["id"], "approved")
+
+    assert result["ok"] is True
+    assert result["candidate_id"] == candidate["id"]
+
+    updated = q.get(candidate["id"])
+    assert updated["source_type"] == "synthesis"
+    assert updated["proposal_type"] == "synthesized_memory"
+    assert updated["status"] == "approved"
+    assert updated["user_decision"] == "approved"
+    assert updated["decided_at"]
+    assert updated["storage_target"] == "review_queue"
+    assert updated["memory_type"] == "semantic"
+
+
+def test_c1_6e_synthesis_candidate_decide_rejected_and_deferred(tmp_path):
+    from agents.memory_candidate_queue import MemoryCandidateQueue
+
+    q = MemoryCandidateQueue(root=tmp_path)
+
+    reject_candidate = q.add_synthesis_candidate(
+        {
+            "theme": "jarvis",
+            "summary": "Jarvis gelistirme calismalari aktif gorunuyor.",
+            "source_count": 2,
+            "confidence": 70,
+            "source_ids": ["a", "b"],
+            "proposal_type": "synthesized_memory",
+        }
+    )["candidate"]
+
+    defer_candidate = q.add_synthesis_candidate(
+        {
+            "theme": "eshot",
+            "summary": "ESHOT raporlama ve telemetri calismalari aktif gorunuyor.",
+            "source_count": 2,
+            "confidence": 70,
+            "source_ids": ["c", "d"],
+            "proposal_type": "synthesized_memory",
+        }
+    )["candidate"]
+
+    rejected = q.decide(reject_candidate["id"], "rejected")
+    deferred = q.decide(defer_candidate["id"], "deferred")
+
+    assert rejected["ok"] is True
+    assert deferred["ok"] is True
+
+    updated_reject = q.get(reject_candidate["id"])
+    updated_defer = q.get(defer_candidate["id"])
+
+    assert updated_reject["status"] == "rejected"
+    assert updated_reject["user_decision"] == "rejected"
+    assert updated_reject["decided_at"]
+
+    assert updated_defer["status"] == "deferred"
+    assert updated_defer["user_decision"] == "deferred"
+    assert updated_defer["decided_at"]
+
+
+def test_c1_6e_synthesis_candidate_rejects_invalid_decision(tmp_path):
+    from agents.memory_candidate_queue import MemoryCandidateQueue
+
+    q = MemoryCandidateQueue(root=tmp_path)
+
+    candidate = q.add_synthesis_candidate(
+        {
+            "theme": "jarvis",
+            "summary": "Jarvis gelistirme calismalari aktif gorunuyor.",
+            "source_count": 2,
+            "confidence": 70,
+            "source_ids": ["md_001", "md_002"],
+            "proposal_type": "synthesized_memory",
+        }
+    )["candidate"]
+
+    result = q.decide(candidate["id"], "store_now")
+
+    assert result["ok"] is False
+    assert "approved/rejected/deferred" in result["error"]
+
+    unchanged = q.get(candidate["id"])
+    assert unchanged["status"] == "pending_review"
+    assert unchanged.get("user_decision") is None

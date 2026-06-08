@@ -493,7 +493,7 @@ class MemoryCandidateQueue:
                     },
                 )
 
-                return {"ok": True, "candidate": item}
+                return {"ok": True, "candidate_id": candidate_id, "candidate": item}
 
         return {
             "ok": False,

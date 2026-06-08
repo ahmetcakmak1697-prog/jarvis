@@ -105,3 +105,38 @@ def test_review_queue_route_is_blocked_before_policy_write():
         policy = result["policy"]
         assert policy["storage_target"] == "review_queue"
         assert policy["sensitivity"] == "secret"
+
+
+def test_synthesis_review_queue_candidate_is_not_vector_stored_even_when_approved():
+    with TemporaryDirectory() as td:
+        root = Path(td)
+        q = MemoryCandidateQueue(root=root)
+
+        candidate = q.add_synthesis_candidate(
+            {
+                "theme": "jarvis",
+                "summary": "Jarvis gelistirme calismalari aktif gorunuyor.",
+                "source_count": 2,
+                "confidence": 70,
+                "source_ids": ["md_001", "md_002"],
+                "proposal_type": "synthesized_memory",
+            }
+        )["candidate"]
+
+        q.decide(candidate["id"], "approved")
+
+        writer, fake = _writer_with_fake_memory(root)
+        result = writer.approve_and_store(candidate["id"])
+
+        assert result["ok"] is False
+        assert result["stored"] is False
+        assert result["error"] == "C1 route vector yazimina izin vermedi."
+        assert len(fake.calls) == 0
+
+        updated = writer.queue.get(candidate["id"])
+        assert updated["source_type"] == "synthesis"
+        assert updated["status"] == "approved"
+        assert updated["user_decision"] == "approved"
+        assert updated["storage_target"] == "review_queue"
+        assert updated["proposal_type"] == "synthesized_memory"
+
