@@ -153,6 +153,69 @@ class MemorySynthesizerCandidateCollector:
         ]
 
 
+
+class MemorySynthesisReviewSubmitter:
+    """Submit synthesized memory proposals to review queue.
+
+    C1.6D transactional rule:
+    - queue write first
+    - mark source_ids processed only after successful queue write
+    - no vector memory write
+    """
+
+    def __init__(self, queue=None, store=None, queue_root=None, state_path=None):
+        if queue is None:
+            from agents.memory_candidate_queue import MemoryCandidateQueue
+            queue = MemoryCandidateQueue(root=queue_root or ROOT)
+
+        self.queue = queue
+        self.store = store if store is not None else MemorySynthesizerStore(path=state_path)
+
+    def submit(self, proposals: list[dict]) -> dict:
+        submitted = []
+        errors = []
+        processed_source_ids = []
+
+        for proposal in proposals:
+            if not isinstance(proposal, dict):
+                errors.append({
+                    "reason": "invalid_proposal",
+                    "proposal": proposal,
+                })
+                continue
+
+            result = self.queue.add_synthesis_candidate(proposal)
+            if not result.get("ok") or not result.get("queued"):
+                errors.append({
+                    "reason": result.get("reason") or "queue_write_failed",
+                    "proposal": proposal,
+                    "result": result,
+                })
+                continue
+
+            submitted.append(result.get("candidate"))
+
+            source_ids = proposal.get("source_ids") or []
+            if not isinstance(source_ids, list):
+                source_ids = []
+
+            for source_id in source_ids:
+                source_id = str(source_id)
+                if not source_id:
+                    continue
+                self.store.mark_processed(source_id)
+                processed_source_ids.append(source_id)
+
+        return {
+            "ok": len(errors) == 0,
+            "submitted_count": len(submitted),
+            "error_count": len(errors),
+            "processed_source_ids": processed_source_ids,
+            "submitted": submitted,
+            "errors": errors,
+        }
+
+
 # ---------------------------------------------------------------------------
 # C1.6C -- Keyword Frequency Synthesizer
 # ---------------------------------------------------------------------------

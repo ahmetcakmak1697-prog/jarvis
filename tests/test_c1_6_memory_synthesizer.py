@@ -513,3 +513,85 @@ def test_queue_add_synthesis_candidate_rejects_non_synthesis_proposal(tmp_path):
     assert result["queued"] is False
     assert result["reason"] == "invalid_proposal_type"
     assert q.list_candidates() == []
+
+# C1.6D transactional submitter tests
+
+def test_synthesis_submitter_marks_sources_processed_after_successful_queue_write(tmp_path):
+    from agents.memory_candidate_queue import MemoryCandidateQueue
+    from agents.memory_synthesizer import (
+        MemorySynthesisReviewSubmitter,
+        MemorySynthesizerStore,
+    )
+
+    queue_root = tmp_path / "queue"
+    state_path = tmp_path / "synthesis_state.json"
+
+    submitter = MemorySynthesisReviewSubmitter(
+        queue=MemoryCandidateQueue(root=queue_root),
+        store=MemorySynthesizerStore(path=state_path),
+    )
+
+    proposal = {
+        "theme": "jarvis",
+        "summary": "Jarvis gelistirme calismalari aktif gorunuyor.",
+        "source_count": 2,
+        "confidence": 70,
+        "source_ids": ["md_001", "md_002"],
+        "proposal_type": "synthesized_memory",
+    }
+
+    result = submitter.submit([proposal])
+
+    assert result["ok"] is True
+    assert result["submitted_count"] == 1
+    assert result["processed_source_ids"] == ["md_001", "md_002"]
+
+    queued = MemoryCandidateQueue(root=queue_root).list_candidates()
+    assert len(queued) == 1
+    assert queued[0]["source_type"] == "synthesis"
+    assert queued[0]["status"] == "pending_review"
+
+    state = MemorySynthesizerStore(path=state_path).load_or_default()
+    assert state.is_processed("md_001") is True
+    assert state.is_processed("md_002") is True
+
+
+def test_synthesis_submitter_does_not_mark_processed_when_queue_write_fails(tmp_path):
+    from agents.memory_synthesizer import (
+        MemorySynthesisReviewSubmitter,
+        MemorySynthesizerStore,
+    )
+
+    class FailingQueue:
+        def add_synthesis_candidate(self, proposal):
+            return {
+                "ok": False,
+                "queued": False,
+                "reason": "simulated_queue_failure",
+            }
+
+    state_path = tmp_path / "synthesis_state.json"
+    submitter = MemorySynthesisReviewSubmitter(
+        queue=FailingQueue(),
+        store=MemorySynthesizerStore(path=state_path),
+    )
+
+    proposal = {
+        "theme": "jarvis",
+        "summary": "Jarvis gelistirme calismalari aktif gorunuyor.",
+        "source_count": 2,
+        "confidence": 70,
+        "source_ids": ["md_001", "md_002"],
+        "proposal_type": "synthesized_memory",
+    }
+
+    result = submitter.submit([proposal])
+
+    assert result["ok"] is False
+    assert result["submitted_count"] == 0
+    assert result["processed_source_ids"] == []
+    assert result["errors"][0]["reason"] == "simulated_queue_failure"
+
+    state = MemorySynthesizerStore(path=state_path).load_or_default()
+    assert state.is_processed("md_001") is False
+    assert state.is_processed("md_002") is False
