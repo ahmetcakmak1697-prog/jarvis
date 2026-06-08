@@ -124,6 +124,7 @@ def cmd_help() -> str:
         "/mem_status - C1 hafiza sistem durumunu gosterir\n"
         "/mem_candidates - hafiza adaylarini listeler\n"
         "/mem_approve <id> - hafiza adayini onaylar\n"
+        "/mem_store <id> - onayli hafiza adayini uzun hafizaya yazar\n"
         "/mem_reject <id> - hafiza adayini reddeder\n"
         "/mem_defer <id> - hafiza adayini erteler\n"
         "/mem_expire - suresi gecen hafiza adaylarini expired yapar\n"
@@ -747,6 +748,59 @@ def cmd_memory_candidates() -> str:
         return f"Hafiza adaylari alinamadi: {exc}"
 
 
+def cmd_memory_candidate_store(text: str) -> str:
+    """Store an already-approved memory candidate into long-term memory.
+
+    C1.6E-2B: /mem_store is a separate write gate. It does not approve pending
+    candidates by itself; the candidate must already be approved.
+    """
+    try:
+        from agents.memory_candidate_queue import MemoryCandidateQueue
+        from agents.memory_candidate_writer import MemoryCandidateWriter
+
+        parts = text.split()
+        if len(parts) < 2:
+            return "Kullanim: /mem_store <candidate_id>"
+
+        candidate_id = parts[1].strip()
+        q = MemoryCandidateQueue()
+        candidate = q.get(candidate_id)
+
+        if not candidate:
+            return (
+                "Islem basarisiz: candidate bulunamadi.\n"
+                f"ID: {candidate_id}"
+            )
+
+        status = candidate.get("status")
+        if status != "approved":
+            return (
+                "Hafiza adayi henuz uzun hafizaya yazilamaz.\n"
+                f"ID: {candidate_id}\n"
+                f"Status: {status}\n"
+                "Once /mem_approve <id> ile onaylayin."
+            )
+
+        writer = MemoryCandidateWriter()
+        result = writer.approve_and_store(candidate_id)
+
+        if result.get("stored"):
+            return (
+                "Hafiza adayi uzun hafizaya yazildi.\n"
+                f"ID: {candidate_id}\n"
+                "Status: stored\n"
+                f"Policy: {(result.get('policy') or {}).get('action')}"
+            )
+
+        return (
+            "Hafiza adayi uzun hafizaya yazilmadi.\n"
+            f"ID: {candidate_id}\n"
+            f"Neden: {result.get('error')}"
+        )
+    except Exception as exc:
+        return f"Hafiza adayi store islemi basarisiz: {exc}"
+
+
 def cmd_memory_expire() -> str:
     """Expire old memory candidates without deleting data."""
     try:
@@ -1161,6 +1215,8 @@ def handle_message(message: dict[str, Any]) -> None:
         send_message(chat_id, cmd_memory_candidates())
     elif text.startswith("/mem_approve"):
         send_message(chat_id, cmd_memory_candidate_decide(text, "approve"))
+    elif text.startswith("/mem_store"):
+        send_message(chat_id, cmd_memory_candidate_store(text))
     elif text.startswith("/mem_reject"):
         send_message(chat_id, cmd_memory_candidate_decide(text, "reject"))
     elif text.startswith("/mem_defer"):
