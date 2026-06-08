@@ -240,3 +240,107 @@ def test_collector_summary_texts(tmp_path):
     assert any("Arduino" in t for t in texts)
     assert any("Jarvis" in t for t in texts)
 
+
+# C1.6C tests
+
+def test_synthesizer_below_threshold_no_proposal(tmp_path):
+    from agents.memory_synthesizer import KeywordFrequencySynthesizer
+    # Her tema en fazla 1 adayda geciyor; min_mentions=2 ile hicbir proposal cikmamali.
+    candidates = [
+        {"_synthesis_text": "bugun arduino ile biraz ugrastim"},
+        {"_synthesis_text": "jarvis projesinde commit attim"},
+        {"_synthesis_text": "eshot raporu uzerinde calistim"},
+    ]
+    synth = KeywordFrequencySynthesizer(min_mentions=2)
+    proposals = synth.synthesize(candidates)
+    assert proposals == []
+
+# C1.6C safety and quality tests
+
+def test_c1_6c_above_threshold_and_source_ids():
+    from agents.memory_synthesizer import KeywordFrequencySynthesizer
+
+    candidates = [
+        {"delete_id": "c1", "_synthesis_text": "bugun eshot telemetri raporu hazirladim"},
+        {"delete_id": "c2", "_synthesis_text": "jarvis icin roadmap guncellendi"},
+        {"delete_id": "c3", "_synthesis_text": "eshot ihlal karnesi olusturuldu"},
+        {"delete_id": "c4", "_synthesis_text": "eshot rolanti sureleri hesaplandi"},
+    ]
+
+    synth = KeywordFrequencySynthesizer(min_mentions=3)
+    proposals = synth.synthesize(candidates)
+
+    assert len(proposals) == 1
+    proposal = proposals[0]
+    assert proposal["theme"] == "eshot"
+    assert proposal["source_count"] == 3
+    assert proposal["confidence"] == 80
+    assert set(proposal["source_ids"]) == {"c1", "c3", "c4"}
+    assert proposal["proposal_type"] == "synthesized_memory"
+
+
+def test_c1_6c_turkish_fold_and_suffix_matching():
+    from agents.memory_synthesizer import KeywordFrequencySynthesizer
+
+    candidates = [
+        {"id": "t1", "_synthesis_text": "ESHOT \u0130HLAL tespiti yapildi"},
+        {"id": "t2", "_synthesis_text": "\u015eofor rApOrU incelendi"},
+        {"id": "t3", "_synthesis_text": "R\u00d6LANT\u0130 suresi cok yuksek"},
+    ]
+
+    synth = KeywordFrequencySynthesizer(min_mentions=3)
+    proposals = synth.synthesize(candidates)
+
+    assert len(proposals) == 1
+    assert proposals[0]["theme"] == "eshot"
+    assert proposals[0]["source_count"] == 3
+    assert set(proposals[0]["source_ids"]) == {"t1", "t2", "t3"}
+
+
+def test_c1_6c_sensitive_candidates_do_not_contribute_to_threshold():
+    from agents.memory_synthesizer import KeywordFrequencySynthesizer
+
+    candidates = [
+        {"id": "s1", "_synthesis_text": "jarvis repoya pushladim"},
+        {
+            "id": "s2",
+            "_synthesis_text": "jarvis projesi hakkinda ozel not",
+            "data_class": "personal-sensitive",
+        },
+        {
+            "id": "s3",
+            "_synthesis_text": "jarvis gizli kod",
+            "sensitive_review_required": True,
+        },
+    ]
+
+    synth = KeywordFrequencySynthesizer(min_mentions=3)
+    proposals = synth.synthesize(candidates)
+
+    assert proposals == []
+
+
+def test_c1_6c_returns_proposals_only_without_side_effect_fields():
+    from agents.memory_synthesizer import KeywordFrequencySynthesizer
+
+    candidates = [
+        {"delete_id": "a1", "_synthesis_text": "arduino esp32 maker calismasi yapildi"},
+        {"delete_id": "a2", "_synthesis_text": "elektronik breadboard jumper notlari alindi"},
+    ]
+
+    synth = KeywordFrequencySynthesizer(min_mentions=2)
+    proposals = synth.synthesize(candidates)
+
+    assert len(proposals) == 1
+    proposal = proposals[0]
+    assert set(proposal.keys()) == {
+        "theme",
+        "summary",
+        "source_count",
+        "confidence",
+        "source_ids",
+        "proposal_type",
+    }
+    assert "memory" not in proposal
+    assert "vector" not in proposal
+    assert "approval" not in proposal

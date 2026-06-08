@@ -152,3 +152,183 @@ class MemorySynthesizerCandidateCollector:
             if i.get("_synthesis_text")
         ]
 
+
+# ---------------------------------------------------------------------------
+# C1.6C -- Keyword Frequency Synthesizer
+# ---------------------------------------------------------------------------
+
+_DEFAULT_THEMES = [
+    {
+        "name": "jarvis",
+        "keywords": ["jarvis", "roadmap", "commit", "patch", "test", "repo", "kod"],
+        "summary": "Jarvis gelistirme calismalari aktif gorunuyor.",
+    },
+    {
+        "name": "arduino",
+        "keywords": ["arduino", "esp32", "elektronik", "breadboard", "jumper", "maker", "lehim"],
+        "summary": "Elektronik ve Arduino ogrenme sureci aktif gorunuyor.",
+    },
+    {
+        "name": "eshot",
+        "keywords": ["eshot", "rapor", "telemetri", "rolanti", "yakit", "ihlal"],
+        "summary": "ESHOT raporlama ve telemetri calismalari aktif gorunuyor.",
+    },
+    {
+        "name": "health_rest",
+        "keywords": ["yorgun", "uykusuz", "dinlen", "mola", "gece"],
+        "summary": "Dinlenme ve enerji yonetimi dikkat gerektiriyor.",
+    },
+]
+
+
+def _tr_fold(s: str) -> str:
+    """ASCII-fold Turkish text for case-insensitive keyword matching.
+
+    Python's .lower() mishandles Turkish: 'I'.lower() -> 'i' (should be 'i')
+    and 'I' -> 'i' (should be 'i'). We fold everything to ASCII before matching
+    so both keywords and candidate text compare on equal footing.
+    Keywords are stored pre-folded (ASCII); input text is folded at match time.
+    """
+    s = s.replace("\u0130", "i")  # I (capital dotted) -> i
+    s = s.replace("\u0049", "i")  # I -> i  (covers I->i same as ASCII)
+    s = s.replace("\u0131", "i")  # i (dotless i) -> i
+    s = s.replace("\u015f", "s")  # s -> s
+    s = s.replace("\u015e", "s")  # S -> s
+    s = s.replace("\u011f", "g")  # g -> g
+    s = s.replace("\u011e", "g")  # G -> g
+    s = s.replace("\u00fc", "u")  # u -> u
+    s = s.replace("\u00dc", "u")  # U -> u
+    s = s.replace("\u00f6", "o")  # o -> o
+    s = s.replace("\u00d6", "o")  # O -> o
+    s = s.replace("\u00e7", "c")  # c -> c
+    s = s.replace("\u00c7", "c")  # C -> c
+    return s.lower()
+
+
+class KeywordFrequencySynthesizer:
+    """C1.6C -- Rule-based keyword/theme frequency synthesizer.
+
+    Reads _synthesis_text from collected candidates, counts how many
+    DISTINCT candidates mention each theme (via substring/contains match,
+    Turkish ASCII-folded), and produces proposals for themes that meet the
+    threshold. Returns proposals only -- never writes to memory directly.
+
+    Scope (negative):
+      - No LLM calls
+      - No VectorMemory writes
+      - No ApprovalQueue writes
+      - Zero side effects
+    """
+
+    def __init__(self, themes=None, min_mentions: int = 3):
+        self.themes = themes if themes is not None else _DEFAULT_THEMES
+        self.min_mentions = min_mentions
+
+    def _candidate_blocked_for_synthesis(self, cand: dict) -> bool:
+        """Return True when a candidate must not participate in synthesis.
+
+        C1.6B already filters sensitive candidates before this point.
+        This is a defensive guard so a future caller cannot accidentally
+        synthesize private, sensitive, review-only, or blocked content.
+        """
+        boolean_flags = (
+            "is_sensitive",
+            "sensitive",
+            "blocked",
+            "synthesis_blocked",
+            "_synthesis_blocked",
+            "skip_synthesis",
+            "requires_review",
+            "sensitive_review_required",
+            "approval_required",
+        )
+        if any(bool(cand.get(flag)) for flag in boolean_flags):
+            return True
+
+        data_class = str(cand.get("data_class") or cand.get("classification") or "").lower()
+        route = str(cand.get("route") or cand.get("memory_route") or "").lower()
+        decision = str(cand.get("decision") or cand.get("status") or "").lower()
+        trust = str(cand.get("trust") or "").lower()
+
+        marker_text = " ".join((data_class, route, decision, trust))
+
+        blocked_markers = (
+            "personal-sensitive",
+            "sensitive",
+            "corporate",
+            "eshot-sensitive",
+            "blocked",
+            "reject",
+            "rejected",
+            "redaction",
+            "review",
+            "approval",
+            "untrusted",
+        )
+        return any(marker in marker_text for marker in blocked_markers)
+
+    def _text_mentions_theme(self, folded_text: str, theme: dict) -> bool:
+        """Return True if folded_text contains at least one keyword (substring match)."""
+        return any(kw in folded_text for kw in theme["keywords"])
+
+    def synthesize(self, candidates: list) -> list:
+        """Analyse candidates and return theme proposals above threshold.
+
+        Args:
+            candidates: list of dicts with '_synthesis_text' field
+                        (as produced by MemorySynthesizerCandidateCollector).
+
+        Returns:
+            list of proposal dicts:
+            {
+                'theme': str,
+                'summary': str,
+                'source_count': int,
+                'confidence': int,          # min(95, 50 + source_count * 10)
+                'source_ids': list[str],    # delete_id values of matching candidates
+                'proposal_type': 'synthesized_memory',
+            }
+        """
+        results = []
+
+        for theme in self.themes:
+            matching_source_ids = []
+
+            for cand in candidates:
+                if not isinstance(cand, dict):
+                    continue
+
+                if self._candidate_blocked_for_synthesis(cand):
+                    continue
+
+                text = str(cand.get("_synthesis_text") or "")
+                if not text:
+                    continue
+
+                folded = _tr_fold(text)
+                if self._text_mentions_theme(folded, theme):
+                    source_id = str(
+                        cand.get("delete_id") or cand.get("id") or ""
+                    )
+                    matching_source_ids.append(source_id)
+
+            source_count = len(matching_source_ids)
+
+            if source_count < self.min_mentions:
+                continue  # below threshold -- no proposal
+
+            confidence = min(95, 50 + source_count * 10)
+
+            results.append(
+                {
+                    "theme": theme["name"],
+                    "summary": theme["summary"],
+                    "source_count": source_count,
+                    "confidence": confidence,
+                    "source_ids": matching_source_ids,
+                    "proposal_type": "synthesized_memory",
+                }
+            )
+
+        return results
+
