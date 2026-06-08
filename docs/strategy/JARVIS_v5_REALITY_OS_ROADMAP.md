@@ -168,7 +168,27 @@ C1.6E'nin ilk guvenlik/gorunurluk halkasi tamamlandi ve commitlendi.
 - Gorunurluk: Telegram memory display synthesis metadata gosteriyor (`status`, `decision`, `proposal_type`, `theme`, `source_ids`).
 - Not: Pytest `TestCore __init__` collection warning'leri bu bloktan once de vardir; bloklayici degildir.
 
-Siradaki kontrollu adim: [ACTIVE] C1.6E-2 - approved synthesis candidate icin semantic write tasarimi.
+C1.6E-2 tamamlandi. Siradaki kontrollu adim: [ACTIVE] C1.6E-3 - Synthesis Promotion Gate Design.
+
+### [DONE] C1.6E-2 Kapanis Notu
+
+C1.6E-2A/2B tamamlandi ve commitlendi.
+
+- Commit: `af9d095d7 Add C1.6E Telegram approve behavior tests`
+- Commit: `408110391 Add Telegram mem_store command`
+- Test: `tests/test_c1_6e_telegram_memory_approve.py` -> `3 passed`
+- Test: `tests/test_c1_6e_telegram_memory_store.py` -> `5 passed`
+- Focused approve/store suite: `8 passed`
+- Writer guard + C1.6 synthesizer suite: `36 passed`
+- Memory/C1 smoke: `60 passed, 90 deselected, 2 warnings`
+- Core smoke: `22 passed, 128 deselected, 2 warnings`
+- Kapsam: `/mem_approve` davranisi test altina alindi.
+- Kapsam: `/mem_store <id>` ayri uzun hafiza yazim kapisi olarak eklendi.
+- Guvenlik: `/mem_store` pending/rejected/deferred/expired adaylari dogrudan yazmaz; once approved status ister.
+- Guvenlik: writer policy/route bloklarsa sebebiyle birlikte yazilmadi mesaji doner.
+- Not: synthesis review_queue adaylari halen otomatik semantic vector yazimina acilmadi.
+
+Siradaki kontrollu adim: [ACTIVE] C1.6E-3 - Synthesis Promotion Gate Design.
 
 ## 5. Kritik Yol — C1.6 Sentez Omurgası (sırayla)
 
@@ -177,7 +197,8 @@ Siradaki kontrollu adim: [ACTIVE] C1.6E-2 - approved synthesis candidate icin se
 | ✅ C1.6C | Keyword/tema frekans sentezleyici (tamamlandi: proposal-only, Turkish fold, source_ids, sensitive guard) |
 | ✅ C1.6D | Synthesis proposal -> approval queue (dogrudan vector'e YAZMAZ) |
 | ✅ C1.6D-debt | Tech debt tamamlandi: MemoryCandidateQueue.list_candidates/list_all eklendi; synthesizer private _load kullanmiyor |
-| 🟧 C1.6E | Synthesized memory review/status (onay sonrasi semantic'e yazim) |
+| ✅ C1.6E | Synthesized memory review/status + `/mem_approve` behavior + `/mem_store` write gate tamamlandi |
+| 🟧 C1.6E-3 | Synthesis Promotion Gate Design: approved synthesis adayini guvenli semantic vector yazimina hazirlama |
 | ⬜ C1.6F | Session/day closure summary ("bugün şunları öğrendim efendim") |
 | ⬜ C1.6G | Source-linked memory consolidation |
 | ⬜ **C1.6H** | **Answer Crystallization** ⭐ (aşağıda) |
@@ -341,12 +362,13 @@ Akış: pahalı modelden (L6) kaliteli cevap al → özet + kaynak + yapısal bi
 
 1. ✅ **C1.6C** — Keyword Frequency Synthesizer <- **tamamlandi**
 2. ✅ C1.6D -> review queue entegrasyonu <- tamamlandi
-3. 🟧 C1.6E -> Synthesized memory review/status <- su an buradayiz
-4. ⬜ C1.6F → C1.6G → **C1.6H (Answer Crystallization)**
-5. ⬜ Sonra seçim: Z0 (persona) / Y0 (gateway) / G1 (benchmark) / D-serisi
-6. ⬜ V0–V2 (yerel ses + butler voice)
-7. ⬜ M1 (Home Assistant köprüsü) + M2 (Maker Lab) — fiziksel demo motivasyonu
-8. 🚀 G1 tam güç (2×3090 sonrası)
+3. ✅ C1.6E -> Synthesized memory review/status + mem_store <- tamamlandi
+4. 🟧 C1.6E-3 -> Synthesis Promotion Gate Design <- su an buradayiz
+5. ⬜ C1.6F → C1.6G → **C1.6H (Answer Crystallization)**
+6. ⬜ Sonra secim: Z0 (persona) / Y0 (gateway) / G1 (benchmark) / D-serisi
+7. ⬜ V0-V2 (yerel ses + butler voice)
+8. ⬜ M1 (Home Assistant koprusu) + M2 (Maker Lab) - fiziksel demo motivasyonu
+9. 🚀 G1 tam guc (2×3090 sonrasi)
 
 > Her blok sonunda iki rapor: (1) **Teknik kapanış** — dosya/test/commit/risk,
 > (2) **Büyük vizyon bağlantısı** — bu blok Jarvis'i hangi hayale yaklaştırdı.
@@ -364,4 +386,4 @@ Akış: pahalı modelden (L6) kaliteli cevap al → özet + kaynak + yapısal bi
 ---
 
 *Son güncelleme: 5 Haziran 2026 · Üçlü AI mutabakatı (Claude vizyon/mimari · GPT ritim/güvenlik · Gemini denge)*
-*Siradaki teknik adim: [ACTIVE] C1.6E-2 - Approved Synthesis Semantic Write Design*
+*Siradaki teknik adim: [ACTIVE] C1.6E-3 - Synthesis Promotion Gate Design*
