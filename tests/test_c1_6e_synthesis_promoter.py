@@ -463,3 +463,49 @@ def test_promote_does_not_mutate_candidate_route():
     assert candidate["route"]["requires_review"] is True
     assert candidate["route"]["allow_vector"] is False
 
+
+def test_promote_with_real_queue_and_fake_memory_marks_candidate_stored():
+    from pathlib import Path
+    from tempfile import TemporaryDirectory
+    from agents.memory_candidate_queue import MemoryCandidateQueue
+
+    with TemporaryDirectory() as td:
+        root = Path(td)
+        queue = MemoryCandidateQueue(root=root)
+
+        candidate = queue.add_synthesis_candidate({
+            "theme": "jarvis",
+            "summary": "Jarvis gelistirme calismalari kontrollu ilerliyor.",
+            "source_count": 2,
+            "confidence": 75,
+            "source_ids": ["src_001", "src_002"],
+            "proposal_type": "synthesized_memory",
+        })["candidate"]
+
+        queue.decide(candidate["id"], "approved")
+
+        memory = FakePromotionMemory(doc_id="vec_real_queue_001")
+        promoter = MemorySynthesisPromoter(root=root, memory=memory)
+
+        result = promoter.promote(candidate["id"])
+
+        assert result["ok"] is True
+        assert result["promoted"] is True
+        assert result["vector_doc_id"] == "vec_real_queue_001"
+        assert len(memory.calls) == 1
+
+        updated = promoter._get_queue().get(candidate["id"])
+        assert updated["status"] == "stored"
+        assert updated["user_decision"] == "approved"
+
+        store_meta = updated["store_meta"]
+        assert store_meta["vector_doc_id"] == "vec_real_queue_001"
+        assert store_meta["promoted_by"] == "MemorySynthesisPromoter"
+        assert store_meta["promotion_schema_version"] == "c1.6e3"
+        assert store_meta["source_ids"] == ["src_001", "src_002"]
+        assert store_meta["source_count"] == 2
+        assert store_meta["theme"] == "jarvis"
+        assert updated["route"]["storage_target"] == "review_queue"
+        assert updated["route"]["requires_review"] is True
+        assert updated["route"]["allow_vector"] is False
+
