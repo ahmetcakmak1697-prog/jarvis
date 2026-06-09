@@ -114,3 +114,72 @@ class MemorySynthesisPromoter:
             return self._blocked("invalid_review_route")
 
         return self._accepted()
+
+    def build_promotion_metadata(self, candidate: dict[str, Any] | None) -> dict[str, Any]:
+        """Build safe semantic-write metadata for a promotable synthesis candidate.
+
+        This method is intentionally side-effect free:
+        - no VectorMemory write
+        - no queue mutation
+        - no candidate route mutation
+        - no mark_stored call
+
+        The returned metadata is for a later controlled promoter write path, not
+        a way to modify the candidate's original review_queue route.
+        """
+        validation = self.validate_candidate(candidate)
+        if not validation.get("promotable"):
+            return {
+                "ok": True,
+                "built": False,
+                "reason": validation.get("reason", "not_promotable"),
+            }
+
+        assert isinstance(candidate, dict)  # validate_candidate already checked this.
+
+        route = candidate.get("route") or {}
+        source_ids = [str(source_id) for source_id in list(candidate.get("source_ids") or [])]
+        tags = [str(tag) for tag in list(route.get("tags") or [])]
+
+        try:
+            source_count = int(candidate.get("source_count") or 0)
+        except (TypeError, ValueError):
+            source_count = 0
+
+        try:
+            confidence = int(candidate.get("confidence") or route.get("confidence") or 0)
+        except (TypeError, ValueError):
+            confidence = 0
+
+        from datetime import datetime
+
+        metadata = {
+            "source": "memory_synthesis_promoter",
+            "source_type": "synthesis",
+            "candidate_id": str(candidate.get("id") or ""),
+            "schema_version": "c1.6e3",
+            "promotion_schema_version": "c1.6e3",
+            "memory_type": "semantic",
+            "storage_target": "vector",
+            "sensitivity": "normal",
+            "proposal_type": "synthesized_memory",
+            "theme": str(candidate.get("theme") or "").strip(),
+            "source_count": source_count,
+            "source_ids": source_ids,
+            "confidence": confidence,
+            "promoted_by": "MemorySynthesisPromoter",
+            "allow_vector": True,
+            "requires_review": False,
+            "original_route_storage_target": str(route.get("storage_target") or ""),
+            "original_route_requires_review": bool(route.get("requires_review")),
+            "original_route_allow_vector": bool(route.get("allow_vector")),
+            "tags": tags,
+            "promoted_at": datetime.now().isoformat(timespec="seconds"),
+        }
+
+        return {
+            "ok": True,
+            "built": True,
+            "reason": "metadata_built",
+            "metadata": metadata,
+        }

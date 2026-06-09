@@ -162,3 +162,88 @@ def test_validate_accepts_safe_approved_synthesis_candidate():
     assert result["ok"] is True
     assert result["promotable"] is True
     assert result["reason"] == "promotable"
+
+
+def test_build_promotion_metadata_requires_promotable_candidate():
+    promoter = MemorySynthesisPromoter()
+
+    result = promoter.build_promotion_metadata(
+        _candidate(status="pending_review", user_decision=None)
+    )
+
+    assert result["ok"] is True
+    assert result["built"] is False
+    assert result["reason"] == "candidate_not_approved"
+
+
+def test_build_promotion_metadata_does_not_mutate_candidate_route():
+    promoter = MemorySynthesisPromoter()
+    candidate = _candidate()
+    original_route = dict(candidate["route"])
+    original_storage_target = candidate["storage_target"]
+
+    result = promoter.build_promotion_metadata(candidate)
+
+    assert result["ok"] is True
+    assert result["built"] is True
+    assert candidate["route"] == original_route
+    assert candidate["storage_target"] == original_storage_target
+    assert candidate["route"]["storage_target"] == "review_queue"
+    assert candidate["route"]["requires_review"] is True
+    assert candidate["route"]["allow_vector"] is False
+
+
+def test_build_promotion_metadata_contains_required_provenance_fields():
+    promoter = MemorySynthesisPromoter()
+    candidate = _candidate()
+
+    result = promoter.build_promotion_metadata(candidate)
+
+    assert result["ok"] is True
+    assert result["built"] is True
+
+    meta = result["metadata"]
+    assert meta["source"] == "memory_synthesis_promoter"
+    assert meta["source_type"] == "synthesis"
+    assert meta["candidate_id"] == "cand_synth_001"
+    assert meta["schema_version"] == "c1.6e3"
+    assert meta["promotion_schema_version"] == "c1.6e3"
+    assert meta["memory_type"] == "semantic"
+    assert meta["storage_target"] == "vector"
+    assert meta["sensitivity"] == "normal"
+    assert meta["proposal_type"] == "synthesized_memory"
+    assert meta["theme"] == "jarvis"
+    assert meta["source_count"] == 3
+    assert meta["source_ids"] == ["cand_a", "cand_b", "cand_c"]
+    assert meta["confidence"] == 80
+    assert meta["promoted_by"] == "MemorySynthesisPromoter"
+    assert meta["allow_vector"] is True
+    assert meta["requires_review"] is False
+    assert meta["original_route_storage_target"] == "review_queue"
+    assert meta["original_route_requires_review"] is True
+    assert meta["original_route_allow_vector"] is False
+    assert isinstance(meta["promoted_at"], str)
+    assert len(meta["promoted_at"]) >= 19
+
+
+def test_build_promotion_metadata_copies_source_ids_not_aliases():
+    promoter = MemorySynthesisPromoter()
+    candidate = _candidate()
+
+    result = promoter.build_promotion_metadata(candidate)
+    meta = result["metadata"]
+
+    candidate["source_ids"].append("late_mutation")
+
+    assert meta["source_ids"] == ["cand_a", "cand_b", "cand_c"]
+
+
+def test_build_promotion_metadata_preserves_tags_from_route():
+    promoter = MemorySynthesisPromoter()
+    candidate = _candidate()
+
+    result = promoter.build_promotion_metadata(candidate)
+
+    meta = result["metadata"]
+    assert meta["tags"] == ["synthesis", "theme:jarvis"]
+
