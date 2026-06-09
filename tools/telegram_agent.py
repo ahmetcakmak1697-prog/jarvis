@@ -130,6 +130,10 @@ def cmd_help() -> str:
         "/mem_defer <id> - hafiza adayini erteler\n"
         "/mem_expire - suresi gecen hafiza adaylarini expired yapar\n"
         "/day_closure - bugunki hafiza kapanis ozetini gosterir\n"
+        "/kc_add soru: .. | cevap: .. | model: .. - bilgi karti ekler\n"
+        "/kc_list - bilgi kartlarini listeler\n"
+        "/kc_approve <id> - bilgi kartini onaylar\n"
+        "/kc_promote <id> - bilgi kartini uzun hafizaya yazar\n"
         "/audit - son audit olaylarini gosterir\n"
         "/audit_stats - audit olay sayilarini gosterir\n"
         "/web <soru> - guvenli web arastirmasi yapar\n"
@@ -546,6 +550,119 @@ def cmd_audit(limit: int = 6) -> str:
         return f"Audit okunamadi: {exc}"
 
 
+
+
+
+def cmd_kc_add(text: str) -> str:
+    """C1.6H-4: /kc_add soru: ... | cevap: ... | model: ..."""
+    try:
+        parts_raw = text.split(None, 1)
+        if len(parts_raw) < 2 or not parts_raw[1].strip():
+            return (
+                "Kullanim: /kc_add soru: <soru> | cevap: <cevap> | model: <model>\n"
+                "Ornek: /kc_add soru: RTX 3070 kac watt? | cevap: 220W TDP. | model: claude-opus-4"
+            )
+        payload = parts_raw[1]
+        fields = {}
+        for part in payload.split("|"):
+            if ":" in part:
+                k, v = part.split(":", 1)
+                fields[k.strip().lower()] = v.strip()
+
+        question = fields.get("soru", "").strip()
+        answer = fields.get("cevap", "").strip()
+        source_model = fields.get("model", "").strip()
+        domain = fields.get("domain", "").strip()
+        confidence_raw = fields.get("confidence", "80").strip()
+        try:
+            confidence = int(confidence_raw)
+        except Exception:
+            confidence = 80
+
+        if not question or not answer or not source_model:
+            return "Kullanim: /kc_add soru: <soru> | cevap: <cevap> | model: <model>"
+
+        from agents.answer_crystallizer import AnswerCrystallizer
+        cr = AnswerCrystallizer()
+        card = cr.crystallize(
+            question=question,
+            answer=answer,
+            source_model=source_model,
+            domain=domain,
+            confidence=confidence,
+        )
+        return (
+            f"Bilgi karti olusturuldu.\n"
+            f"ID: {card['id']}\n"
+            f"Durum: {card['review_status']} / {card['storage_status']}\n"
+            f"Model: {card['source_model']}\n"
+            f"Soru: {card['question'][:120]}"
+        )
+    except Exception as exc:
+        return f"Bilgi karti olusturulamadi: {type(exc).__name__}: {str(exc)[:300]}"
+
+
+def cmd_kc_list() -> str:
+    """C1.6H-4: /kc_list - list knowledge cards."""
+    try:
+        from agents.knowledge_card_store import KnowledgeCardStore
+        store = KnowledgeCardStore()
+        cards = store.list_cards()
+        if not cards:
+            return "Bilgi karti yok."
+        lines = [f"Bilgi kartlari: {len(cards)} adet\n"]
+        for c in cards[-10:]:
+            lines.append(
+                f"ID: {c['id']} | {c['review_status']}/{c['storage_status']} | "
+                f"{c['source_model']} | {c['question'][:80]}"
+            )
+        return "\n".join(lines)
+    except Exception as exc:
+        return f"Bilgi kartlari alinamadi: {type(exc).__name__}: {str(exc)[:200]}"
+
+
+def cmd_kc_approve(text: str) -> str:
+    """C1.6H-4: /kc_approve <id>"""
+    try:
+        parts = text.split()
+        if len(parts) < 2:
+            return "Kullanim: /kc_approve <card_id>"
+        card_id = parts[1].strip()
+        from agents.knowledge_card_store import KnowledgeCardStore
+        store = KnowledgeCardStore()
+        card = store.mark_approved(card_id)
+        return (
+            f"Bilgi karti onaylandi.\n"
+            f"ID: {card['id']}\n"
+            f"Durum: {card['review_status']} / {card['storage_status']}"
+        )
+    except Exception as exc:
+        return f"Onaylama basarisiz: {type(exc).__name__}: {str(exc)[:300]}"
+
+
+def cmd_kc_promote(text: str) -> str:
+    """C1.6H-4: /kc_promote <id>"""
+    try:
+        parts = text.split()
+        if len(parts) < 2:
+            return "Kullanim: /kc_promote <card_id>"
+        card_id = parts[1].strip()
+        from agents.knowledge_card_promoter import KnowledgeCardPromoter
+        promoter = KnowledgeCardPromoter()
+        result = promoter.promote(card_id)
+        if result.get("promoted"):
+            return (
+                f"Bilgi karti uzun hafizaya yazildi.\n"
+                f"ID: {card_id}\n"
+                f"Vector ID: {result['vector_doc_id']}"
+            )
+        return (
+            f"Bilgi karti yazilamadi.\n"
+            f"ID: {card_id}\n"
+            f"Sebep: {result.get('reason', 'unknown')}"
+        )
+    except Exception as exc:
+        return f"Promote basarisiz: {type(exc).__name__}: {str(exc)[:300]}"
 
 def cmd_day_closure() -> str:
     """C1.6F - Bugunki hafiza kapanis ozeti."""
