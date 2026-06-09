@@ -201,6 +201,10 @@ class MemorySynthesisPromoter:
 
         from datetime import datetime
 
+        from agents.memory_provenance import MemoryProvenanceResolver
+        resolver = MemoryProvenanceResolver()
+        provenance = resolver.summarize(source_ids)
+
         metadata = {
             "source": "memory_synthesis_promoter",
             "source_type": "synthesis",
@@ -223,6 +227,10 @@ class MemorySynthesisPromoter:
             "original_route_allow_vector": bool(route.get("allow_vector")),
             "tags": tags,
             "promoted_at": datetime.now().isoformat(timespec="seconds"),
+            "source_links": provenance["links"],
+            "provenance_resolved": provenance["resolved"],
+            "provenance_unresolved": provenance["unresolved"],
+            "provenance_total": provenance["total"],
         }
 
         return {
