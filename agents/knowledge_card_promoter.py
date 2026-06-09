@@ -71,7 +71,7 @@ class KnowledgeCardPromoter:
             "card_id": card_id,
             "schema_version": card.get("schema_version", "c1.6h"),
             "domain": str(card.get("domain") or ""),
-            "tags": list(card.get("tags") or []),
+            "tags": ",".join(list(card.get("tags") or [])) or "none",
             "confidence": card.get("confidence"),
             "source_model": str(card.get("source_model") or ""),
             "created_at": str(card.get("created_at") or ""),

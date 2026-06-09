@@ -84,3 +84,18 @@ def test_promote_does_not_double_store(tmp_path):
     assert result2["ok"] is False
     assert result2["reason"] == "already_stored"
     assert len(memory.calls) == 1
+
+def test_promote_card_with_empty_tags(tmp_path):
+    """ChromaDB bos liste metadata kabul etmez; tags serialize edilmeli."""
+    store = KnowledgeCardStore(data_root=tmp_path)
+    card = store.add(question="Soru?", answer="Cevap.", source_model="m", tags=[])
+    store.mark_approved(card["id"])
+
+    memory = FakeMemory("vec_tags_001")
+    promoter = KnowledgeCardPromoter(store=store, memory=memory)
+    result = promoter.promote(card["id"])
+
+    assert result["ok"] is True
+    _, _, meta = memory.calls[0]
+    assert isinstance(meta["tags"], str)
+
