@@ -247,3 +247,105 @@ def test_build_promotion_metadata_preserves_tags_from_route():
     meta = result["metadata"]
     assert meta["tags"] == ["synthesis", "theme:jarvis"]
 
+
+def test_validate_rejects_missing_candidate_id():
+    promoter = MemorySynthesisPromoter()
+
+    result = promoter.validate_candidate(_candidate(id=""))
+
+    assert result["ok"] is True
+    assert result["promotable"] is False
+    assert result["reason"] == "missing_candidate_id"
+
+
+def test_validate_rejects_non_dict_route():
+    promoter = MemorySynthesisPromoter()
+
+    result = promoter.validate_candidate(_candidate(route="not-a-dict"))
+
+    assert result["ok"] is True
+    assert result["promotable"] is False
+    assert result["reason"] == "invalid_review_route"
+
+
+def test_validate_rejects_missing_route_requires_review():
+    promoter = MemorySynthesisPromoter()
+    candidate = _candidate()
+    candidate["route"] = dict(candidate["route"])
+    candidate["route"].pop("requires_review")
+
+    result = promoter.validate_candidate(candidate)
+
+    assert result["ok"] is True
+    assert result["promotable"] is False
+    assert result["reason"] == "invalid_review_route"
+
+
+def test_validate_rejects_string_route_requires_review():
+    promoter = MemorySynthesisPromoter()
+    candidate = _candidate()
+    candidate["route"] = dict(candidate["route"])
+    candidate["route"]["requires_review"] = "true"
+
+    result = promoter.validate_candidate(candidate)
+
+    assert result["ok"] is True
+    assert result["promotable"] is False
+    assert result["reason"] == "invalid_review_route"
+
+
+def test_validate_rejects_missing_route_allow_vector():
+    promoter = MemorySynthesisPromoter()
+    candidate = _candidate()
+    candidate["route"] = dict(candidate["route"])
+    candidate["route"].pop("allow_vector")
+
+    result = promoter.validate_candidate(candidate)
+
+    assert result["ok"] is True
+    assert result["promotable"] is False
+    assert result["reason"] == "invalid_review_route"
+
+
+def test_validate_rejects_string_route_allow_vector():
+    promoter = MemorySynthesisPromoter()
+    candidate = _candidate()
+    candidate["route"] = dict(candidate["route"])
+    candidate["route"]["allow_vector"] = "false"
+
+    result = promoter.validate_candidate(candidate)
+
+    assert result["ok"] is True
+    assert result["promotable"] is False
+    assert result["reason"] == "invalid_review_route"
+
+
+def test_validate_rejects_blank_source_ids():
+    promoter = MemorySynthesisPromoter()
+
+    result = promoter.validate_candidate(_candidate(source_ids=["", "   "], source_count=2))
+
+    assert result["ok"] is True
+    assert result["promotable"] is False
+    assert result["reason"] == "missing_source_ids"
+
+
+def test_validate_rejects_source_ids_count_below_min_even_if_source_count_claims_more():
+    promoter = MemorySynthesisPromoter()
+
+    result = promoter.validate_candidate(_candidate(source_ids=["cand_a"], source_count=3))
+
+    assert result["ok"] is True
+    assert result["promotable"] is False
+    assert result["reason"] == "insufficient_source_ids"
+
+
+def test_build_promotion_metadata_requires_candidate_id():
+    promoter = MemorySynthesisPromoter()
+
+    result = promoter.build_promotion_metadata(_candidate(id=""))
+
+    assert result["ok"] is True
+    assert result["built"] is False
+    assert result["reason"] == "missing_candidate_id"
+

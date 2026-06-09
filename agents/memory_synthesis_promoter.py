@@ -47,6 +47,7 @@ class MemorySynthesisPromoter:
         if not isinstance(candidate, dict):
             return self._blocked("invalid_candidate")
 
+        candidate_id = str(candidate.get("id") or "").strip()
         status = str(candidate.get("status") or "").strip()
         user_decision = str(candidate.get("user_decision") or "").strip()
         proposal_type = str(candidate.get("proposal_type") or "").strip()
@@ -57,6 +58,9 @@ class MemorySynthesisPromoter:
         summary = str(candidate.get("summary") or "").strip()
         theme = str(candidate.get("theme") or "").strip()
         route = candidate.get("route") or {}
+
+        if not candidate_id:
+            return self._blocked("missing_candidate_id")
 
         if status == "stored":
             return self._blocked("already_stored")
@@ -82,8 +86,12 @@ class MemorySynthesisPromoter:
         if not theme:
             return self._blocked("missing_theme")
 
-        source_ids = candidate.get("source_ids") or []
-        if not isinstance(source_ids, list) or not source_ids:
+        source_ids_raw = candidate.get("source_ids") or []
+        if not isinstance(source_ids_raw, list):
+            return self._blocked("missing_source_ids")
+
+        source_ids = [str(source_id).strip() for source_id in source_ids_raw if str(source_id).strip()]
+        if not source_ids:
             return self._blocked("missing_source_ids")
 
         try:
@@ -94,11 +102,17 @@ class MemorySynthesisPromoter:
         if source_count < self.MIN_SOURCE_COUNT:
             return self._blocked("insufficient_source_count")
 
+        if len(source_ids) < self.MIN_SOURCE_COUNT:
+            return self._blocked("insufficient_source_ids")
+
+        if not isinstance(route, dict):
+            return self._blocked("invalid_review_route")
+
         route_memory_type = str(route.get("memory_type") or "").strip()
         route_storage_target = str(route.get("storage_target") or "").strip()
         route_sensitivity = str(route.get("sensitivity") or "").strip()
-        route_requires_review = bool(route.get("requires_review"))
-        route_allow_vector = bool(route.get("allow_vector"))
+        route_requires_review = route.get("requires_review")
+        route_allow_vector = route.get("allow_vector")
 
         valid_review_route = (
             memory_type == "semantic"
@@ -138,8 +152,19 @@ class MemorySynthesisPromoter:
         assert isinstance(candidate, dict)  # validate_candidate already checked this.
 
         route = candidate.get("route") or {}
-        source_ids = [str(source_id) for source_id in list(candidate.get("source_ids") or [])]
-        tags = [str(tag) for tag in list(route.get("tags") or [])]
+        if not isinstance(route, dict):
+            return {
+                "ok": True,
+                "built": False,
+                "reason": "invalid_review_route",
+            }
+
+        source_ids = [
+            str(source_id).strip()
+            for source_id in list(candidate.get("source_ids") or [])
+            if str(source_id).strip()
+        ]
+        tags = [str(tag).strip() for tag in list(route.get("tags") or []) if str(tag).strip()]
 
         try:
             source_count = int(candidate.get("source_count") or 0)
