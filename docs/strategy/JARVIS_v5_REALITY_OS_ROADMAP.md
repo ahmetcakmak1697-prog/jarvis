@@ -199,7 +199,7 @@ Siradaki kontrollu adim: [ACTIVE] C1.6E-3 - Synthesis Promotion Gate Design.
 | ✅ C1.6D-debt | Tech debt tamamlandi: MemoryCandidateQueue.list_candidates/list_all eklendi; synthesizer private _load kullanmiyor |
 | ✅ C1.6E | Synthesized memory review/status + `/mem_approve` behavior + `/mem_store` write gate tamamlandi |
 | ✅ C1.6E-3 | Synthesis Promotion Gate Design: MemorySynthesisPromoter + /mem_promote + globals() fix + mark_stored failure test |
-| 🟧 C1.6F | Session/day closure summary ("bugün şunları öğrendim efendim") |
+| ✅ C1.6F | Session/day closure summary ("bugün şunları öğrendim efendim") |
 | 🟧 C1.6G | Source-linked memory consolidation |
 | ⬜ **C1.6H** | **Answer Crystallization** ⭐ (aşağıda) |
 
