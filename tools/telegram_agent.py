@@ -129,6 +129,7 @@ def cmd_help() -> str:
         "/mem_reject <id> - hafiza adayini reddeder\n"
         "/mem_defer <id> - hafiza adayini erteler\n"
         "/mem_expire - suresi gecen hafiza adaylarini expired yapar\n"
+        "/day_closure - bugunki hafiza kapanis ozetini gosterir\n"
         "/audit - son audit olaylarini gosterir\n"
         "/audit_stats - audit olay sayilarini gosterir\n"
         "/web <soru> - guvenli web arastirmasi yapar\n"
@@ -544,6 +545,16 @@ def cmd_audit(limit: int = 6) -> str:
     except Exception as exc:
         return f"Audit okunamadi: {exc}"
 
+
+
+def cmd_day_closure() -> str:
+    """C1.6F - Bugunki hafiza kapanis ozeti."""
+    try:
+        from agents.session_closure import SessionClosure
+        sc = SessionClosure()
+        return sc.summarize()
+    except Exception as exc:
+        return f"Kapanis ozeti alinamadi: {type(exc).__name__}: {str(exc)[:300]}"
 
 def cmd_audit_stats() -> str:
     try:
@@ -1263,6 +1274,8 @@ def handle_message(message: dict[str, Any]) -> None:
         send_message(chat_id, cmd_memory_candidate_decide(text, "defer"))
     elif text.startswith("/mem_expire"):
         send_message(chat_id, cmd_memory_expire())
+    elif text.startswith("/day_closure"):
+        send_message(chat_id, cmd_day_closure())
     elif text.startswith("/audit_stats"):
         send_message(chat_id, cmd_audit_stats())
     elif text.startswith("/audit"):
