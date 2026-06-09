@@ -198,8 +198,8 @@ Siradaki kontrollu adim: [ACTIVE] C1.6E-3 - Synthesis Promotion Gate Design.
 | ✅ C1.6D | Synthesis proposal -> approval queue (dogrudan vector'e YAZMAZ) |
 | ✅ C1.6D-debt | Tech debt tamamlandi: MemoryCandidateQueue.list_candidates/list_all eklendi; synthesizer private _load kullanmiyor |
 | ✅ C1.6E | Synthesized memory review/status + `/mem_approve` behavior + `/mem_store` write gate tamamlandi |
-| 🟧 C1.6E-3 | Synthesis Promotion Gate Design: approved synthesis adayini guvenli semantic vector yazimina hazirlama |
-| ⬜ C1.6F | Session/day closure summary ("bugün şunları öğrendim efendim") |
+| ✅ C1.6E-3 | Synthesis Promotion Gate Design: MemorySynthesisPromoter + /mem_promote + globals() fix + mark_stored failure test |
+| 🟧 C1.6F | Session/day closure summary ("bugün şunları öğrendim efendim") |
 | ⬜ C1.6G | Source-linked memory consolidation |
 | ⬜ **C1.6H** | **Answer Crystallization** ⭐ (aşağıda) |
 
@@ -363,8 +363,8 @@ Akış: pahalı modelden (L6) kaliteli cevap al → özet + kaynak + yapısal bi
 1. ✅ **C1.6C** — Keyword Frequency Synthesizer <- **tamamlandi**
 2. ✅ C1.6D -> review queue entegrasyonu <- tamamlandi
 3. ✅ C1.6E -> Synthesized memory review/status + mem_store <- tamamlandi
-4. 🟧 C1.6E-3 -> Synthesis Promotion Gate Design <- su an buradayiz
-5. ⬜ C1.6F → C1.6G → **C1.6H (Answer Crystallization)**
+4. ✅ C1.6E-3 -> Synthesis Promotion Gate Design <- tamamlandi
+5. 🟧 C1.6F → C1.6G → **C1.6H (Answer Crystallization)** <- su an buradayiz
 6. ⬜ Sonra secim: Z0 (persona) / Y0 (gateway) / G1 (benchmark) / D-serisi
 7. ⬜ V0-V2 (yerel ses + butler voice)
 8. ⬜ M1 (Home Assistant koprusu) + M2 (Maker Lab) - fiziksel demo motivasyonu
