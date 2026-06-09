@@ -125,6 +125,7 @@ def cmd_help() -> str:
         "/mem_candidates - hafiza adaylarini listeler\n"
         "/mem_approve <id> - hafiza adayini onaylar\n"
         "/mem_store <id> - onayli hafiza adayini uzun hafizaya yazar\n"
+        "/mem_promote <id> - onayli sentez hafiza adayini uzun hafizaya yazar\n"
         "/mem_reject <id> - hafiza adayini reddeder\n"
         "/mem_defer <id> - hafiza adayini erteler\n"
         "/mem_expire - suresi gecen hafiza adaylarini expired yapar\n"
@@ -707,7 +708,7 @@ def cmd_memory_status() -> str:
 
         lines.extend([
             "",
-            "Komutlar: /mem_candidates | /mem_expire | /mem_approve <id> | /mem_store <id>",
+            "Komutlar: /mem_candidates | /mem_expire | /mem_approve <id> | /mem_store <id> | /mem_promote <id>",
         ])
 
         return "\n".join(lines)
@@ -741,6 +742,7 @@ def cmd_memory_candidates() -> str:
         lines.append("Komutlar:")
         lines.append("/mem_approve <id>")
         lines.append("/mem_store <id>")
+        lines.append("/mem_promote <id>")
         lines.append("/mem_reject <id>")
         lines.append("/mem_defer <id>")
 
@@ -830,6 +832,45 @@ def cmd_memory_expire() -> str:
         return "\n".join(lines)
     except Exception as exc:
         return f"Hafiza aday TTL temizligi basarisiz: {exc}"
+
+
+def cmd_memory_candidate_promote(text: str) -> str:
+    """Promote an approved synthesized memory candidate into long-term memory.
+
+    C1.6E-3D: /mem_promote is separate from /mem_store.
+    It uses MemorySynthesisPromoter and is intended for synthesized_memory
+    candidates that already passed review/approval.
+    """
+    try:
+        parts = text.split()
+        if len(parts) < 2:
+            return "Kullanim: /mem_promote <candidate_id>"
+
+        candidate_id = parts[1].strip()
+
+        promoter_cls = globals().get("MemorySynthesisPromoter")
+        if promoter_cls is None:
+            from agents.memory_synthesis_promoter import MemorySynthesisPromoter as promoter_cls
+
+        promoter = promoter_cls()
+        result = promoter.promote(candidate_id)
+
+        if result.get("promoted"):
+            return (
+                "Sentez hafiza adayi uzun hafizaya yazildi.\n"
+                f"ID: {candidate_id}\n"
+                "Status: stored\n"
+                f"Vector ID: {result.get('vector_doc_id')}"
+            )
+
+        return (
+            "Sentez hafiza adayi uzun hafizaya yazilmadi.\n"
+            f"ID: {candidate_id}\n"
+            f"Sebep: {result.get('reason', 'unknown')}"
+        )
+
+    except Exception as exc:
+        return f"Sentez hafiza promote islemi basarisiz: {exc}"
 
 
 def cmd_memory_candidate_decide(text: str, decision: str) -> str:
@@ -1218,6 +1259,8 @@ def handle_message(message: dict[str, Any]) -> None:
         send_message(chat_id, cmd_memory_candidate_decide(text, "approve"))
     elif text.startswith("/mem_store"):
         send_message(chat_id, cmd_memory_candidate_store(text))
+    elif text.startswith("/mem_promote"):
+        send_message(chat_id, cmd_memory_candidate_promote(text))
     elif text.startswith("/mem_reject"):
         send_message(chat_id, cmd_memory_candidate_decide(text, "reject"))
     elif text.startswith("/mem_defer"):
