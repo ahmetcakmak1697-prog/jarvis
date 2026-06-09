@@ -140,3 +140,38 @@ def test_synthesis_review_queue_candidate_is_not_vector_stored_even_when_approve
         assert updated["storage_target"] == "review_queue"
         assert updated["proposal_type"] == "synthesized_memory"
 
+
+class FailingMemory:
+    def __init__(self):
+        self.calls = []
+
+    def remember(self, user_msg, jarvis_msg, meta=None):
+        self.calls.append((user_msg, jarvis_msg, meta or {}))
+        return ""
+
+
+def test_writer_does_not_mark_stored_when_vector_memory_write_returns_empty_id():
+    with TemporaryDirectory() as td:
+        root = Path(td)
+        q = MemoryCandidateQueue(root=root)
+
+        candidate = q.add_conversation_candidate(
+            "bunu hat\u0131rla: test amacli guvenli bilgi",
+            tags=["test_vector_failure"],
+        )["candidate"]
+
+        writer = MemoryCandidateWriter(root=root)
+        fake = FailingMemory()
+        writer.memory = fake
+
+        result = writer.approve_and_store(candidate["id"])
+
+        assert result["ok"] is False
+        assert result["stored"] is False
+        assert result["error"] == "VectorMemory yazimi basarisiz."
+        assert len(fake.calls) == 1
+
+        updated = writer.queue.get(candidate["id"])
+        assert updated["status"] != "stored"
+        assert "store_meta" not in updated
+

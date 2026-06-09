@@ -197,13 +197,28 @@ class MemoryCandidateWriter:
         }
 
         # Keep user/query and answer/summary separated for vector recall.
-        self.memory.remember(query or "web_research_candidate", summary, mem_meta)
+        vector_doc_id = self.memory.remember(query or "web_research_candidate", summary, mem_meta)
+
+        if not vector_doc_id:
+            self._log_store_blocked(candidate_id, candidate, "VectorMemory yazimi basarisiz.", {
+                "memory_action": mem_meta["memory_action"],
+                "memory_importance": mem_meta["memory_importance"],
+                "memory_tags": mem_meta["memory_tags"],
+                "stored_at": mem_meta["stored_at"],
+            })
+            return {
+                "ok": False,
+                "stored": False,
+                "error": "VectorMemory yazimi basarisiz.",
+                "candidate_id": candidate_id,
+            }
 
         stored = self.queue.mark_stored(candidate_id, {
             "memory_action": mem_meta["memory_action"],
             "memory_importance": mem_meta["memory_importance"],
             "memory_tags": mem_meta["memory_tags"],
             "stored_at": mem_meta["stored_at"],
+            "vector_doc_id": vector_doc_id,
         })
 
         return {
