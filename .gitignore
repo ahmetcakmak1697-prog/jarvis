@@ -100,4 +100,8 @@ logs/internal_trace.jsonl
 data/reporting_state.json
 world/backups/
 inventory/backups/
-
+# JARVIS temporary AI handoff/context files
+JARVIS_CLAUDE_HANDOFF.md
+JARVIS_CLAUDE_MINI_HANDOFF.md
+JARVIS_FILE_MAP.md
+JARVIS_LAST_COMMITS.txt
