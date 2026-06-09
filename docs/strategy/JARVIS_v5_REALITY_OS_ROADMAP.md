@@ -201,9 +201,9 @@ Siradaki kontrollu adim: [ACTIVE] C1.6E-3 - Synthesis Promotion Gate Design.
 | ✅ C1.6E-3 | Synthesis Promotion Gate Design: MemorySynthesisPromoter + /mem_promote + globals() fix + mark_stored failure test |
 | ✅ C1.6F | Session/day closure summary ("bugün şunları öğrendim efendim") |
 | ✅ C1.6G | Source-linked memory provenance (resolver + promotion metadata + provenance links) |
-| 🟧 **C1.6H** | **Answer Crystallization** ⭐ (asagida) |
+| ✅ **C1.6H** | **Answer Crystallization** ⭐ (KnowledgeCardStore + AnswerCrystallizer + Promoter + Retriever + Telegram) |
 
-### 🟧 C1.6H — Answer Crystallization (bu surecin muhur fikri)
+### ✅ C1.6H — Answer Crystallization (tamamlandi)
 
 > "Bir kez pahalı modelden öğren, yerelde ömür boyu sakla, bir daha sorma."
 > API-limit problemini çözmenin en güçlü yolu. Senin Vulcan S örneğinin tam karşılığı.
@@ -224,7 +224,7 @@ Akış: pahalı modelden (L6) kaliteli cevap al → özet + kaynak + yapısal bi
 
 ## 6. Tematik Hatlar (Tracks)
 
-### ⬜ C1.7+ — Tiered Memory & Olgunlaşma
+### 🟧 C1.7+ — Tiered Memory & Olgunlasma
 - ⬜ C1.7 Tiered memory: core (bağlamda) / recall (aranabilir) / archival (uzun vade) — Letta/MemGPT modeline hizala
 - ⬜ C1.8 `memory/episodic_buffer.jsonl` writer
 - ⬜ C1.9 Self-editing memory denemesi (onay-kapılı)
@@ -364,7 +364,7 @@ Akış: pahalı modelden (L6) kaliteli cevap al → özet + kaynak + yapısal bi
 2. ✅ C1.6D -> review queue entegrasyonu <- tamamlandi
 3. ✅ C1.6E -> Synthesized memory review/status + mem_store <- tamamlandi
 4. ✅ C1.6E-3 -> Synthesis Promotion Gate Design <- tamamlandi
-5. ✅ C1.6F → ✅ C1.6G → 🟧 **C1.6H (Answer Crystallization)** <- su an buradayiz
+5. ✅ C1.6F → ✅ C1.6G → ✅ **C1.6H (Answer Crystallization)** ← tamamlandi
 6. ⬜ Sonra secim: Z0 (persona) / Y0 (gateway) / G1 (benchmark) / D-serisi
 7. ⬜ V0-V2 (yerel ses + butler voice)
 8. ⬜ M1 (Home Assistant koprusu) + M2 (Maker Lab) - fiziksel demo motivasyonu
@@ -386,4 +386,4 @@ Akış: pahalı modelden (L6) kaliteli cevap al → özet + kaynak + yapısal bi
 ---
 
 *Son güncelleme: 5 Haziran 2026 · Üçlü AI mutabakatı (Claude vizyon/mimari · GPT ritim/güvenlik · Gemini denge)*
-*Siradaki teknik adim: [ACTIVE] C1.6H - Answer Crystallization*
+*Siradaki teknik adim: [ACTIVE] C1.7 - Tiered Memory & Olgunlasma*
