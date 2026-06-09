@@ -509,3 +509,36 @@ def test_promote_with_real_queue_and_fake_memory_marks_candidate_stored():
         assert updated["route"]["requires_review"] is True
         assert updated["route"]["allow_vector"] is False
 
+def test_promote_returns_error_when_mark_stored_fails():
+    """Vector yazildi ama mark_stored basarisiz olursa:
+    - ok=False donemeli
+    - promoted=False donemeli
+    - vector_doc_id sonucta bulunmali (yazildi, ama queue tutarsiz)
+    - candidate status hala approved kalir (stored olmaz)
+    """
+    candidate = _candidate()
+
+    class FakeQueueMarkStoredFails:
+        def get(self, candidate_id):
+            if candidate["id"] == candidate_id:
+                return candidate
+            return None
+
+        def mark_stored(self, candidate_id, store_meta=None):
+            return {"ok": False, "error": "disk yazim hatasi", "candidate_id": candidate_id}
+
+    memory = FakePromotionMemory(doc_id="vec_written_but_queue_failed")
+    promoter = MemorySynthesisPromoter(
+        queue=FakeQueueMarkStoredFails(),
+        memory=memory,
+    )
+
+    result = promoter.promote(candidate["id"])
+
+    assert result["ok"] is False
+    assert result["promoted"] is False
+    assert result["reason"] == "queue_mark_stored_failed"
+    assert result["vector_doc_id"] == "vec_written_but_queue_failed"
+    assert len(memory.calls) == 1
+    assert candidate["status"] == "approved"
+

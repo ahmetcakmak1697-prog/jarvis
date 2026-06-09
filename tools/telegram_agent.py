@@ -848,11 +848,7 @@ def cmd_memory_candidate_promote(text: str) -> str:
 
         candidate_id = parts[1].strip()
 
-        promoter_cls = globals().get("MemorySynthesisPromoter")
-        if promoter_cls is None:
-            from agents.memory_synthesis_promoter import MemorySynthesisPromoter as promoter_cls
-
-        promoter = promoter_cls()
+        promoter = MemorySynthesisPromoter()
         result = promoter.promote(candidate_id)
 
         if result.get("promoted"):
