@@ -21,6 +21,29 @@ class MemorySynthesisPromoter:
 
     MIN_SOURCE_COUNT = 2
 
+    def __init__(self, queue: Any | None = None, memory: Any | None = None, root: Any | None = None) -> None:
+        self.queue = queue
+        self.memory = memory
+        self.root = root
+
+    def _get_queue(self) -> Any:
+        if self.queue is not None:
+            return self.queue
+
+        from agents.memory_candidate_queue import MemoryCandidateQueue
+
+        self.queue = MemoryCandidateQueue(self.root) if self.root is not None else MemoryCandidateQueue()
+        return self.queue
+
+    def _get_memory(self) -> Any:
+        if self.memory is not None:
+            return self.memory
+
+        from tools.vector_memory import VectorMemory
+
+        self.memory = VectorMemory()
+        return self.memory
+
     def _blocked(self, reason: str) -> dict[str, Any]:
         return {
             "ok": True,
@@ -208,3 +231,82 @@ class MemorySynthesisPromoter:
             "reason": "metadata_built",
             "metadata": metadata,
         }
+
+
+    def promote(self, candidate_id: str) -> dict[str, Any]:
+        """Promote an approved synthesis candidate into vector memory.
+
+        Safety rules:
+        - validate_candidate must pass first
+        - original review_queue route is not modified
+        - mark_stored is called only after successful VectorMemory.remember
+        """
+        candidate_id = str(candidate_id or "").strip()
+        queue = self._get_queue()
+
+        candidate = queue.get(candidate_id)
+        if not candidate:
+            return {
+                "ok": False,
+                "promoted": False,
+                "reason": "candidate_not_found",
+                "candidate_id": candidate_id,
+            }
+
+        metadata_result = self.build_promotion_metadata(candidate)
+        if not metadata_result.get("built"):
+            return {
+                "ok": False,
+                "promoted": False,
+                "reason": metadata_result.get("reason", "not_promotable"),
+                "candidate_id": candidate_id,
+            }
+
+        metadata = metadata_result["metadata"]
+        summary = str(candidate.get("summary") or "").strip()
+        theme = str(candidate.get("theme") or "synthesis").strip() or "synthesis"
+
+        memory = self._get_memory()
+        vector_doc_id = memory.remember(f"memory_synthesis:{theme}", summary, metadata)
+
+        if not vector_doc_id:
+            return {
+                "ok": False,
+                "promoted": False,
+                "reason": "vector_write_failed",
+                "candidate_id": candidate_id,
+            }
+
+        store_meta = {
+            "vector_doc_id": vector_doc_id,
+            "promoted_by": metadata["promoted_by"],
+            "promotion_schema_version": metadata["promotion_schema_version"],
+            "source_ids": list(metadata.get("source_ids") or []),
+            "source_count": metadata.get("source_count"),
+            "theme": metadata.get("theme"),
+            "confidence": metadata.get("confidence"),
+            "promoted_at": metadata.get("promoted_at"),
+        }
+
+        stored = queue.mark_stored(candidate_id, store_meta)
+
+        if not stored.get("ok"):
+            return {
+                "ok": False,
+                "promoted": False,
+                "reason": "queue_mark_stored_failed",
+                "candidate_id": candidate_id,
+                "vector_doc_id": vector_doc_id,
+                "queue": stored,
+            }
+
+        return {
+            "ok": True,
+            "promoted": True,
+            "reason": "promoted",
+            "candidate_id": candidate_id,
+            "vector_doc_id": vector_doc_id,
+            "metadata": metadata,
+            "queue": stored,
+        }
+

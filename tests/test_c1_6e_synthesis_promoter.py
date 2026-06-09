@@ -349,3 +349,117 @@ def test_build_promotion_metadata_requires_candidate_id():
     assert result["built"] is False
     assert result["reason"] == "missing_candidate_id"
 
+
+class FakePromotionQueue:
+    def __init__(self, candidate=None):
+        self.candidate = candidate
+        self.mark_stored_calls = []
+
+    def get(self, candidate_id):
+        if self.candidate and self.candidate.get("id") == candidate_id:
+            return self.candidate
+        return None
+
+    def mark_stored(self, candidate_id, store_meta=None):
+        self.mark_stored_calls.append((candidate_id, store_meta or {}))
+        if self.candidate and self.candidate.get("id") == candidate_id:
+            self.candidate["status"] = "stored"
+            self.candidate["store_meta"] = store_meta or {}
+            return {"ok": True, "candidate": self.candidate}
+        return {"ok": False, "error": "candidate bulunamadi.", "candidate_id": candidate_id}
+
+
+class FakePromotionMemory:
+    def __init__(self, doc_id="vec_001"):
+        self.doc_id = doc_id
+        self.calls = []
+
+    def remember(self, user_msg, jarvis_msg, meta=None):
+        self.calls.append((user_msg, jarvis_msg, meta or {}))
+        return self.doc_id
+
+
+def test_promote_rejects_missing_candidate():
+    queue = FakePromotionQueue(candidate=None)
+    memory = FakePromotionMemory()
+    promoter = MemorySynthesisPromoter(queue=queue, memory=memory)
+
+    result = promoter.promote("missing_id")
+
+    assert result["ok"] is False
+    assert result["promoted"] is False
+    assert result["reason"] == "candidate_not_found"
+    assert memory.calls == []
+    assert queue.mark_stored_calls == []
+
+
+def test_promote_rejects_non_promotable_candidate_without_memory_write():
+    candidate = _candidate(status="pending_review", user_decision=None)
+    queue = FakePromotionQueue(candidate=candidate)
+    memory = FakePromotionMemory()
+    promoter = MemorySynthesisPromoter(queue=queue, memory=memory)
+
+    result = promoter.promote(candidate["id"])
+
+    assert result["ok"] is False
+    assert result["promoted"] is False
+    assert result["reason"] == "candidate_not_approved"
+    assert memory.calls == []
+    assert queue.mark_stored_calls == []
+
+
+def test_promote_does_not_mark_stored_when_memory_write_fails():
+    candidate = _candidate()
+    queue = FakePromotionQueue(candidate=candidate)
+    memory = FakePromotionMemory(doc_id="")
+    promoter = MemorySynthesisPromoter(queue=queue, memory=memory)
+
+    result = promoter.promote(candidate["id"])
+
+    assert result["ok"] is False
+    assert result["promoted"] is False
+    assert result["reason"] == "vector_write_failed"
+    assert len(memory.calls) == 1
+    assert queue.mark_stored_calls == []
+    assert candidate["status"] == "approved"
+
+
+def test_promote_marks_stored_after_successful_memory_write():
+    candidate = _candidate()
+    queue = FakePromotionQueue(candidate=candidate)
+    memory = FakePromotionMemory(doc_id="vec_synth_001")
+    promoter = MemorySynthesisPromoter(queue=queue, memory=memory)
+
+    result = promoter.promote(candidate["id"])
+
+    assert result["ok"] is True
+    assert result["promoted"] is True
+    assert result["reason"] == "promoted"
+    assert result["vector_doc_id"] == "vec_synth_001"
+    assert len(memory.calls) == 1
+    assert len(queue.mark_stored_calls) == 1
+
+    stored_candidate_id, store_meta = queue.mark_stored_calls[0]
+    assert stored_candidate_id == candidate["id"]
+    assert store_meta["vector_doc_id"] == "vec_synth_001"
+    assert store_meta["promoted_by"] == "MemorySynthesisPromoter"
+    assert store_meta["promotion_schema_version"] == "c1.6e3"
+    assert store_meta["source_ids"] == ["cand_a", "cand_b", "cand_c"]
+    assert candidate["status"] == "stored"
+
+
+def test_promote_does_not_mutate_candidate_route():
+    candidate = _candidate()
+    original_route = dict(candidate["route"])
+    queue = FakePromotionQueue(candidate=candidate)
+    memory = FakePromotionMemory(doc_id="vec_synth_001")
+    promoter = MemorySynthesisPromoter(queue=queue, memory=memory)
+
+    result = promoter.promote(candidate["id"])
+
+    assert result["ok"] is True
+    assert candidate["route"] == original_route
+    assert candidate["route"]["storage_target"] == "review_queue"
+    assert candidate["route"]["requires_review"] is True
+    assert candidate["route"]["allow_vector"] is False
+
