@@ -1393,6 +1393,14 @@ def handle_message(message: dict[str, Any]) -> None:
         send_message(chat_id, cmd_memory_expire())
     elif text.startswith("/day_closure"):
         send_message(chat_id, cmd_day_closure())
+    elif text.startswith("/kc_add"):
+        send_message(chat_id, cmd_kc_add(text))
+    elif text.startswith("/kc_list"):
+        send_message(chat_id, cmd_kc_list())
+    elif text.startswith("/kc_approve"):
+        send_message(chat_id, cmd_kc_approve(text))
+    elif text.startswith("/kc_promote"):
+        send_message(chat_id, cmd_kc_promote(text))
     elif text.startswith("/audit_stats"):
         send_message(chat_id, cmd_audit_stats())
     elif text.startswith("/audit"):
