@@ -224,10 +224,10 @@ Akış: pahalı modelden (L6) kaliteli cevap al → özet + kaynak + yapısal bi
 
 ## 6. Tematik Hatlar (Tracks)
 
-### 🟧 C1.7+ — Tiered Memory & Olgunlasma
-- ⬜ C1.7 Tiered memory: core (bağlamda) / recall (aranabilir) / archival (uzun vade) — Letta/MemGPT modeline hizala
-- ⬜ C1.8 `memory/episodic_buffer.jsonl` writer
-- ⬜ C1.9 Self-editing memory denemesi (onay-kapılı)
+### ✅ C1.7 — Tiered Memory & Olgunlasma
+- ✅ C1.7 TieredMemoryRouter + MemoryRoute tier/tier_reason + MemoryMaturityScorer + RetrievalPriorityRanker
+- ✅ C1.8 EpisodicBuffer (append/list/prune/stats) — memory/episodic_buffer.jsonl
+- 🟧 C1.9 Self-editing memory denemesi (onay-kapili) — siradaki
 - 🟡 Borrow: Letta (core/recall/archival), Graphiti (episodic→semantic), Mem0, NirDiamant notebooks
 
 ### ⬜ Y — Model Gateway / Local-First Router (en yüksek kaldıraç)
@@ -386,4 +386,4 @@ Akış: pahalı modelden (L6) kaliteli cevap al → özet + kaynak + yapısal bi
 ---
 
 *Son güncelleme: 5 Haziran 2026 · Üçlü AI mutabakatı (Claude vizyon/mimari · GPT ritim/güvenlik · Gemini denge)*
-*Siradaki teknik adim: [ACTIVE] C1.7 - Tiered Memory & Olgunlasma*
+*Siradaki teknik adim: [ACTIVE] C1.9 - Self-editing memory (onay-kapili)*
