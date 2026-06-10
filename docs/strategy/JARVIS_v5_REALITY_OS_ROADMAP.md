@@ -230,8 +230,12 @@ Akış: pahalı modelden (L6) kaliteli cevap al → özet + kaynak + yapısal bi
 - ✅ C1.9 KnowledgeCardEditor versioning (superseded + previous_version_id)
 - 🟡 Borrow: Letta (core/recall/archival), Graphiti (episodic→semantic), Mem0, NirDiamant notebooks
 
-### ⬜ Y — Model Gateway / Local-First Router (en yüksek kaldıraç)
-- ⬜ Y0 Router skeleton: L0–L6 katmanlarını ayrı, test edilebilir modüle çıkar
+### ✅ Y — Local-First Router (tamamlandi)
+- ✅ Y0-1 LocalFirstRouter skeleton (KnowledgeCard vs external)
+- ✅ Y0-2 Memory recall (VectorMemory + RetrievalPolicy + PriorityRanker)
+- ✅ Y0-3 CostLedger daily limit gate (external_blocked)
+- ✅ Y0-4 Escalation reason + crystallize candidate seed
+- 🟧 Y1 Model selection + cascade (L0-L6) — siradaki
 - ⬜ Y1 Local/rule + cache (L0 exact + L1 semantic) — aynı soruyu iki kez dışarı sorma
 - ⬜ Y2 L2 memory/RAG entegrasyonu (router arkasına)
 - ⬜ Y3 **LiteLLM adopt** — L4–L6 dış katman: OpenAI-uyumlu proxy, fallback chain, virtual keys, cost tracking
@@ -386,4 +390,4 @@ Akış: pahalı modelden (L6) kaliteli cevap al → özet + kaynak + yapısal bi
 ---
 
 *Son güncelleme: 5 Haziran 2026 · Üçlü AI mutabakatı (Claude vizyon/mimari · GPT ritim/güvenlik · Gemini denge)*
-*Siradaki teknik adim: [ACTIVE] C2 / Y0 Router ? hafiza zinciri tamamlandi, siradaki katman*
+*Siradaki teknik adim: [ACTIVE] Y1 - Model selection cascade (L0-L6)*
