@@ -236,8 +236,8 @@ Akış: pahalı modelden (L6) kaliteli cevap al → özet + kaynak + yapısal bi
 - ✅ Y0-3 CostLedger daily limit gate (external_blocked)
 - ✅ Y0-4 Escalation reason + crystallize candidate seed
 - ✅ Y1 ModelCascade selector (L0-L4, L4 force-only) + LocalFirstRouter entegrasyonu
-- 🟧 Y2 Cache layer (L0 exact match + repeat query detection) — siradaki
-- ⬜ Y2 L2 memory/RAG entegrasyonu (router arkasına)
+- ✅ Y2-1 QueryCache exact match + LocalFirstRouter entegrasyonu
+- 🟧 Y2-2 Semantic cache (yakin soru eslesmesi) — siradaki
 - ⬜ Y3 **LiteLLM adopt** — L4–L6 dış katman: OpenAI-uyumlu proxy, fallback chain, virtual keys, cost tracking
 - ⬜ Y4 Redaction-before-external gate
 - ⬜ Y5 Cost/latency/quality telemetry (per-call; "bugün şu kadar harcandı / kaçı localde çözüldü")
@@ -390,4 +390,4 @@ Akış: pahalı modelden (L6) kaliteli cevap al → özet + kaynak + yapısal bi
 ---
 
 *Son güncelleme: 5 Haziran 2026 · Üçlü AI mutabakatı (Claude vizyon/mimari · GPT ritim/güvenlik · Gemini denge)*
-*Siradaki teknik adim: [ACTIVE] Y2 - Cache layer (L0 exact match)*
+*Siradaki teknik adim: [ACTIVE] Y2-2 - Semantic cache (yakin soru)*
