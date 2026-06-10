@@ -42,6 +42,7 @@ class LocalFirstRouter:
         vector_memory=None,
         cost_ledger=None,
         query_cache=None,
+        redact_before_external: bool = True,
     ) -> None:
         self._kc_store = kc_store
         self._kc_min_confidence = kc_min_confidence
@@ -49,6 +50,7 @@ class LocalFirstRouter:
         self._vector_memory = vector_memory
         self._cost_ledger = cost_ledger
         self._query_cache = query_cache
+        self._redact_before_external = redact_before_external
 
     def _get_retriever(self):
         from agents.knowledge_card_retriever import KnowledgeCardRetriever
@@ -197,6 +199,27 @@ class LocalFirstRouter:
                         "ledger": gate,
                     },
                 }
+
+        # Y4: Redaction gate ? raw secret must not leave the system
+        if self._redact_before_external:
+            try:
+                from agents.redaction_guard import RedactionGuard
+                guard = RedactionGuard()
+                rr = guard.sanitize_text(question)
+                if rr.redacted and rr.hits:
+                    return {
+                        "decision": "redacted_blocked",
+                        "route": "redacted_blocked",
+                        "confidence": 100,
+                        "reason": "redaction_guard_detected_sensitive_data_before_external",
+                        "signals": {
+                            "redaction_enabled": True,
+                            "sensitive_detected": True,
+                            "redaction_hits": list(rr.hits),
+                        },
+                    }
+            except Exception:
+                pass  # redaction failure = fail open (let through, don't crash)
 
         checked = ["knowledge_card", "memory"]
         escalation_reason = "no_local_knowledge:kc=0,memory=0"
