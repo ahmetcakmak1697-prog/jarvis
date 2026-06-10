@@ -40,11 +40,13 @@ class LocalFirstRouter:
         kc_min_confidence: int = 50,
         data_root: Path | str | None = None,
         vector_memory=None,
+        cost_ledger=None,
     ) -> None:
         self._kc_store = kc_store
         self._kc_min_confidence = kc_min_confidence
         self._data_root = Path(data_root) if data_root else ROOT / "memory"
         self._vector_memory = vector_memory
+        self._cost_ledger = cost_ledger
 
     def _get_retriever(self):
         from agents.knowledge_card_retriever import KnowledgeCardRetriever
@@ -64,7 +66,18 @@ class LocalFirstRouter:
             self._vector_memory = None
         return self._vector_memory
 
+    def _get_ledger(self):
+        if self._cost_ledger is not None:
+            return self._cost_ledger
+        try:
+            from agents.cost_ledger import CostLedger
+            self._cost_ledger = CostLedger()
+        except Exception:
+            self._cost_ledger = None
+        return self._cost_ledger
+
     def _recall(self, question: str) -> list[dict]:
+
         """Return priority-ranked safe memory hits. Empty list on any failure."""
         try:
             vm = self._get_memory()
@@ -148,7 +161,23 @@ class LocalFirstRouter:
                 },
             }
 
-        # 3. No local answer ? escalate
+        # 3. Cost ledger gate before external
+        ledger = self._get_ledger()
+        if ledger is not None:
+            gate = ledger.check_and_consume("external_call")
+            if not gate.get("allowed"):
+                return {
+                    "decision": "external_blocked",
+                    "route": "external_blocked",
+                    "confidence": 0,
+                    "reason": f"budget_limit:{gate.get('reason','exceeded')}",
+                    "signals": {
+                        "kc_found": False,
+                        "memory_hits": 0,
+                        "ledger": gate,
+                    },
+                }
+
         return {
             "decision": "ask_external",
             "route": "external",
