@@ -178,11 +178,21 @@ class LocalFirstRouter:
                     },
                 }
 
+        checked = ["knowledge_card", "memory"]
+        escalation_reason = "no_local_knowledge:kc=0,memory=0"
         return {
             "decision": "ask_external",
             "route": "external",
             "confidence": 60,
             "reason": "no_local_knowledge",
+            "escalation_reason": escalation_reason,
+            "checked_sources": checked,
+            "crystallize_candidate": {
+                "question": question,
+                "checked_sources": checked,
+                "escalation_reason": escalation_reason,
+                "status": "pending_crystallization",
+            },
             "signals": {
                 "kc_found": False,
                 "memory_hits": 0,
