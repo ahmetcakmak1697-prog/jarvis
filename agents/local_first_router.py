@@ -66,7 +66,12 @@ class LocalFirstRouter:
             self._vector_memory = None
         return self._vector_memory
 
+    def _get_cascade(self):
+        from agents.model_cascade import ModelCascade
+        return ModelCascade()
+
     def _get_ledger(self):
+
         if self._cost_ledger is not None:
             return self._cost_ledger
         try:
@@ -180,6 +185,7 @@ class LocalFirstRouter:
 
         checked = ["knowledge_card", "memory"]
         escalation_reason = "no_local_knowledge:kc=0,memory=0"
+        cascade = self._get_cascade().select(question)
         return {
             "decision": "ask_external",
             "route": "external",
@@ -187,6 +193,7 @@ class LocalFirstRouter:
             "reason": "no_local_knowledge",
             "escalation_reason": escalation_reason,
             "checked_sources": checked,
+            "cascade": cascade,
             "crystallize_candidate": {
                 "question": question,
                 "checked_sources": checked,
