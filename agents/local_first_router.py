@@ -41,12 +41,14 @@ class LocalFirstRouter:
         data_root: Path | str | None = None,
         vector_memory=None,
         cost_ledger=None,
+        query_cache=None,
     ) -> None:
         self._kc_store = kc_store
         self._kc_min_confidence = kc_min_confidence
         self._data_root = Path(data_root) if data_root else ROOT / "memory"
         self._vector_memory = vector_memory
         self._cost_ledger = cost_ledger
+        self._query_cache = query_cache
 
     def _get_retriever(self):
         from agents.knowledge_card_retriever import KnowledgeCardRetriever
@@ -104,6 +106,19 @@ class LocalFirstRouter:
 
         """Return routing decision dict. No side effects."""
         question = str(question or "").strip()
+
+        # 0. Check query cache first
+        if self._query_cache is not None:
+            cached = self._query_cache.get_exact(question)
+            if cached:
+                return {
+                    "decision": "answer_local",
+                    "route": "cache",
+                    "confidence": 95,
+                    "reason": "query_cache_hit",
+                    "answer": cached.get("answer"),
+                    "signals": {"cache_hit": True, "hit_count": cached.get("hit_count")},
+                }
 
         if not question:
             return {
