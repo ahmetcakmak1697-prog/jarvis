@@ -44,6 +44,8 @@ class MemoryRoute:
     source: str
     confidence: int
     delete_id: str
+    tier: str
+    tier_reason: str
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -108,6 +110,10 @@ class MemorySchemaMapper:
         source = str(meta.get("source") or meta.get("source_type") or "conversation")
         delete_id = self._delete_id(user_msg, jarvis_msg, created_at, source)
 
+        from agents.tiered_memory import TieredMemoryRouter
+        _tier_meta = TieredMemoryRouter().classify_with_meta(
+            str(user_msg or "") + " " + str(jarvis_msg or "")
+        )
         return MemoryRoute(
             schema_version=SCHEMA_VERSION,
             memory_type=memory_type,
@@ -126,6 +132,8 @@ class MemorySchemaMapper:
             source=source,
             confidence=confidence,
             delete_id=delete_id,
+            tier=_tier_meta["tier"],
+            tier_reason=_tier_meta["tier_reason"],
         )
 
     def _map_action(
