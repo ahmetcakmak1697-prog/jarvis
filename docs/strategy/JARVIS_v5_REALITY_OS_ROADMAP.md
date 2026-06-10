@@ -239,8 +239,8 @@ Akış: pahalı modelden (L6) kaliteli cevap al → özet + kaynak + yapısal bi
 - ✅ Y2-1 QueryCache exact match + LocalFirstRouter entegrasyonu
 - ✅ Y2-2 Semantic cache (token-overlap, digit-aware, negation guard, short-query rule)
 - 🟧 Y3 LiteLLM adopt — L4-L6 dis katman: OpenAI-uyumlu proxy, fallback chain — siradaki
-- ⬜ Y4 Redaction-before-external gate
-- ⬜ Y5 Cost/latency/quality telemetry (per-call; "bugün şu kadar harcandı / kaçı localde çözüldü")
+- ✅ Y4 Redaction-before-external gate (RedactionGuard entegrasyonu, fail-open)
+- 🟧 Y5 Cost/latency/quality telemetry (per-call) — siradaki
 - ⬜ Y6 **RouteLLM** kalite-bazlı yönlendirme (ucuz model yetiyor mu? otomatik karar)
 - 🟡 Borrow: LiteLLM (gateway), RouteLLM (routing), OpenRouter (strateji)
 
