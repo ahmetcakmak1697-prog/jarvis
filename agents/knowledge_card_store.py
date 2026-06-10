@@ -194,7 +194,18 @@ class KnowledgeCardStore:
             "vector_doc_id": vector_doc_id,
         })
 
+    def mark_superseded(self, card_id: str, superseded_by: str = "") -> dict[str, Any]:
+        """Mark card as superseded by a newer version."""
+        card = self.get(card_id)
+        if card is None:
+            raise ValueError(f"Kart bulunamadi: {card_id!r}")
+        updates = {"superseded": True}
+        if superseded_by:
+            updates["superseded_by"] = superseded_by
+        return self._update(card_id, updates)
+
     def mark_failed(self, card_id: str, error: str = "") -> dict[str, Any]:
+
         """Set storage_status=failed (vector write failed). vector_doc_id stays null."""
         card = self.get(card_id)
         if card is None:
