@@ -29,6 +29,28 @@ _LEVEL_ROLE_MAP = {
     "L3": "research_model",
 }
 
+_SYSTEM_PROMPTS = {
+    "L1": (
+        "Sen Jarvis adinda Turkce konusan bir yapay zeka asistanissin. "
+        "Kisaca ve net cevap ver. Turkce sor Turkce cevapla. "
+        "Selamlama ve kisa sorulara 1-2 cumle yeter. Gereksiz uzatma."
+    ),
+    "L2": (
+        "Sen Jarvis adinda Turkce konusan teknik bir yapay zeka asistanissin. "
+        "Kullanicinin sorusunu Turkce cevapla. "
+        "Teknik sorularda calisabilir kod ornegi ver, gereksiz uzatma. "
+        "Bilmiyorsan bilmiyorum de, uydurma. "
+        "Mumkun olan en verimli cozumu tercih et."
+    ),
+    "L3": (
+        "Sen Jarvis adinda Turkce konusan ileri duzey teknik bir yapay zeka asistanissin. "
+        "Kapsamli ve detayli Turkce cevap ver. "
+        "Mimari kararlar, karsilastirmalar ve derin analizlerde madde madde acikla. "
+        "Calisabilir kod ornekleri ekle. Bilmiyorsan acikca belirt."
+    ),
+}
+
+
 
 class OllamaExecutor:
     """Execute prompts on local Ollama models."""
@@ -69,12 +91,16 @@ class OllamaExecutor:
                 def __init__(self, base_url):
                     self._url = base_url.rstrip("/")
 
-                def generate(self, model, prompt, stream=False):
-                    payload = _json.dumps({
+                def generate(self, model, prompt, system=None, keep_alive="5m", stream=False, **kw):
+                    body = {
                         "model": model,
                         "prompt": prompt,
                         "stream": False,
-                    }).encode("utf-8")
+                        "keep_alive": keep_alive,
+                    }
+                    if system:
+                        body["system"] = system
+                    payload = _json.dumps(body).encode("utf-8")
                     req = urllib.request.Request(
                         f"{self._url}/api/generate",
                         data=payload,
@@ -139,14 +165,15 @@ class OllamaExecutor:
                 "error": "L0 local_memory does not require model execution.",
             }
 
-        full_prompt = prompt
+        effective_system = system_prompt or _SYSTEM_PROMPTS.get(level, _SYSTEM_PROMPTS["L2"])
+        full_prompt = prompt  # system native parametre olarak gidecek
         if system_prompt:
             full_prompt = f"{system_prompt}\n\n{prompt}"
 
         t0 = time.monotonic()
         try:
             client = self._get_client()
-            response = client.generate(model=resolved_model, prompt=full_prompt)
+            response = client.generate(model=resolved_model, prompt=full_prompt, system=effective_system, keep_alive="5m")
             latency_ms = int((time.monotonic() - t0) * 1000)
             text = str(response.get("response") or "").strip()
             return {

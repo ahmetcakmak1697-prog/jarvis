@@ -8,7 +8,7 @@ class FakeOllamaClient:
         self.fail = fail
         self.calls = []
 
-    def generate(self, model, prompt, stream=False):
+    def generate(self, model, prompt, system=None, keep_alive=None, stream=False, **kw):
         self.calls.append({"model": model, "prompt": prompt})
         if self.fail:
             raise ConnectionError("Ollama bagli degil.")
