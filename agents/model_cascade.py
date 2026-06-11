@@ -35,14 +35,16 @@ _LEVELS = {
 }
 
 _DEEP_SIGNALS = [
-    "derinlemesine", "detayli", "kapsamli", "analiz et", "rapor hazirla",
-    "arastir", "incele", "karsilastir", "acikla", "neden", "nasil",
-    "deep", "detailed", "comprehensive", "analyze", "research",
+    # Gercekten agir / arastirma gerektiren sinyaller
+    "derinlemesine", "kapsamli", "analiz et", "rapor hazirla",
+    "mimarisi", "tasarim", "karsilastir", "fark nedir",
+    "deep", "comprehensive", "analyze", "architecture", "research",
 ]
 
 _SIMPLE_SIGNALS = [
+    # Selamlama ve tek kelimelik onaylar
     "merhaba", "selam", "hi", "hello", "tamam", "ok", "evet", "hayir",
-    "tesekkur", "sagol", "naber", "nasil", "iyi",
+    "tesekkur", "sagol", "naber", "iyi",
 ]
 
 
