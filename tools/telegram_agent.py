@@ -79,12 +79,15 @@ def telegram_post(method: str, params: dict[str, Any]) -> dict[str, Any]:
         return json.loads(raw)
 
 
-def send_message(chat_id: int | str, text: str) -> None:
-    telegram_post("sendMessage", {
+def send_message(chat_id: int | str, text: str, parse_mode: str | None = None) -> None:
+    payload = {
         "chat_id": str(chat_id),
-        "text": text[:3900],
+        "text": text[:4000],
         "disable_web_page_preview": "true",
-    })
+    }
+    if parse_mode:
+        payload["parse_mode"] = parse_mode
+    telegram_post("sendMessage", payload)
 
 
 def safe_load_json(path: Path, fallback: Any) -> Any:
@@ -1383,36 +1386,16 @@ def handle_ask_command(
         send_fn(chat_id, f"Beklenmeyen hata: {e}")
         return {"ok": False, "reason": "executor_exception", "error": str(e)}
 
-    if result.get("ok"):
-        answer = _sanitize_for_telegram(str(result.get("answer") or ""))
-        source = result.get("source", "?")
-        level = result.get("level", "")
-        latency = result.get("latency_ms", 0)
+    try:
+        from tools.telegram_formatter import format_ask_messages
+        parts = format_ask_messages(result)
+    except Exception as e:
+        parts = [str(result.get("answer") or result.get("error") or f"Hata: {e}")]
 
-        if source == "knowledge_card":
-            prefix = "\U0001f9e0 [Hafiza]"
-        elif source == "cache":
-            prefix = "\u26a1 [Cache]"
-        elif source == "ollama":
-            prefix = f"\U0001f916 [Ollama {level}]"
-        else:
-            prefix = f"[{source}]"
+    for part in parts:
+        send_fn(chat_id, part, parse_mode="HTML")
 
-        msg = f"{prefix} ({latency}ms)\n\n{answer}"
-        send_fn(chat_id, msg)
-        return {"ok": True, "source": source}
-    else:
-        source = result.get("source", "error")
-        if source == "redacted_blocked":
-            msg = "\U0001f6ab Hassas veri tespit edildi. Bu soru disari gonderilemez."
-        elif source == "external_blocked":
-            msg = "\u23f3 Gunluk limit doldu. Yarin tekrar deneyin."
-        elif source == "ollama_error":
-            msg = f"\u274c Ollama hatasi: {result.get('error', 'bilinmeyen')}"
-        else:
-            msg = f"Cevap uretilemiyor. [{source}]"
-        send_fn(chat_id, msg)
-        return {"ok": False, "source": source}
+    return {"ok": result.get("ok", False), "source": result.get("source", "unknown")}
 
 
 def handle_message(message: dict[str, Any]) -> None:
