@@ -184,23 +184,6 @@ class LocalFirstRouter:
                 },
             }
 
-        # 3. Cost ledger gate before external
-        ledger = self._get_ledger()
-        if ledger is not None:
-            gate = ledger.check_and_consume("external_call")
-            if not gate.get("allowed"):
-                return {
-                    "decision": "external_blocked",
-                    "route": "external_blocked",
-                    "confidence": 0,
-                    "reason": f"budget_limit:{gate.get('reason','exceeded')}",
-                    "signals": {
-                        "kc_found": False,
-                        "memory_hits": 0,
-                        "ledger": gate,
-                    },
-                }
-
         # Y4: Redaction gate ? raw secret must not leave the system
         if self._redact_before_external:
             try:
@@ -221,6 +204,23 @@ class LocalFirstRouter:
                     }
             except Exception:
                 pass  # redaction failure = fail open (let through, don't crash)
+
+        # 3. Cost ledger gate before external
+        ledger = self._get_ledger()
+        if ledger is not None:
+            gate = ledger.check_and_consume("external_call")
+            if not gate.get("allowed"):
+                return {
+                    "decision": "external_blocked",
+                    "route": "external_blocked",
+                    "confidence": 0,
+                    "reason": f"budget_limit:{gate.get('reason','exceeded')}",
+                    "signals": {
+                        "kc_found": False,
+                        "memory_hits": 0,
+                        "ledger": gate,
+                    },
+                }
 
         checked = ["knowledge_card", "memory"]
         escalation_reason = "no_local_knowledge:kc=0,memory=0"
