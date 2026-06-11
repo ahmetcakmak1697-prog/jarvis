@@ -1333,6 +1333,88 @@ def cmd_memory() -> str:
     return "Memory dosyalari:\n" + ("\n".join(files) if files else "json dosya yok")
 
 
+def _sanitize_for_telegram(text: str) -> str:
+    """LLM cevabini Telegram icin guvenli hale getir.
+    MarkdownV2 ozel karakterlerini escape et veya plain text don.
+    """
+    if not text:
+        return ""
+    # Uzun cevaplari kirp
+    if len(text) > 3800:
+        text = text[:3800] + "\n\n[cevap kisaltildi]"
+    return text
+
+
+def handle_ask_command(
+    chat_id: int,
+    question: str,
+    executor=None,
+    send_fn=None,
+) -> dict:
+    """
+    /ask komutu icin pure function handler.
+    executor: AssistantExecutor instance
+    send_fn: send_message(chat_id, text) callable
+    """
+    if send_fn is None:
+        send_fn = send_message
+
+    if not question or not question.strip():
+        send_fn(chat_id, "Soru bos. Ornek: /ask Python listede tekrar edenleri nasil bulurum?")
+        return {"ok": False, "reason": "empty_question"}
+
+    if executor is None:
+        try:
+            from agents.assistant_executor import AssistantExecutor
+            from agents.local_first_router import LocalFirstRouter
+            from agents.knowledge_card_store import KnowledgeCardStore
+            from agents.cost_ledger import CostLedger
+            _store = KnowledgeCardStore()
+            _ledger = CostLedger(daily_limit=0)
+            _router = LocalFirstRouter(kc_store=_store, cost_ledger=_ledger)
+            executor = AssistantExecutor(router=_router)
+        except Exception as e:
+            send_fn(chat_id, f"Jarvis baslatma hatasi: {e}")
+            return {"ok": False, "reason": "executor_init_error", "error": str(e)}
+
+    try:
+        result = executor.ask(question)
+    except Exception as e:
+        send_fn(chat_id, f"Beklenmeyen hata: {e}")
+        return {"ok": False, "reason": "executor_exception", "error": str(e)}
+
+    if result.get("ok"):
+        answer = _sanitize_for_telegram(str(result.get("answer") or ""))
+        source = result.get("source", "?")
+        level = result.get("level", "")
+        latency = result.get("latency_ms", 0)
+
+        if source == "knowledge_card":
+            prefix = "\U0001f9e0 [Hafiza]"
+        elif source == "cache":
+            prefix = "\u26a1 [Cache]"
+        elif source == "ollama":
+            prefix = f"\U0001f916 [Ollama {level}]"
+        else:
+            prefix = f"[{source}]"
+
+        msg = f"{prefix} ({latency}ms)\n\n{answer}"
+        send_fn(chat_id, msg)
+        return {"ok": True, "source": source}
+    else:
+        source = result.get("source", "error")
+        if source == "redacted_blocked":
+            msg = "\U0001f6ab Hassas veri tespit edildi. Bu soru disari gonderilemez."
+        elif source == "external_blocked":
+            msg = "\u23f3 Gunluk limit doldu. Yarin tekrar deneyin."
+        elif source == "ollama_error":
+            msg = f"\u274c Ollama hatasi: {result.get('error', 'bilinmeyen')}"
+        else:
+            msg = f"Cevap uretilemiyor. [{source}]"
+        send_fn(chat_id, msg)
+        return {"ok": False, "source": source}
+
+
 def handle_message(message: dict[str, Any]) -> None:
     chat = message.get("chat") or {}
     sender = message.get("from") or {}
@@ -1345,6 +1427,11 @@ def handle_message(message: dict[str, Any]) -> None:
 
     if not is_allowed(user_id, text):
         send_message(chat_id, "Yetkisiz kullanici. /whoami ile ID al, sonra allowlist'e ekle.")
+        return
+
+    if text.startswith("/ask"):
+        question = text[4:].strip()
+        handle_ask_command(chat_id=chat_id, question=question)
         return
 
     if text.startswith("/whoami"):
