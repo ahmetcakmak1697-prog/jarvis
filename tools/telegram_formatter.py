@@ -22,6 +22,7 @@ _SOURCE_LABELS = {
     "redacted_blocked": "Guvenlik",
     "external_blocked": "Limit",
     "ollama_error": "Hata",
+    "quick_reply": "Jarvis",
 }
 
 

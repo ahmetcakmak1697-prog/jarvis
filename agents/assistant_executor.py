@@ -22,6 +22,28 @@ from __future__ import annotations
 import time
 from typing import Any
 
+def _fold_tr(s: str) -> str:
+    return (
+        str(s or "").strip().lower()
+        .replace("\u0131", "i").replace("\u011f", "g")
+        .replace("\u00fc", "u").replace("\u015f", "s")
+        .replace("\u00f6", "o").replace("\u00e7", "c")
+    )
+
+_QUICK_REPLIES: dict[str, str] = {
+    "merhaba": "Buradayim efendim.",
+    "selam": "Buradayim efendim.",
+    "selamlar": "Buradayim efendim.",
+    "hey": "Buradayim efendim.",
+    "naber": "Hazir efendim.",
+    "nasilsin": "Sistemler nominal efendim.",
+    "tamam": "Tamamdir.",
+    "ok": "Tamamdir.",
+    "tesekkur": "Rica ederim efendim.",
+    "tesekkurler": "Rica ederim efendim.",
+    "iyi": "Tamamdir.",
+}
+
 _LOCAL_ROUTES = {"knowledge_card", "memory", "cache"}
 _BLOCKED_DECISIONS = {"redacted_blocked", "external_blocked"}
 
@@ -67,6 +89,23 @@ class AssistantExecutor:
             ok=False + error + source                 on failure
         """
         t0 = time.monotonic()
+
+        # Quick reply: deterministic, model cagirmaz
+        qkey = _fold_tr(question).strip(" .!?")
+        if qkey in _QUICK_REPLIES:
+            return {
+                "ok": True,
+                "answer": _QUICK_REPLIES[qkey],
+                "source": "quick_reply",
+                "router_decision": {
+                    "decision": "answer_local",
+                    "route": "quick_reply",
+                    "confidence": 100,
+                    "reason": "deterministic_quick_reply",
+                    "signals": {"quick_reply": True},
+                },
+                "latency_ms": int((time.monotonic() - t0) * 1000),
+            }
 
         router = self._get_router()
         rd = router.route(question)
