@@ -50,6 +50,13 @@ _SYSTEM_PROMPTS = {
     ),
 }
 
+_LEVEL_OPTIONS = {
+    "L1": {"temperature": 0.2, "num_predict": 80},
+    "L2": {"temperature": 0.2, "num_predict": 350},
+    "L3": {"temperature": 0.3, "num_predict": 900},
+}
+
+
 
 
 class OllamaExecutor:
@@ -173,7 +180,8 @@ class OllamaExecutor:
         t0 = time.monotonic()
         try:
             client = self._get_client()
-            response = client.generate(model=resolved_model, prompt=full_prompt, system=effective_system, keep_alive="5m")
+            effective_options = _LEVEL_OPTIONS.get(level, _LEVEL_OPTIONS["L2"])
+            response = client.generate(model=resolved_model, prompt=full_prompt, system=effective_system, keep_alive="5m", options=effective_options)
             latency_ms = int((time.monotonic() - t0) * 1000)
             text = str(response.get("response") or "").strip()
             return {
