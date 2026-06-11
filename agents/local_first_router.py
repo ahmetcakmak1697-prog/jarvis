@@ -156,6 +156,7 @@ class LocalFirstRouter:
                 "route": "knowledge_card",
                 "confidence": confidence,
                 "reason": f"knowledge_card_match:score={score}",
+                "answer": kc_result.get("answer"),
                 "signals": {
                     "kc_found": True,
                     "kc_score": score,

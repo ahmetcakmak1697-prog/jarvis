@@ -2,6 +2,11 @@
 from __future__ import annotations
 
 
+class FakeLedgerAllow:
+    def check_and_consume(self, *a, **kw):
+        return {"allowed": True, "reason": "within_limit"}
+
+
 class FakeVectorMemory:
     def __init__(self, hits=None):
         self.hits = hits or []
@@ -20,7 +25,7 @@ def _router(kc_store=None, vector_memory=None, tmp_path=None):
         tmp_path = Path(tempfile.mkdtemp())
     from agents.knowledge_card_store import KnowledgeCardStore
     store = kc_store or KnowledgeCardStore(data_root=tmp_path)
-    return LocalFirstRouter(kc_store=store, vector_memory=vector_memory)
+    return LocalFirstRouter(kc_store=store, vector_memory=vector_memory, cost_ledger=FakeLedgerAllow())
 
 
 def test_memory_hit_routes_local(tmp_path):

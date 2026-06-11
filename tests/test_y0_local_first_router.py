@@ -2,9 +2,15 @@
 from __future__ import annotations
 
 
+class _FakeLedger:
+    def check_and_consume(self, *a, **kw):
+        return {"allowed": True, "reason": "within_limit"}
+
+
+
 def test_router_returns_required_fields():
     from agents.local_first_router import LocalFirstRouter
-    r = LocalFirstRouter()
+    r = LocalFirstRouter(cost_ledger=_FakeLedger())
     result = r.route("RTX 3070 kac watt?")
     assert "decision" in result
     assert "route" in result
@@ -15,16 +21,16 @@ def test_router_returns_required_fields():
 
 def test_decision_values_valid():
     from agents.local_first_router import LocalFirstRouter
-    r = LocalFirstRouter()
+    r = LocalFirstRouter(cost_ledger=_FakeLedger())
     result = r.route("herhangi bir soru")
-    assert result["decision"] in ("answer_local", "ask_external", "clarify", "no_answer")
+    assert result["decision"] in ("answer_local", "ask_external", "clarify", "no_answer", "external_blocked")
 
 
 def test_route_values_valid():
     from agents.local_first_router import LocalFirstRouter
-    r = LocalFirstRouter()
+    r = LocalFirstRouter(cost_ledger=_FakeLedger())
     result = r.route("herhangi bir soru")
-    assert result["route"] in ("knowledge_card", "memory", "external", "clarify")
+    assert result["route"] in ("knowledge_card", "memory", "external", "clarify", "external_blocked", "cache")
 
 
 def test_known_card_routes_local(tmp_path):
@@ -41,7 +47,7 @@ def test_known_card_routes_local(tmp_path):
     store.mark_approved(card["id"])
     store.mark_stored(card["id"], vector_doc_id="vec_001")
 
-    r = LocalFirstRouter(kc_store=store)
+    r = LocalFirstRouter(kc_store=store, cost_ledger=_FakeLedger())
     result = r.route("RTX 3070 kac watt?")
     assert result["decision"] == "answer_local"
     assert result["route"] == "knowledge_card"
@@ -55,7 +61,7 @@ def test_unknown_question_routes_external():
 
     with tempfile.TemporaryDirectory() as td:
         store = KnowledgeCardStore(data_root=Path(td))
-        r = LocalFirstRouter(kc_store=store)
+        r = LocalFirstRouter(kc_store=store, cost_ledger=_FakeLedger())
         result = r.route("tamamen bilinmeyen ve cok ozel bir soru xyz123")
         assert result["decision"] == "ask_external"
         assert result["route"] == "external"
@@ -63,7 +69,7 @@ def test_unknown_question_routes_external():
 
 def test_confidence_is_int_or_float():
     from agents.local_first_router import LocalFirstRouter
-    r = LocalFirstRouter()
+    r = LocalFirstRouter(cost_ledger=_FakeLedger())
     result = r.route("test sorusu")
     assert isinstance(result["confidence"], (int, float))
     assert 0 <= result["confidence"] <= 100
@@ -75,7 +81,7 @@ def test_no_side_effects(tmp_path):
     import os
     store = KnowledgeCardStore(data_root=tmp_path)
     before = set(os.listdir(tmp_path))
-    r = LocalFirstRouter(kc_store=store)
+    r = LocalFirstRouter(kc_store=store, cost_ledger=_FakeLedger())
     r.route("test")
     after = set(os.listdir(tmp_path))
     assert before == after

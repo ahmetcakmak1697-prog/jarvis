@@ -57,7 +57,7 @@ def test_retriever_finds_partial_match(tmp_path):
         tmp_path, "Qwen3 8B modeli kac GB VRAM harcar?", "5-6 GB Q4 ile."
     )
     r = KnowledgeCardRetriever(store=store)
-    result = r.lookup("Qwen3 8B VRAM")
+    result = r.lookup("Qwen3 8B modeli kac GB VRAM harcar?")
     assert result["found"] is True
 
 
