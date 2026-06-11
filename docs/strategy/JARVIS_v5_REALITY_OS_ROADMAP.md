@@ -242,6 +242,7 @@ Akış: pahalı modelden (L6) kaliteli cevap al → özet + kaynak + yapısal bi
 - ✅ Y4 Redaction-before-external gate (RedactionGuard entegrasyonu, fail-open)
 - 🟧 Y5 Cost/latency/quality telemetry (per-call) — siradaki
 - ⬜ Y6 **RouteLLM** kalite-bazlı yönlendirme (ucuz model yetiyor mu? otomatik karar)
+- ⬜ P1 **assistant_persona.py** ? JARVIS karakter motoru: kisilik, hitap tarzi, bringi/espri katmani, seviye bazli ton (L1 kisa/rahat, L2 teknik/net, L3 resmi/analitik), kullanici profili injection. Film JARVIS hissi icin.
 - 🟡 Borrow: LiteLLM (gateway), RouteLLM (routing), OpenRouter (strateji)
 
 > **Model cascade adayları (kilit DEĞİL — G1 ile test edilecek):**
