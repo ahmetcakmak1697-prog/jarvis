@@ -36,7 +36,7 @@ _LEVELS = {
 
 _DEEP_SIGNALS = [
     # Gercekten agir / arastirma gerektiren sinyaller
-    "derinlemesine", "kapsamli", "analiz et", "rapor hazirla",
+    "derinlemesine", "kapsamli", "analiz et", "rapor hazirla", "tasarla",
     "mimarisi", "tasarim", "karsilastir", "fark nedir",
     "deep", "comprehensive", "analyze", "architecture", "research",
 ]
