@@ -66,6 +66,23 @@ class AssistantExecutor:
         self._executor = executor
         self._ollama_url = ollama_url
 
+    def _log_telemetry(self, result: dict, question: str) -> None:
+        try:
+            from agents.telemetry_event_store import TelemetryEventStore
+            store = TelemetryEventStore()
+            store.log_ask(
+                source=str(result.get("source") or "unknown"),
+                level=result.get("level"),
+                model=result.get("model"),
+                ok=bool(result.get("ok")),
+                blocked=bool(result.get("blocked")),
+                latency_ms=int(result.get("latency_ms") or 0),
+                answer_chars=len(str(result.get("answer") or "")),
+                question=question,
+            )
+        except Exception:
+            pass  # telemetry failure must never break the main flow
+
     def _get_router(self):
         if self._router is not None:
             return self._router
@@ -81,6 +98,11 @@ class AssistantExecutor:
         return self._executor
 
     def ask(self, question: str) -> dict[str, Any]:
+        result = self._ask_inner(question)
+        self._log_telemetry(result, question)
+        return result
+
+    def _ask_inner(self, question: str) -> dict[str, Any]:
         """Route question and return unified response dict.
 
         Returns:
