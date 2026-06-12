@@ -176,6 +176,7 @@ class LocalFirstRouter:
                 "route": "memory",
                 "confidence": confidence,
                 "reason": f"memory_recall:priority={priority:.3f}",
+                "answer": str(top.get("jarvis_msg") or top.get("document") or top.get("text") or ""),
                 "signals": {
                     "kc_found": False,
                     "memory_hits": len(vm_hits),
