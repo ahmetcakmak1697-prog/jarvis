@@ -164,7 +164,14 @@ class OllamaExecutor:
         Returns:
             {ok, text, model, level, latency_ms, error?}
         """
-        resolved_model = model or self.level_to_model(level) or "local_main"
+        resolved_model = model or self.level_to_model(level)
+        if not resolved_model or resolved_model == "local_main":
+            # L4+ veya bilinmeyen level icin varsayilan L2 modeli kullan
+            from agents.model_registry import ModelRegistry
+            try:
+                resolved_model = ModelRegistry().local_main()
+            except Exception:
+                resolved_model = "mistral-nemo:latest"
 
         if dry_run:
             return {
