@@ -159,5 +159,70 @@ def test_l4_requires_premium_gate_and_does_not_call_api():
 
     assert result["ok"] is False
     assert result["text"] is None
-    assert "Unknown API provider" in result["error"]
+    assert "premium" in result["error"].lower()
+    assert client.calls == []
+
+def test_sensitive_privacy_levels_are_declared():
+    from agents.api_executor import SENSITIVE_PRIVACY_LEVELS
+
+    assert "WORK_INTERNAL" in SENSITIVE_PRIVACY_LEVELS
+    assert "LEGAL_CONFIDENTIAL" in SENSITIVE_PRIVACY_LEVELS
+    assert "FINANCIAL_PRIVATE" in SENSITIVE_PRIVACY_LEVELS
+    assert "SECRETS" in SENSITIVE_PRIVACY_LEVELS
+
+
+def test_provider_config_validation_passes_for_defaults():
+    from agents.api_executor import APIExecutor
+
+    ex = APIExecutor(client=FakeLiteLLMClient())
+    result = ex.validate_provider_config()
+
+    assert result["ok"] is True
+    assert result["errors"] == []
+
+
+def test_provider_config_validation_detects_bad_cost_gate():
+    from agents.api_executor import APIExecutor, APIProvider
+
+    bad_provider = APIProvider(
+        name="bad",
+        provider="bad",
+        model="bad-model",
+        role="bad-role",
+        allowed_privacy=("PUBLIC",),
+        cost_gate="PURPLE",
+    )
+    ex = APIExecutor(
+        client=FakeLiteLLMClient(),
+        provider_config={"bad": bad_provider},
+    )
+
+    result = ex.validate_provider_config()
+
+    assert result["ok"] is False
+    assert any("cost_gate" in err for err in result["errors"])
+
+
+def test_max_calls_per_request_must_be_positive():
+    from agents.api_executor import APIExecutor
+
+    client = FakeLiteLLMClient()
+    ex = APIExecutor(client=client, max_calls_per_request=0)
+    result = run(ex.generate("Soru?", provider="deepseek_v4_flash"))
+
+    assert result["ok"] is False
+    assert "max_calls_per_request" in result["error"]
+    assert client.calls == []
+
+
+def test_l4_level_is_blocked_by_premium_gate():
+    from agents.api_executor import APIExecutor
+
+    client = FakeLiteLLMClient()
+    ex = APIExecutor(client=client)
+    result = run(ex.generate("En guclu modele tasinmasi gereken analiz", level="L4"))
+
+    assert result["ok"] is False
+    assert result["text"] is None
+    assert "premium" in result["error"].lower()
     assert client.calls == []

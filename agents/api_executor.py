@@ -22,6 +22,28 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 
+PRIVACY_LEVELS = (
+    "PUBLIC",
+    "REDACTED_LOW_RISK",
+    "PERSONAL_REDACTED",
+    "TECHNICAL",
+    "CODE",
+    "WORK_INTERNAL",
+    "LEGAL_CONFIDENTIAL",
+    "FINANCIAL_PRIVATE",
+    "SECRETS",
+)
+
+SENSITIVE_PRIVACY_LEVELS = (
+    "WORK_INTERNAL",
+    "LEGAL_CONFIDENTIAL",
+    "FINANCIAL_PRIVATE",
+    "SECRETS",
+)
+
+COST_GATES = ("GREEN", "YELLOW", "RED")
+
+
 @dataclass(frozen=True)
 class APIProvider:
     """External provider policy/config entry."""
@@ -101,6 +123,42 @@ class APIExecutor:
         """Return a copy of provider configuration."""
         return dict(self._providers)
 
+    def validate_provider_config(self) -> dict[str, Any]:
+        """Validate provider policy/config entries without making API calls."""
+        errors: list[str] = []
+
+        for key, provider in self._providers.items():
+            if not isinstance(provider, APIProvider):
+                errors.append(f"{key}: provider config must be APIProvider")
+                continue
+
+            if provider.name != key:
+                errors.append(f"{key}: provider.name must match config key")
+
+            if not provider.provider:
+                errors.append(f"{key}: provider is required")
+
+            if not provider.model:
+                errors.append(f"{key}: model is required")
+
+            if not provider.role:
+                errors.append(f"{key}: role is required")
+
+            if provider.cost_gate not in COST_GATES:
+                errors.append(f"{key}: invalid cost_gate {provider.cost_gate!r}")
+
+            if not provider.allowed_privacy:
+                errors.append(f"{key}: allowed_privacy cannot be empty")
+
+            for privacy in provider.allowed_privacy:
+                if privacy not in PRIVACY_LEVELS:
+                    errors.append(f"{key}: unknown privacy level {privacy!r}")
+
+            if provider.cost_gate == "GREEN" and "SECRETS" in provider.allowed_privacy:
+                errors.append(f"{key}: GREEN provider cannot allow SECRETS")
+
+        return {"ok": not errors, "errors": errors}
+
     def level_to_provider(self, level: str) -> str | None:
         """Map cascade level to an external provider key."""
         return _LEVEL_PROVIDER_MAP.get(str(level or "").upper(), self._default_provider)
@@ -129,6 +187,20 @@ class APIExecutor:
         Returns:
             {ok, text, model, provider, level, latency_ms, cost_estimate, error?}
         """
+        route_key = provider or self.level_to_provider(level) or self._default_provider
+
+        if route_key == "premium_gate_required":
+            return {
+                "ok": False,
+                "text": None,
+                "model": model,
+                "provider": route_key,
+                "level": level,
+                "latency_ms": 0,
+                "cost_estimate": None,
+                "error": "Premium gate required for this level; explicit user approval is required.",
+            }
+
         resolved_provider = self.resolve_provider(provider=provider, level=level)
         resolved_model = model or (resolved_provider.model if resolved_provider else None)
         provider_name = resolved_provider.name if resolved_provider else provider
@@ -143,6 +215,18 @@ class APIExecutor:
                 "latency_ms": 0,
                 "cost_estimate": None,
                 "error": f"Unknown API provider for level={level!r} provider={provider!r}",
+            }
+
+        if self._max_calls_per_request < 1:
+            return {
+                "ok": False,
+                "text": None,
+                "model": resolved_model,
+                "provider": resolved_provider.name,
+                "level": level,
+                "latency_ms": 0,
+                "cost_estimate": None,
+                "error": "max_calls_per_request must be >= 1",
             }
 
         privacy = str(privacy_level or "PUBLIC").upper()
