@@ -21,3 +21,4 @@ wikipedia
 ddgs
 
 python-dotenv>=1.0.0
+litellm==1.89.0
