@@ -44,7 +44,8 @@ class ExecutorRegistry:
 
     def _make_api_executor(self) -> Any:
         from agents.api_executor import APIExecutor
-        return APIExecutor()
+        from agents.api_executor_adapter import APIExecutorSyncAdapter
+        return APIExecutorSyncAdapter(api_executor=APIExecutor())
 
     def available_keys(self) -> list[str]:
         return sorted(set(self._executors) | set(self._factories))

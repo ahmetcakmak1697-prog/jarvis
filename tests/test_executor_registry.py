@@ -91,3 +91,13 @@ def test_registry_execution_order_deduplicates_same_fallback():
     order = registry.execution_order(decision)
 
     assert order == ["ollama"]
+
+
+def test_registry_default_api_factory_returns_sync_adapter():
+    from agents.api_executor_adapter import APIExecutorSyncAdapter
+
+    registry = ExecutorRegistry()
+    api = registry.get("api")
+
+    assert isinstance(api, APIExecutorSyncAdapter)
+    assert hasattr(api, "generate")
