@@ -144,6 +144,34 @@ def test_result_has_required_fields():
         assert field in result, f"{field} eksik"
 
 
+
+class AllowingAPIBudgetGate:
+    def __init__(self):
+        self.calls = []
+
+    def check_and_consume(self, **kwargs):
+        self.calls.append(kwargs)
+        return {"allowed": True, "reason": "within_limit", **kwargs}
+
+
+class DenyingAPIBudgetGate:
+    def __init__(self, reason="daily_limit_exceeded"):
+        self.reason = reason
+        self.calls = []
+
+    def check_and_consume(self, **kwargs):
+        self.calls.append(kwargs)
+        return {"allowed": False, "reason": self.reason, **kwargs}
+
+
+class RaisingAPIBudgetGate:
+    def __init__(self):
+        self.calls = []
+
+    def check_and_consume(self, **kwargs):
+        self.calls.append(kwargs)
+        raise RuntimeError("budget gate exploded")
+
 class FakeExecutionPolicy:
     def __init__(self, decision):
         self._decision = decision
@@ -282,7 +310,12 @@ def test_assistant_executor_with_real_policy_can_route_l3_to_api():
     })
     policy = ExecutionPolicy(cloud_api_enabled=True, cloud_levels={"L3"})
 
-    ex = AssistantExecutor(router=router, execution_policy=policy, executor_registry=registry)
+    ex = AssistantExecutor(
+        router=router,
+        execution_policy=policy,
+        executor_registry=registry,
+        api_budget_gate=AllowingAPIBudgetGate(),
+    )
     result = ex.ask("Derin analiz yap.")
 
     assert result["ok"] is True
@@ -343,3 +376,106 @@ def test_assistant_executor_real_policy_l4_premium_gate_skips_registry():
     assert result["source"] == "premium_gate"
     assert result["execution_decision"]["requires_approval"] is True
     assert registry.get_calls == []
+
+
+def test_assistant_executor_missing_api_budget_gate_blocks_api_and_falls_back():
+    from agents.assistant_executor import AssistantExecutor
+    from agents.execution_policy import ExecutionPolicy
+
+    api_exec = FakeExecutor(text="API calismamali.")
+    ollama_exec = FakeExecutor(text="Budget gate yok, local fallback.")
+    registry = FakeExecutorRegistry(
+        {"api": api_exec, "ollama": ollama_exec},
+        order=["api", "ollama"],
+    )
+    router = FakeRouter({
+        "decision": "ask_external",
+        "route": "external",
+        "confidence": 60,
+        "reason": "no_local_knowledge",
+        "cascade": {"level": "L3", "model": "m", "cost_tier": "moderate"},
+        "signals": {},
+    })
+    policy = ExecutionPolicy(cloud_api_enabled=True, cloud_levels={"L3"})
+
+    ex = AssistantExecutor(router=router, execution_policy=policy, executor_registry=registry)
+    result = ex.ask("Derin analiz yap.")
+
+    assert result["ok"] is True
+    assert result["source"] == "ollama"
+    assert result["answer"] == "Budget gate yok, local fallback."
+    assert result["primary_failed_executor"] == "api"
+    assert api_exec.calls == []
+    assert len(ollama_exec.calls) == 1
+
+
+def test_assistant_executor_denied_api_budget_falls_back_without_api_call():
+    from agents.assistant_executor import AssistantExecutor
+    from agents.execution_policy import ExecutionPolicy
+
+    api_exec = FakeExecutor(text="API calismamali.")
+    ollama_exec = FakeExecutor(text="Budget denied fallback.")
+    budget_gate = DenyingAPIBudgetGate()
+    registry = FakeExecutorRegistry(
+        {"api": api_exec, "ollama": ollama_exec},
+        order=["api", "ollama"],
+    )
+    router = FakeRouter({
+        "decision": "ask_external",
+        "route": "external",
+        "confidence": 60,
+        "reason": "no_local_knowledge",
+        "cascade": {"level": "L3", "model": "m", "cost_tier": "moderate"},
+        "signals": {},
+    })
+    policy = ExecutionPolicy(cloud_api_enabled=True, cloud_levels={"L3"})
+
+    ex = AssistantExecutor(
+        router=router,
+        execution_policy=policy,
+        executor_registry=registry,
+        api_budget_gate=budget_gate,
+    )
+    result = ex.ask("Derin analiz yap.")
+
+    assert result["ok"] is True
+    assert result["source"] == "ollama"
+    assert result["primary_failed_executor"] == "api"
+    assert api_exec.calls == []
+    assert budget_gate.calls == [{"provider": "api", "level": "L3"}]
+
+
+def test_assistant_executor_budget_gate_exception_falls_back_without_api_call():
+    from agents.assistant_executor import AssistantExecutor
+    from agents.execution_policy import ExecutionPolicy
+
+    api_exec = FakeExecutor(text="API calismamali.")
+    ollama_exec = FakeExecutor(text="Budget exception fallback.")
+    budget_gate = RaisingAPIBudgetGate()
+    registry = FakeExecutorRegistry(
+        {"api": api_exec, "ollama": ollama_exec},
+        order=["api", "ollama"],
+    )
+    router = FakeRouter({
+        "decision": "ask_external",
+        "route": "external",
+        "confidence": 60,
+        "reason": "no_local_knowledge",
+        "cascade": {"level": "L3", "model": "m", "cost_tier": "moderate"},
+        "signals": {},
+    })
+    policy = ExecutionPolicy(cloud_api_enabled=True, cloud_levels={"L3"})
+
+    ex = AssistantExecutor(
+        router=router,
+        execution_policy=policy,
+        executor_registry=registry,
+        api_budget_gate=budget_gate,
+    )
+    result = ex.ask("Derin analiz yap.")
+
+    assert result["ok"] is True
+    assert result["source"] == "ollama"
+    assert result["primary_failed_executor"] == "api"
+    assert api_exec.calls == []
+    assert budget_gate.calls == [{"provider": "api", "level": "L3"}]

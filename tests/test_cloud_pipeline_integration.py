@@ -9,6 +9,7 @@ These tests use real Jarvis orchestration classes and mock only network edges:
 - real APIExecutorSyncAdapter
 - mocked LiteLLM-style API client
 - mocked local Ollama execution edge
+- explicit test-only API budget gate
 """
 from __future__ import annotations
 
@@ -32,6 +33,17 @@ class FakeLiteLLMClient:
                 }
             ]
         }
+
+
+class AllowingAPIBudgetGate:
+    """Test-only budget gate. Must never move into agents/ production code."""
+
+    def __init__(self):
+        self.calls = []
+
+    def check_and_consume(self, **kwargs):
+        self.calls.append(kwargs)
+        return {"allowed": True, "reason": "within_limit", **kwargs}
 
 
 class LocalFallbackExecutor:
@@ -80,12 +92,14 @@ def test_real_pipeline_routes_l3_cloud_to_api_without_network():
 
     api_client = FakeLiteLLMClient(text="Bulut API entegrasyon cevabi.")
     local_executor = LocalFallbackExecutor(text="Bu cevap kullanilmamali.")
+    budget_gate = AllowingAPIBudgetGate()
     registry = _build_cloud_executor(api_client, local_executor)
 
     executor = AssistantExecutor(
         router=LocalFirstRouter(),
         execution_policy=ExecutionPolicy(cloud_api_enabled=True, cloud_levels={"L3"}),
         executor_registry=registry,
+        api_budget_gate=budget_gate,
     )
 
     result = executor.ask(_integration_question())
@@ -97,7 +111,9 @@ def test_real_pipeline_routes_l3_cloud_to_api_without_network():
     assert result["execution_decision"]["destination"] == "cloud_api"
     assert result["execution_decision"]["primary_executor"] == "api"
     assert result["execution_decision"]["fallback_executor"] == "ollama"
+    assert result["api_budget_gate"]["allowed"] is True
     assert len(api_client.calls) == 1
+    assert budget_gate.calls == [{"provider": "api", "level": "L3"}]
     assert local_executor.calls == []
 
 
@@ -108,12 +124,14 @@ def test_real_pipeline_api_timeout_falls_back_to_local_without_crashing():
 
     api_client = FakeLiteLLMClient(raise_exc=TimeoutError("simulated provider timeout"))
     local_executor = LocalFallbackExecutor(text="API timeout sonrasi yerel cevap.")
+    budget_gate = AllowingAPIBudgetGate()
     registry = _build_cloud_executor(api_client, local_executor)
 
     executor = AssistantExecutor(
         router=LocalFirstRouter(),
         execution_policy=ExecutionPolicy(cloud_api_enabled=True, cloud_levels={"L3"}),
         executor_registry=registry,
+        api_budget_gate=budget_gate,
     )
 
     result = executor.ask(_integration_question())
@@ -125,4 +143,5 @@ def test_real_pipeline_api_timeout_falls_back_to_local_without_crashing():
     assert result["primary_failed_executor"] == "api"
     assert result["execution_decision"]["destination"] == "cloud_api"
     assert len(api_client.calls) == 1
+    assert budget_gate.calls == [{"provider": "api", "level": "L3"}]
     assert len(local_executor.calls) == 1

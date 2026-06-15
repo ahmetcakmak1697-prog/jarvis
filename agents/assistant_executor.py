@@ -63,12 +63,14 @@ class AssistantExecutor:
         ollama_url: str | None = None,
         execution_policy=None,
         executor_registry=None,
+        api_budget_gate=None,
     ) -> None:
         self._router = router
         self._executor = executor
         self._ollama_url = ollama_url
         self._execution_policy = execution_policy
         self._executor_registry = executor_registry
+        self._api_budget_gate = api_budget_gate
 
     def _log_telemetry(self, result: dict, question: str) -> None:
         try:
@@ -125,6 +127,25 @@ class AssistantExecutor:
             ollama_url=self._ollama_url,
         )
         return self._executor_registry
+
+    def _check_api_budget(self, *, provider: str | None = None, level: str | None = None) -> dict[str, Any]:
+        if self._api_budget_gate is None:
+            return {
+                "allowed": False,
+                "reason": "missing_api_budget_gate",
+                "provider": provider,
+                "level": level,
+            }
+        try:
+            return self._api_budget_gate.check_and_consume(provider=provider, level=level)
+        except Exception as exc:
+            return {
+                "allowed": False,
+                "reason": "budget_gate_error",
+                "provider": provider,
+                "level": level,
+                "error": str(exc),
+            }
 
     def ask(self, question: str) -> dict[str, Any]:
         result = self._ask_inner(question)
@@ -227,6 +248,16 @@ class AssistantExecutor:
                     last_source = f"{executor_key}_lookup_error"
                     continue
 
+                api_budget_gate = None
+                if str(executor_key) == "api":
+                    api_budget_gate = self._check_api_budget(provider=str(executor_key), level=level)
+                    if not api_budget_gate.get("allowed"):
+                        if primary_failed_executor is None:
+                            primary_failed_executor = str(executor_key)
+                        last_error = f"API budget blocked: {api_budget_gate.get('reason', 'denied')}"
+                        last_source = "api_budget_blocked"
+                        continue
+
                 try:
                     exec_result = executor.generate(question, level=level)
                 except Exception as exc:
@@ -257,6 +288,8 @@ class AssistantExecutor:
                         response["ollama_latency_ms"] = exec_result.get("latency_ms")
                     else:
                         response[f"{executor_key}_latency_ms"] = exec_result.get("latency_ms")
+                    if executor_key == "api" and api_budget_gate is not None:
+                        response["api_budget_gate"] = api_budget_gate
                     if primary_failed_executor:
                         response["primary_failed_executor"] = primary_failed_executor
                     return response
