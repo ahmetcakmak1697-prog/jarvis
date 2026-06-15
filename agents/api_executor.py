@@ -115,7 +115,7 @@ class APIExecutor:
         provider_config: Mapping[str, APIProvider] | None = None,
         config_path: str | Path | None = None,
         default_provider: str = "deepseek_v4_flash",
-        timeout_s: float = 30.0,
+        timeout_s: float = 15.0,
         max_calls_per_request: int = 1,
     ) -> None:
         self._client = client
@@ -270,6 +270,16 @@ class APIExecutor:
             return None
         return self._providers.get(key)
 
+    def _effective_timeout_s(self) -> float | None:
+        """Return validated timeout in seconds, or None if invalid."""
+        try:
+            value = float(self._timeout_s)
+        except (TypeError, ValueError):
+            return None
+        if value <= 0:
+            return None
+        return value
+
     def _resolve_api_key(self, provider: APIProvider) -> str | None:
         """Resolve provider API key from environment without storing secrets."""
         if not provider.api_key_env:
@@ -343,6 +353,19 @@ class APIExecutor:
                 "error": f"Unknown API provider for level={level!r} provider={provider!r}",
             }
 
+        effective_timeout_s = self._effective_timeout_s()
+        if effective_timeout_s is None:
+            return {
+                "ok": False,
+                "text": None,
+                "model": resolved_model,
+                "provider": resolved_provider.name,
+                "level": level,
+                "latency_ms": 0,
+                "cost_estimate": None,
+                "error": "timeout_s must be a positive number",
+            }
+
         if self._max_calls_per_request < 1:
             return {
                 "ok": False,
@@ -413,7 +436,7 @@ class APIExecutor:
             call_kwargs = {
                 "model": resolved_model,
                 "messages": messages,
-                "timeout": self._timeout_s,
+                "timeout": effective_timeout_s,
                 "extra_headers": headers or None,
                 "drop_params": True,
                 "metadata": {

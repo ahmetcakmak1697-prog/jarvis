@@ -492,3 +492,66 @@ def test_provider_exception_error_is_sanitized(monkeypatch):
     assert "api_key=" not in result["error"]
     assert "Bearer" not in result["error"]
     assert "https://api.commandcode.ai" not in result["error"]
+
+
+def test_default_timeout_is_15_seconds():
+    from agents.api_executor import APIExecutor
+
+    client = FakeLiteLLMClient()
+    ex = APIExecutor(client=client)
+
+    result = run(ex.generate("Soru?", provider="deepseek_v4_flash"))
+
+    assert result["ok"] is True
+    assert client.calls[0]["timeout"] == 15.0
+
+
+def test_custom_timeout_is_sent_to_client():
+    from agents.api_executor import APIExecutor
+
+    client = FakeLiteLLMClient()
+    ex = APIExecutor(client=client, timeout_s=7.5)
+
+    result = run(ex.generate("Soru?", provider="deepseek_v4_flash"))
+
+    assert result["ok"] is True
+    assert client.calls[0]["timeout"] == 7.5
+
+
+def test_invalid_timeout_fails_before_client_call():
+    from agents.api_executor import APIExecutor
+
+    client = FakeLiteLLMClient()
+    ex = APIExecutor(client=client, timeout_s=0)
+
+    result = run(ex.generate("Soru?", provider="deepseek_v4_flash"))
+
+    assert result["ok"] is False
+    assert "timeout_s" in result["error"]
+    assert client.calls == []
+
+
+def test_negative_timeout_fails_before_client_call():
+    from agents.api_executor import APIExecutor
+
+    client = FakeLiteLLMClient()
+    ex = APIExecutor(client=client, timeout_s=-1)
+
+    result = run(ex.generate("Soru?", provider="deepseek_v4_flash"))
+
+    assert result["ok"] is False
+    assert "timeout_s" in result["error"]
+    assert client.calls == []
+
+
+def test_none_timeout_fails_before_client_call():
+    from agents.api_executor import APIExecutor
+
+    client = FakeLiteLLMClient()
+    ex = APIExecutor(client=client, timeout_s=None)
+
+    result = run(ex.generate("Soru?", provider="deepseek_v4_flash"))
+
+    assert result["ok"] is False
+    assert "timeout_s" in result["error"]
+    assert client.calls == []
