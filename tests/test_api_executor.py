@@ -318,3 +318,59 @@ def test_provider_base_url_is_sent_to_client():
 
     assert result["ok"] is True
     assert client.calls[0]["api_base"] == "https://api.commandcode.ai/provider/v1"
+
+
+def test_api_providers_example_json_loads_and_validates():
+    from pathlib import Path
+    from agents.api_executor import APIExecutor
+
+    config_path = Path("config/api_providers.example.json")
+    assert config_path.exists()
+
+    ex = APIExecutor(client=FakeLiteLLMClient(), config_path=config_path)
+    result = ex.validate_provider_config()
+    providers = ex.providers()
+
+    assert result["ok"] is True
+    assert result["errors"] == []
+    assert "gemini_flash_free" in providers
+    assert "deepseek_v4_flash" in providers
+    assert "commandcode_provider" in providers
+    assert providers["commandcode_provider"].base_url == "https://api.commandcode.ai/provider/v1"
+    assert providers["commandcode_provider"].api_key_env == "COMMANDCODE_API_KEY"
+
+
+def test_provider_api_key_env_is_resolved_and_sent_to_client(monkeypatch):
+    from agents.api_executor import APIExecutor, APIProvider
+
+    monkeypatch.setenv("COMMANDCODE_API_KEY", "test-commandcode-key")
+    client = FakeLiteLLMClient()
+    provider = APIProvider(
+        name="commandcode_provider",
+        provider="openai_compatible",
+        model="commandcode/deepseek-v4-pro",
+        role="coding_provider",
+        allowed_privacy=("PUBLIC", "TECHNICAL", "CODE"),
+        cost_gate="YELLOW",
+        base_url="https://api.commandcode.ai/provider/v1",
+        api_key_env="COMMANDCODE_API_KEY",
+    )
+    ex = APIExecutor(client=client, provider_config={"commandcode_provider": provider})
+
+    result = run(ex.generate("Kod incele", provider="commandcode_provider", privacy_level="CODE"))
+
+    assert result["ok"] is True
+    assert client.calls[0]["api_key"] == "test-commandcode-key"
+    assert client.calls[0]["api_base"] == "https://api.commandcode.ai/provider/v1"
+
+
+def test_missing_api_key_env_fails_before_real_adapter_call(monkeypatch):
+    from agents.api_executor import APIExecutor
+
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    ex = APIExecutor(client=None)
+    result = run(ex.generate("Soru?", provider="deepseek_v4_flash"))
+
+    assert result["ok"] is False
+    assert result["text"] is None
+    assert "DEEPSEEK_API_KEY" in result["error"]

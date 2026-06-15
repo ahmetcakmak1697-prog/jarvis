@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import os
 import time
 from pathlib import Path
 from dataclasses import dataclass
@@ -68,6 +69,7 @@ _DEFAULT_PROVIDERS: dict[str, APIProvider] = {
         role="public_free_worker",
         allowed_privacy=("PUBLIC", "REDACTED_LOW_RISK"),
         cost_gate="GREEN",
+        api_key_env="GEMINI_API_KEY",
     ),
     "deepseek_v4_flash": APIProvider(
         name="deepseek_v4_flash",
@@ -76,6 +78,7 @@ _DEFAULT_PROVIDERS: dict[str, APIProvider] = {
         role="cheap_primary_worker",
         allowed_privacy=("PUBLIC", "REDACTED_LOW_RISK", "PERSONAL_REDACTED", "TECHNICAL", "CODE"),
         cost_gate="GREEN",
+        api_key_env="DEEPSEEK_API_KEY",
     ),
 }
 
@@ -221,6 +224,13 @@ class APIExecutor:
             return None
         return self._providers.get(key)
 
+    def _resolve_api_key(self, provider: APIProvider) -> str | None:
+        """Resolve provider API key from environment without storing secrets."""
+        if not provider.api_key_env:
+            return None
+        value = os.environ.get(provider.api_key_env)
+        return value.strip() if isinstance(value, str) and value.strip() else None
+
     async def generate(
         self,
         prompt: str,
@@ -278,6 +288,19 @@ class APIExecutor:
                 "latency_ms": 0,
                 "cost_estimate": None,
                 "error": "max_calls_per_request must be >= 1",
+            }
+
+        resolved_api_key = self._resolve_api_key(resolved_provider)
+        if resolved_provider.api_key_env and not resolved_api_key and self._client is None:
+            return {
+                "ok": False,
+                "text": None,
+                "model": resolved_model,
+                "provider": resolved_provider.name,
+                "level": level,
+                "latency_ms": 0,
+                "cost_estimate": None,
+                "error": f"Missing API key environment variable: {resolved_provider.api_key_env}",
             }
 
         privacy = str(privacy_level or "PUBLIC").upper()
@@ -340,6 +363,8 @@ class APIExecutor:
             }
             if resolved_provider.base_url:
                 call_kwargs["api_base"] = resolved_provider.base_url
+            if resolved_api_key:
+                call_kwargs["api_key"] = resolved_api_key
 
             response = client.acompletion(**call_kwargs)
             if inspect.isawaitable(response):
