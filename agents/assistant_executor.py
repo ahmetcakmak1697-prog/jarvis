@@ -61,10 +61,14 @@ class AssistantExecutor:
         router=None,
         executor=None,
         ollama_url: str | None = None,
+        execution_policy=None,
+        executor_registry=None,
     ) -> None:
         self._router = router
         self._executor = executor
         self._ollama_url = ollama_url
+        self._execution_policy = execution_policy
+        self._executor_registry = executor_registry
 
     def _log_telemetry(self, result: dict, question: str) -> None:
         try:
@@ -96,6 +100,31 @@ class AssistantExecutor:
         from agents.ollama_executor import OllamaExecutor
         self._executor = OllamaExecutor(ollama_url=self._ollama_url)
         return self._executor
+
+    def _get_execution_policy(self):
+        if self._execution_policy is not None:
+            return self._execution_policy
+        from agents.execution_policy import ExecutionPolicy
+        self._execution_policy = ExecutionPolicy()
+        return self._execution_policy
+
+    def _get_executor_registry(self):
+        if self._executor_registry is not None:
+            return self._executor_registry
+
+        from agents.executor_registry import ExecutorRegistry
+
+        executors = {}
+        if self._executor is not None:
+            # Backward compatibility: old tests and callers inject a single
+            # executor, historically meaning the Ollama/local executor.
+            executors["ollama"] = self._executor
+
+        self._executor_registry = ExecutorRegistry(
+            executors=executors,
+            ollama_url=self._ollama_url,
+        )
+        return self._executor_registry
 
     def ask(self, question: str) -> dict[str, Any]:
         result = self._ask_inner(question)
@@ -156,35 +185,83 @@ class AssistantExecutor:
                 "latency_ms": int((time.monotonic() - t0) * 1000),
             }
 
-        # --- ask external via Ollama ---
+        # --- ask external via execution policy + executor registry ---
         if decision == "ask_external":
             cascade = rd.get("cascade") or {}
-            level = cascade.get("level", "L2")
-            executor = self._get_executor()
-            exec_result = executor.generate(question, level=level)
-            total_ms = int((time.monotonic() - t0) * 1000)
+            level = str(cascade.get("level", "L2")).upper()
 
-            if exec_result.get("ok"):
-                return {
-                    "ok": True,
-                    "answer": exec_result.get("text", ""),
-                    "source": "ollama",
-                    "model": exec_result.get("model"),
-                    "level": level,
-                    "router_decision": rd,
-                    "latency_ms": total_ms,
-                    "ollama_latency_ms": exec_result.get("latency_ms"),
-                }
-            else:
+            execution_decision = self._get_execution_policy().choose(rd)
+
+            if execution_decision.get("requires_approval"):
                 return {
                     "ok": False,
-                    "answer": None,
-                    "source": "ollama_error",
-                    "error": exec_result.get("error", "Bilinmeyen hata"),
-                    "level": level,
+                    "blocked": True,
+                    "answer": "Bu islem premium/onay gerektiriyor.",
+                    "source": execution_decision.get("destination") or "premium_gate",
+                    "level": execution_decision.get("level", level),
                     "router_decision": rd,
-                    "latency_ms": total_ms,
+                    "execution_decision": execution_decision,
+                    "latency_ms": int((time.monotonic() - t0) * 1000),
                 }
+
+            registry = self._get_executor_registry()
+            order = registry.execution_order(execution_decision)
+
+            last_error = "Bilinmeyen hata"
+            last_source = "executor_error"
+            primary_failed_executor = None
+
+            for executor_key in order:
+                executor = registry.get(executor_key)
+                try:
+                    exec_result = executor.generate(question, level=level)
+                except Exception as exc:
+                    exec_result = {
+                        "ok": False,
+                        "text": None,
+                        "model": None,
+                        "level": level,
+                        "latency_ms": 0,
+                        "error": str(exc),
+                    }
+
+                total_ms = int((time.monotonic() - t0) * 1000)
+                source = "ollama" if executor_key == "ollama" else str(executor_key)
+
+                if exec_result.get("ok"):
+                    response = {
+                        "ok": True,
+                        "answer": exec_result.get("text", ""),
+                        "source": source,
+                        "model": exec_result.get("model"),
+                        "level": level,
+                        "router_decision": rd,
+                        "execution_decision": execution_decision,
+                        "latency_ms": total_ms,
+                    }
+                    if executor_key == "ollama":
+                        response["ollama_latency_ms"] = exec_result.get("latency_ms")
+                    else:
+                        response[f"{executor_key}_latency_ms"] = exec_result.get("latency_ms")
+                    if primary_failed_executor:
+                        response["primary_failed_executor"] = primary_failed_executor
+                    return response
+
+                if primary_failed_executor is None:
+                    primary_failed_executor = str(executor_key)
+                last_error = exec_result.get("error", "Bilinmeyen hata")
+                last_source = f"{source}_error"
+
+            return {
+                "ok": False,
+                "answer": None,
+                "source": last_source,
+                "error": last_error,
+                "level": level,
+                "router_decision": rd,
+                "execution_decision": execution_decision,
+                "latency_ms": int((time.monotonic() - t0) * 1000),
+            }
 
         # --- fallback (clarify, no_answer, unknown) ---
         return {

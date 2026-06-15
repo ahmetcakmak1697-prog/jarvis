@@ -142,3 +142,102 @@ def test_result_has_required_fields():
     result = ex.ask("Soru?")
     for field in ["ok", "answer", "source", "router_decision", "latency_ms"]:
         assert field in result, f"{field} eksik"
+
+
+class FakeExecutionPolicy:
+    def __init__(self, decision):
+        self._decision = decision
+        self.calls = []
+
+    def choose(self, router_decision):
+        self.calls.append(router_decision)
+        return self._decision
+
+
+class FakeExecutorRegistry:
+    def __init__(self, executors, order=None):
+        self.executors = executors
+        self.order = order
+        self.get_calls = []
+        self.order_calls = []
+
+    def execution_order(self, decision):
+        self.order_calls.append(decision)
+        if self.order is not None:
+            return list(self.order)
+        return [decision.get("primary_executor")]
+
+    def get(self, key):
+        self.get_calls.append(key)
+        return self.executors[key]
+
+
+def test_assistant_executor_uses_execution_policy_and_registry_for_local_ollama():
+    from agents.assistant_executor import AssistantExecutor
+
+    fake_exec = FakeExecutor(text="Registry uzerinden cevap.")
+    policy = FakeExecutionPolicy({
+        "level": "L2",
+        "destination": "local",
+        "primary_executor": "ollama",
+        "fallback_executor": None,
+        "requires_approval": False,
+        "reason": "local_first_default",
+    })
+    registry = FakeExecutorRegistry({"ollama": fake_exec})
+    router = FakeRouter({
+        "decision": "ask_external",
+        "route": "external",
+        "confidence": 60,
+        "reason": "no_local_knowledge",
+        "cascade": {"level": "L2", "model": "m", "cost_tier": "cheap"},
+        "signals": {},
+    })
+
+    ex = AssistantExecutor(router=router, execution_policy=policy, executor_registry=registry)
+    result = ex.ask("Soru?")
+
+    assert result["ok"] is True
+    assert result["answer"] == "Registry uzerinden cevap."
+    assert result["source"] == "ollama"
+    assert result["level"] == "L2"
+    assert result["execution_decision"]["destination"] == "local"
+    assert registry.get_calls == ["ollama"]
+    assert len(policy.calls) == 1
+
+
+def test_assistant_executor_falls_back_to_ollama_when_primary_api_fails():
+    from agents.assistant_executor import AssistantExecutor
+
+    api_exec = FakeExecutor(ok=False)
+    ollama_exec = FakeExecutor(text="Yerel fallback cevabi.")
+    policy = FakeExecutionPolicy({
+        "level": "L3",
+        "destination": "cloud_api",
+        "primary_executor": "api",
+        "fallback_executor": "ollama",
+        "requires_approval": False,
+        "reason": "cloud_api_enabled_for_level",
+    })
+    registry = FakeExecutorRegistry(
+        {"api": api_exec, "ollama": ollama_exec},
+        order=["api", "ollama"],
+    )
+    router = FakeRouter({
+        "decision": "ask_external",
+        "route": "external",
+        "confidence": 60,
+        "reason": "no_local_knowledge",
+        "cascade": {"level": "L3", "model": "m", "cost_tier": "moderate"},
+        "signals": {},
+    })
+
+    ex = AssistantExecutor(router=router, execution_policy=policy, executor_registry=registry)
+    result = ex.ask("Zor soru?")
+
+    assert result["ok"] is True
+    assert result["answer"] == "Yerel fallback cevabi."
+    assert result["source"] == "ollama"
+    assert result["level"] == "L3"
+    assert result["primary_failed_executor"] == "api"
+    assert registry.get_calls == ["api", "ollama"]
