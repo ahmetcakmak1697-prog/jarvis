@@ -17,7 +17,9 @@ Scope (negative):
 from __future__ import annotations
 
 import inspect
+import json
 import time
+from pathlib import Path
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -54,6 +56,8 @@ class APIProvider:
     role: str
     allowed_privacy: tuple[str, ...]
     cost_gate: str = "GREEN"
+    base_url: str | None = None
+    api_key_env: str | None = None
 
 
 _DEFAULT_PROVIDERS: dict[str, APIProvider] = {
@@ -103,15 +107,59 @@ class APIExecutor:
         self,
         client: Any | None = None,
         provider_config: Mapping[str, APIProvider] | None = None,
+        config_path: str | Path | None = None,
         default_provider: str = "deepseek_v4_flash",
         timeout_s: float = 30.0,
         max_calls_per_request: int = 1,
     ) -> None:
         self._client = client
-        self._providers = dict(provider_config or _DEFAULT_PROVIDERS)
+        if provider_config is not None:
+            self._providers = dict(provider_config)
+        else:
+            self._providers = self._load_provider_config(config_path)
         self._default_provider = default_provider
         self._timeout_s = timeout_s
         self._max_calls_per_request = max_calls_per_request
+
+    def _load_provider_config(self, config_path: str | Path | None) -> dict[str, APIProvider]:
+        """Load provider config from JSON, falling back safely to defaults."""
+        providers = dict(_DEFAULT_PROVIDERS)
+
+        if config_path is None:
+            return providers
+
+        try:
+            path = Path(config_path)
+            raw = path.read_text(encoding="utf-8")
+            data = json.loads(raw)
+            configured = data.get("providers", {}) if isinstance(data, dict) else {}
+            if not isinstance(configured, dict):
+                return providers
+
+            for key, spec in configured.items():
+                if not isinstance(key, str) or not isinstance(spec, dict):
+                    continue
+
+                allowed = spec.get("allowed_privacy", ("PUBLIC",))
+                if isinstance(allowed, str):
+                    allowed_privacy = (allowed,)
+                else:
+                    allowed_privacy = tuple(str(x) for x in allowed)
+
+                providers[key] = APIProvider(
+                    name=key,
+                    provider=str(spec.get("provider", "")).strip(),
+                    model=str(spec.get("model", "")).strip(),
+                    role=str(spec.get("role", "")).strip(),
+                    allowed_privacy=allowed_privacy,
+                    cost_gate=str(spec.get("cost_gate", "GREEN")).strip().upper(),
+                    base_url=(str(spec.get("base_url")).strip() if spec.get("base_url") else None),
+                    api_key_env=(str(spec.get("api_key_env")).strip() if spec.get("api_key_env") else None),
+                )
+        except Exception:
+            return providers
+
+        return providers
 
     def _get_client(self) -> Any:
         if self._client is not None:
@@ -143,6 +191,9 @@ class APIExecutor:
 
             if not provider.role:
                 errors.append(f"{key}: role is required")
+
+            if provider.provider == "openai_compatible" and not provider.base_url:
+                errors.append(f"{key}: openai_compatible provider requires base_url")
 
             if provider.cost_gate not in COST_GATES:
                 errors.append(f"{key}: invalid cost_gate {provider.cost_gate!r}")
@@ -271,12 +322,12 @@ class APIExecutor:
         t0 = time.monotonic()
         try:
             client = self._get_client()
-            response = client.acompletion(
-                model=resolved_model,
-                messages=messages,
-                timeout=self._timeout_s,
-                extra_headers=headers or None,
-                metadata={
+            call_kwargs = {
+                "model": resolved_model,
+                "messages": messages,
+                "timeout": self._timeout_s,
+                "extra_headers": headers or None,
+                "metadata": {
                     "jarvis_provider": resolved_provider.name,
                     "jarvis_level": level,
                     "jarvis_privacy_level": privacy,
@@ -284,8 +335,13 @@ class APIExecutor:
                     "jarvis_no_cache": no_cache,
                     "jarvis_no_store": no_store,
                     "jarvis_max_calls_per_request": self._max_calls_per_request,
+                    "jarvis_api_key_env": resolved_provider.api_key_env,
                 },
-            )
+            }
+            if resolved_provider.base_url:
+                call_kwargs["api_base"] = resolved_provider.base_url
+
+            response = client.acompletion(**call_kwargs)
             if inspect.isawaitable(response):
                 response = await response
 

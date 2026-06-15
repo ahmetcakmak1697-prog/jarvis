@@ -226,3 +226,95 @@ def test_l4_level_is_blocked_by_premium_gate():
     assert result["text"] is None
     assert "premium" in result["error"].lower()
     assert client.calls == []
+
+def test_config_path_loads_provider_override(tmp_path):
+    import json
+    from agents.api_executor import APIExecutor
+
+    config_path = tmp_path / "api_providers.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "providers": {
+                    "commandcode_provider": {
+                        "provider": "openai_compatible",
+                        "model": "commandcode/deepseek-v4-pro",
+                        "role": "coding_provider",
+                        "allowed_privacy": ["PUBLIC", "TECHNICAL", "CODE"],
+                        "cost_gate": "YELLOW",
+                        "base_url": "https://api.commandcode.ai/provider/v1",
+                        "api_key_env": "COMMANDCODE_API_KEY",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    ex = APIExecutor(client=FakeLiteLLMClient(), config_path=config_path)
+    providers = ex.providers()
+
+    assert "commandcode_provider" in providers
+    assert providers["commandcode_provider"].provider == "openai_compatible"
+    assert providers["commandcode_provider"].base_url == "https://api.commandcode.ai/provider/v1"
+    assert providers["commandcode_provider"].api_key_env == "COMMANDCODE_API_KEY"
+
+
+def test_bad_config_path_falls_back_to_defaults(tmp_path):
+    from agents.api_executor import APIExecutor
+
+    config_path = tmp_path / "api_providers.json"
+    config_path.write_text("{bad json", encoding="utf-8")
+
+    ex = APIExecutor(client=FakeLiteLLMClient(), config_path=config_path)
+    providers = ex.providers()
+
+    assert "gemini_flash_free" in providers
+    assert "deepseek_v4_flash" in providers
+
+
+def test_openai_compatible_provider_requires_base_url():
+    from agents.api_executor import APIExecutor, APIProvider
+
+    bad_provider = APIProvider(
+        name="bad_openai_compatible",
+        provider="openai_compatible",
+        model="some-model",
+        role="coding_provider",
+        allowed_privacy=("PUBLIC",),
+        cost_gate="YELLOW",
+    )
+    ex = APIExecutor(
+        client=FakeLiteLLMClient(),
+        provider_config={"bad_openai_compatible": bad_provider},
+    )
+
+    result = ex.validate_provider_config()
+
+    assert result["ok"] is False
+    assert any("base_url" in err for err in result["errors"])
+
+
+def test_provider_base_url_is_sent_to_client():
+    from agents.api_executor import APIExecutor, APIProvider
+
+    client = FakeLiteLLMClient()
+    provider = APIProvider(
+        name="commandcode_provider",
+        provider="openai_compatible",
+        model="commandcode/deepseek-v4-pro",
+        role="coding_provider",
+        allowed_privacy=("PUBLIC", "TECHNICAL", "CODE"),
+        cost_gate="YELLOW",
+        base_url="https://api.commandcode.ai/provider/v1",
+        api_key_env="COMMANDCODE_API_KEY",
+    )
+    ex = APIExecutor(
+        client=client,
+        provider_config={"commandcode_provider": provider},
+    )
+
+    result = run(ex.generate("Kod incele", provider="commandcode_provider", privacy_level="CODE"))
+
+    assert result["ok"] is True
+    assert client.calls[0]["api_base"] == "https://api.commandcode.ai/provider/v1"
