@@ -17,10 +17,13 @@ Scope (negative):
 from __future__ import annotations
 
 import inspect
+import ipaddress
 import json
 import os
+import re
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -174,6 +177,44 @@ class APIExecutor:
         """Return a copy of provider configuration."""
         return dict(self._providers)
 
+    def _validate_external_base_url(self, base_url: str) -> str | None:
+        """Reject unsafe external provider base URLs.
+
+        Local network targets are not allowed for API providers. Local executors
+        such as Ollama must use separate local executor paths, not APIProvider.
+        """
+        try:
+            parsed = urlparse(base_url)
+        except Exception:
+            return "base_url is invalid"
+
+        if parsed.scheme.lower() != "https":
+            return "base_url must use https"
+
+        host = (parsed.hostname or "").strip().lower()
+        if not host:
+            return "base_url host is required"
+
+        if host in {"localhost", "0.0.0.0"} or host.endswith(".localhost") or host.endswith(".local"):
+            return "base_url must not target local hosts"
+
+        try:
+            ip = ipaddress.ip_address(host)
+        except ValueError:
+            return None
+
+        if (
+            ip.is_loopback
+            or ip.is_private
+            or ip.is_link_local
+            or ip.is_multicast
+            or ip.is_reserved
+            or ip.is_unspecified
+        ):
+            return "base_url must not target private or local IP ranges"
+
+        return None
+
     def validate_provider_config(self) -> dict[str, Any]:
         """Validate provider policy/config entries without making API calls."""
         errors: list[str] = []
@@ -197,6 +238,11 @@ class APIExecutor:
 
             if provider.provider == "openai_compatible" and not provider.base_url:
                 errors.append(f"{key}: openai_compatible provider requires base_url")
+
+            if provider.base_url:
+                base_url_error = self._validate_external_base_url(provider.base_url)
+                if base_url_error:
+                    errors.append(f"{key}: {base_url_error}")
 
             if provider.cost_gate not in COST_GATES:
                 errors.append(f"{key}: invalid cost_gate {provider.cost_gate!r}")
@@ -230,6 +276,25 @@ class APIExecutor:
             return None
         value = os.environ.get(provider.api_key_env)
         return value.strip() if isinstance(value, str) and value.strip() else None
+
+    def _sanitize_provider_error(self, exc: Exception, provider: APIProvider | None = None) -> str:
+        """Return a safe, user-visible provider error without secrets or URLs."""
+        msg = str(exc) or exc.__class__.__name__
+
+        if provider is not None:
+            resolved_key = self._resolve_api_key(provider)
+            if resolved_key:
+                msg = msg.replace(resolved_key, "[REDACTED_SECRET]")
+
+        msg = re.sub(r"(?i)api[_-]?key\s*=\s*\S+", "[REDACTED_API_KEY]", msg)
+        msg = re.sub(r"(?i)bearer\s+\S+", "[REDACTED_BEARER]", msg)
+        msg = re.sub(r"https?://[^\s)]+", "[REDACTED_URL]", msg)
+
+        msg = msg.strip()
+        if not msg:
+            msg = exc.__class__.__name__
+
+        return f"Provider request failed safely: {msg}"[:500]
 
     async def generate(
         self,
@@ -350,6 +415,7 @@ class APIExecutor:
                 "messages": messages,
                 "timeout": self._timeout_s,
                 "extra_headers": headers or None,
+                "drop_params": True,
                 "metadata": {
                     "jarvis_provider": resolved_provider.name,
                     "jarvis_level": level,
@@ -391,7 +457,7 @@ class APIExecutor:
                 "level": level,
                 "latency_ms": latency_ms,
                 "cost_estimate": None,
-                "error": str(exc),
+                "error": self._sanitize_provider_error(exc, resolved_provider),
             }
 
     @staticmethod

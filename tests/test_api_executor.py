@@ -374,3 +374,121 @@ def test_missing_api_key_env_fails_before_real_adapter_call(monkeypatch):
     assert result["ok"] is False
     assert result["text"] is None
     assert "DEEPSEEK_API_KEY" in result["error"]
+
+
+def test_openai_compatible_rejects_insecure_http_base_url():
+    from agents.api_executor import APIExecutor, APIProvider
+
+    provider = APIProvider(
+        name="bad_http_provider",
+        provider="openai_compatible",
+        model="bad/model",
+        role="coding_provider",
+        allowed_privacy=("PUBLIC",),
+        cost_gate="YELLOW",
+        base_url="http://api.example.com/v1",
+        api_key_env="BAD_API_KEY",
+    )
+    ex = APIExecutor(client=FakeLiteLLMClient(), provider_config={"bad_http_provider": provider})
+
+    result = ex.validate_provider_config()
+
+    assert result["ok"] is False
+    assert any("https" in err.lower() for err in result["errors"])
+
+
+def test_openai_compatible_rejects_localhost_base_url():
+    from agents.api_executor import APIExecutor, APIProvider
+
+    provider = APIProvider(
+        name="bad_local_provider",
+        provider="openai_compatible",
+        model="bad/model",
+        role="coding_provider",
+        allowed_privacy=("PUBLIC",),
+        cost_gate="YELLOW",
+        base_url="https://localhost:11434/v1",
+        api_key_env="BAD_API_KEY",
+    )
+    ex = APIExecutor(client=FakeLiteLLMClient(), provider_config={"bad_local_provider": provider})
+
+    result = ex.validate_provider_config()
+
+    assert result["ok"] is False
+    assert any("local" in err.lower() or "private" in err.lower() for err in result["errors"])
+
+
+def test_openai_compatible_rejects_private_ip_base_url():
+    from agents.api_executor import APIExecutor, APIProvider
+
+    provider = APIProvider(
+        name="bad_private_provider",
+        provider="openai_compatible",
+        model="bad/model",
+        role="coding_provider",
+        allowed_privacy=("PUBLIC",),
+        cost_gate="YELLOW",
+        base_url="https://192.168.1.10:8080/v1",
+        api_key_env="BAD_API_KEY",
+    )
+    ex = APIExecutor(client=FakeLiteLLMClient(), provider_config={"bad_private_provider": provider})
+
+    result = ex.validate_provider_config()
+
+    assert result["ok"] is False
+    assert any("private" in err.lower() for err in result["errors"])
+
+
+def test_completion_call_sets_drop_params_true():
+    from agents.api_executor import APIExecutor, APIProvider
+
+    client = FakeLiteLLMClient()
+    provider = APIProvider(
+        name="safe_provider",
+        provider="openai_compatible",
+        model="safe/model",
+        role="coding_provider",
+        allowed_privacy=("PUBLIC",),
+        cost_gate="YELLOW",
+        base_url="https://api.example.com/v1",
+    )
+    ex = APIExecutor(client=client, provider_config={"safe_provider": provider})
+
+    result = run(ex.generate("Merhaba", provider="safe_provider"))
+
+    assert result["ok"] is True
+    assert client.calls[0]["drop_params"] is True
+
+
+def test_provider_exception_error_is_sanitized(monkeypatch):
+    from agents.api_executor import APIExecutor, APIProvider
+
+    class ExplodingClient:
+        async def acompletion(self, **kwargs):
+            raise RuntimeError(
+                "AuthenticationError api_key=test-commandcode-key "
+                "Bearer test-commandcode-key "
+                "https://api.commandcode.ai/provider/v1"
+            )
+
+    monkeypatch.setenv("COMMANDCODE_API_KEY", "test-commandcode-key")
+    provider = APIProvider(
+        name="commandcode_provider",
+        provider="openai_compatible",
+        model="commandcode/deepseek-v4-pro",
+        role="coding_provider",
+        allowed_privacy=("PUBLIC", "TECHNICAL", "CODE"),
+        cost_gate="YELLOW",
+        base_url="https://api.commandcode.ai/provider/v1",
+        api_key_env="COMMANDCODE_API_KEY",
+    )
+    ex = APIExecutor(client=ExplodingClient(), provider_config={"commandcode_provider": provider})
+
+    result = run(ex.generate("Kod incele", provider="commandcode_provider", privacy_level="CODE"))
+
+    assert result["ok"] is False
+    assert result["text"] is None
+    assert "test-commandcode-key" not in result["error"]
+    assert "api_key=" not in result["error"]
+    assert "Bearer" not in result["error"]
+    assert "https://api.commandcode.ai" not in result["error"]
