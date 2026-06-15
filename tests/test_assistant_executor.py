@@ -241,3 +241,105 @@ def test_assistant_executor_falls_back_to_ollama_when_primary_api_fails():
     assert result["level"] == "L3"
     assert result["primary_failed_executor"] == "api"
     assert registry.get_calls == ["api", "ollama"]
+
+
+class MissingPrimaryRegistry:
+    def __init__(self, fallback_executor):
+        self.fallback_executor = fallback_executor
+        self.get_calls = []
+        self.order_calls = []
+
+    def execution_order(self, decision):
+        self.order_calls.append(decision)
+        return ["api", "ollama"]
+
+    def get(self, key):
+        self.get_calls.append(key)
+        if key == "api":
+            raise KeyError("api")
+        if key == "ollama":
+            return self.fallback_executor
+        raise KeyError(key)
+
+
+def test_assistant_executor_with_real_policy_can_route_l3_to_api():
+    from agents.assistant_executor import AssistantExecutor
+    from agents.execution_policy import ExecutionPolicy
+
+    api_exec = FakeExecutor(text="Gercek policy API cevabi.")
+    ollama_exec = FakeExecutor(text="Fallback.")
+    registry = FakeExecutorRegistry(
+        {"api": api_exec, "ollama": ollama_exec},
+        order=["api", "ollama"],
+    )
+    router = FakeRouter({
+        "decision": "ask_external",
+        "route": "external",
+        "confidence": 60,
+        "reason": "no_local_knowledge",
+        "cascade": {"level": "L3", "model": "m", "cost_tier": "moderate"},
+        "signals": {},
+    })
+    policy = ExecutionPolicy(cloud_api_enabled=True, cloud_levels={"L3"})
+
+    ex = AssistantExecutor(router=router, execution_policy=policy, executor_registry=registry)
+    result = ex.ask("Derin analiz yap.")
+
+    assert result["ok"] is True
+    assert result["answer"] == "Gercek policy API cevabi."
+    assert result["source"] == "api"
+    assert result["execution_decision"]["destination"] == "cloud_api"
+    assert result["execution_decision"]["primary_executor"] == "api"
+    assert result["execution_decision"]["fallback_executor"] == "ollama"
+    assert registry.get_calls == ["api"]
+
+
+def test_assistant_executor_falls_back_when_primary_executor_missing():
+    from agents.assistant_executor import AssistantExecutor
+    from agents.execution_policy import ExecutionPolicy
+
+    ollama_exec = FakeExecutor(text="Primary yok, local fallback.")
+    registry = MissingPrimaryRegistry(fallback_executor=ollama_exec)
+    router = FakeRouter({
+        "decision": "ask_external",
+        "route": "external",
+        "confidence": 60,
+        "reason": "no_local_knowledge",
+        "cascade": {"level": "L3", "model": "m", "cost_tier": "moderate"},
+        "signals": {},
+    })
+    policy = ExecutionPolicy(cloud_api_enabled=True, cloud_levels={"L3"})
+
+    ex = AssistantExecutor(router=router, execution_policy=policy, executor_registry=registry)
+    result = ex.ask("Derin analiz yap.")
+
+    assert result["ok"] is True
+    assert result["answer"] == "Primary yok, local fallback."
+    assert result["source"] == "ollama"
+    assert result["primary_failed_executor"] == "api"
+    assert registry.get_calls == ["api", "ollama"]
+
+
+def test_assistant_executor_real_policy_l4_premium_gate_skips_registry():
+    from agents.assistant_executor import AssistantExecutor
+    from agents.execution_policy import ExecutionPolicy
+
+    registry = FakeExecutorRegistry({"api": FakeExecutor(), "ollama": FakeExecutor()})
+    router = FakeRouter({
+        "decision": "ask_external",
+        "route": "external",
+        "confidence": 60,
+        "reason": "premium_needed",
+        "cascade": {"level": "L4", "model": "premium", "cost_tier": "expensive"},
+        "signals": {},
+    })
+    policy = ExecutionPolicy(cloud_api_enabled=True, cloud_levels={"L3", "L4"})
+
+    ex = AssistantExecutor(router=router, execution_policy=policy, executor_registry=registry)
+    result = ex.ask("Premium seviye soru.")
+
+    assert result["ok"] is False
+    assert result["blocked"] is True
+    assert result["source"] == "premium_gate"
+    assert result["execution_decision"]["requires_approval"] is True
+    assert registry.get_calls == []

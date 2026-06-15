@@ -212,7 +212,21 @@ class AssistantExecutor:
             primary_failed_executor = None
 
             for executor_key in order:
-                executor = registry.get(executor_key)
+                try:
+                    executor = registry.get(executor_key)
+                except KeyError:
+                    if primary_failed_executor is None:
+                        primary_failed_executor = str(executor_key)
+                    last_error = f"Executor unavailable: {executor_key}"
+                    last_source = f"{executor_key}_missing"
+                    continue
+                except Exception as exc:
+                    if primary_failed_executor is None:
+                        primary_failed_executor = str(executor_key)
+                    last_error = f"Executor lookup failed: {executor_key}: {exc}"
+                    last_source = f"{executor_key}_lookup_error"
+                    continue
+
                 try:
                     exec_result = executor.generate(question, level=level)
                 except Exception as exc:
