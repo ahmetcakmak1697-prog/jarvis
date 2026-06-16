@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "providers": [
+    {
+      "provider_id": "deepseek_v4_flash",
+      "executor_key": "api",
+      "model": "deepseek/deepseek-chat",
+      "status": "verified",
+      "cost_tier": "cheap",
+      "billing_mode": "token_balance",
+      "allowed_levels": ["L3"],
+      "allowed_data_classes": ["public", "redacted", "synthetic"],
+      "default_enabled": false,
+      "requires_budget_gate": true,
+      "requires_smoke_pass": true,
+      "env_key": "DEEPSEEK_API_KEY",
+      "timeout_s": 30
+    },
+    {
+      "provider_id": "ollama_local",
+      "executor_key": "ollama",
+      "model": "llama3.1",
+      "status": "verified",
+      "cost_tier": "local_free",
+      "billing_mode": "hardware",
+      "allowed_levels": ["L1", "L2", "L3"],
+      "allowed_data_classes": [
+        "public",
+        "synthetic",
+        "redacted",
+        "personal",
+        "sensitive",
+        "institution_internal"
+      ],
+      "default_enabled": true,
+      "requires_budget_gate": false,
+      "requires_smoke_pass": false,
+      "timeout_s": 60
+    }
+  ]
+}
