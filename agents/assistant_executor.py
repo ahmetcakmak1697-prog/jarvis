@@ -147,6 +147,29 @@ class AssistantExecutor:
                 "error": str(exc),
             }
 
+    def _classify_for_external(self, question: str) -> tuple[str, str]:
+        """Compute (data_class, privacy_level) for an external-bound question.
+
+        Pure, cheap, no side effects. privacy_level is the old-system
+        equivalent (agents.privacy_level_bridge), forwarded ONLY when the
+        chosen executor is "api" -- OllamaExecutor.generate() does not
+        accept a privacy_level kwarg and must never receive one.
+
+        Fails closed: any unexpected error here returns the MOST
+        restrictive old-system value, never "PUBLIC". This makes a
+        classifier bug degrade into "api rejects it, fall back to
+        ollama" -- the same safe outcome as a real sensitive question --
+        rather than silently widening access.
+        """
+        try:
+            from agents.data_classifier import classify
+            from agents.privacy_level_bridge import data_class_to_privacy_level
+            data_class = classify(question)
+            privacy_level = data_class_to_privacy_level(data_class)
+            return data_class, privacy_level
+        except Exception:
+            return "sensitive", "WORK_INTERNAL"
+
     def ask(self, question: str) -> dict[str, Any]:
         result = self._ask_inner(question)
         self._log_telemetry(result, question)
@@ -225,6 +248,8 @@ class AssistantExecutor:
                     "latency_ms": int((time.monotonic() - t0) * 1000),
                 }
 
+            data_class, privacy_level = self._classify_for_external(question)
+
             registry = self._get_executor_registry()
             order = registry.execution_order(execution_decision)
 
@@ -259,7 +284,10 @@ class AssistantExecutor:
                         continue
 
                 try:
-                    exec_result = executor.generate(question, level=level)
+                    if str(executor_key) == "api":
+                        exec_result = executor.generate(question, level=level, privacy_level=privacy_level)
+                    else:
+                        exec_result = executor.generate(question, level=level)
                 except Exception as exc:
                     exec_result = {
                         "ok": False,
@@ -283,6 +311,7 @@ class AssistantExecutor:
                         "router_decision": rd,
                         "execution_decision": execution_decision,
                         "latency_ms": total_ms,
+                        "data_class": data_class,
                     }
                     if executor_key == "ollama":
                         response["ollama_latency_ms"] = exec_result.get("latency_ms")
@@ -308,6 +337,7 @@ class AssistantExecutor:
                 "router_decision": rd,
                 "execution_decision": execution_decision,
                 "latency_ms": int((time.monotonic() - t0) * 1000),
+                "data_class": data_class,
             }
 
         # --- fallback (clarify, no_answer, unknown) ---
