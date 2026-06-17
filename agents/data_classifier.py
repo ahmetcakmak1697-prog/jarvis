@@ -11,8 +11,12 @@ classification matrix.
 SCOPE (deliberately narrow, same discipline as the rest of this work):
   * Pure function of text -> data_class. No I/O, no model calls, no
     network, no state mutation.
-  * NOT wired into AssistantExecutor yet -- that is a separate, deliberate
-    next step (FAZ 1B.13F) once this classifier itself has been reviewed.
+  * WIRED into AssistantExecutor as of FAZ 1B.13F (commit 278597dba):
+    AssistantExecutor._classify_for_external() calls classify() here,
+    then forwards the resulting privacy_level ONLY to the "api" executor
+    (never to ollama/local executors, which do not accept that kwarg).
+    If this comment ever looks stale, trust agents/assistant_executor.py
+    over this docstring -- comments rot, git history doesn't.
   * Does NOT replace redaction_guard. Actual secrets (API keys, tokens)
     are caught upstream by the router and never reach this point; by the
     time classification would run, the router has already decided
@@ -46,8 +50,18 @@ from agents.provider_profiles import DATA_CLASS_SET
 
 
 def _fold_tr(s: str) -> str:
+    text = str(s or "").strip()
+    # Turkish capital dotted I (U+0130, "İ") must be collapsed to plain
+    # "i" BEFORE calling .lower(): Python's default Unicode lower() maps
+    # U+0130 to "i" + COMBINING DOT ABOVE (U+0307) -- a TWO-codepoint
+    # sequence, not a clean ASCII "i". Left unhandled, every substring
+    # signal check below silently breaks on it (e.g. "İBAN" folds to
+    # "i\u0307ban", which does NOT contain "iban" as a substring). This
+    # is a real, verified Python/Unicode quirk (the "Turkish I problem"),
+    # confirmed by direct interpreter test, not a hypothetical edge case.
+    text = text.replace("\u0130", "i")
     return (
-        str(s or "").strip().lower()
+        text.lower()
         .replace("\u0131", "i").replace("\u011f", "g")
         .replace("\u00fc", "u").replace("\u015f", "s")
         .replace("\u00f6", "o").replace("\u00e7", "c")
