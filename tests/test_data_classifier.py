@@ -62,6 +62,19 @@ def test_financial_signal_triggers_sensitive():
     assert classify("IBAN numaramla odeme yapar misin?") == "sensitive"
 
 
+def test_turkish_dotted_capital_i_iban_triggers_sensitive():
+    # "İBAN" with Turkish capital dotted I (U+0130), exactly as Turkish
+    # keyboards/autocapitalize produce it. Regression guard for the
+    # Python Unicode quirk where "İ".lower() == "i" + COMBINING DOT ABOVE
+    # (two codepoints), which silently breaks plain substring matching
+    # if not handled before lower().
+    assert classify("İBAN ile odeme yap") == "sensitive"
+
+
+def test_turkish_dotted_capital_i_mixed_case_still_matches():
+    assert classify("Lütfen İban bilgimi kullan") == "sensitive"
+
+
 @pytest.mark.parametrize(
     "text",
     [
