@@ -23,8 +23,10 @@ import time
 from typing import Any
 
 def _fold_tr(s: str) -> str:
+    text = str(s or "").strip()
+    text = text.replace("\u0130", "i")
     return (
-        str(s or "").strip().lower()
+        text.lower()
         .replace("\u0131", "i").replace("\u011f", "g")
         .replace("\u00fc", "u").replace("\u015f", "s")
         .replace("\u00f6", "o").replace("\u00e7", "c")
