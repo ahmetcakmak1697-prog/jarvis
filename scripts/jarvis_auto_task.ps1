@@ -148,6 +148,7 @@ $allPassed = $false
 $roundLogs = @()
 
 for ($round = 1; $round -le $MaxRounds; $round++) {
+    $skipThisRound = $false
     Write-Section "ROUND $round of $MaxRounds"
 
     $logFile = Join-Path -Path $LogDir -ChildPath "autocoder_round_$round.log"
@@ -164,12 +165,36 @@ for ($round = 1; $round -le $MaxRounds; $round++) {
 
     Write-Step "Running opencode..."
     $ocOutFile = Join-Path -Path $LogDir -ChildPath "opencode_round_$round.log"
+    $ocFailed = $false
     try {
-        & opencode run $prompt 2>&1 | Tee-Object -FilePath $ocOutFile
+        $opencodeArgs = @("run", $prompt)
+        $opencodeOutput = & opencode @opencodeArgs 2>&1
+        $ocExitCode = $LASTEXITCODE
+        $opencodeOutput | Set-Content -Path $ocOutFile -Encoding UTF8
+        Write-Step "opencode exit code: $ocExitCode"
+        if ($ocExitCode -ne 0) {
+            Write-ErrorStep "opencode exited with code $ocExitCode"
+            $ocFailed = $true
+        }
     } catch {
-        Write-ErrorStep "opencode run failed with exception: $_"
+        $ocExitCode = -1
+        $ocFailed = $true
+        $errMsg = "opencode run failed with exception: $_"
+        Write-ErrorStep $errMsg
+        $errMsg | Set-Content -Path $ocOutFile -Encoding UTF8
+        if ($null -eq $_.Exception.Message -or $_.Exception.Message -eq "") {
+            Write-Step "OpenCode invocation failed; see opencode_round_$round.log" -Color Yellow
+        }
     }
 
+    if ($ocFailed) {
+        $testFailed = $true
+        Write-ErrorStep "OpenCode failure - skipping tests this round."
+        # Use a flag to avoid 'continue' inside try/catch loop iteration (PS 5.1 bug)
+        $skipThisRound = $true
+    }
+
+    if (-not $skipThisRound) {
     # ─── TESTS ────────────────────────────────────────────────────────────────
     Write-Section "TESTS"
 
@@ -249,6 +274,7 @@ $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
     if ($round -lt $MaxRounds) {
         Write-Step "Checks failed. Will retry in round $($round + 1)" -Color Yellow
     }
+    } # end if(-not $skipThisRound)
 }
 
 # ─── FINAL RESULT ─────────────────────────────────────────────────────────────

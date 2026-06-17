@@ -33,6 +33,9 @@ Required behavior:
 Testing commands:
 1. py -3.11 -m pytest tests/test_config_parser.py -q --tb=short
 
+Additional notes:
+- OpenCode failure is treated as task failure even if deterministic tests pass.
+
 Return format:
 - Summary of what was created/changed.
 - Test results output.
