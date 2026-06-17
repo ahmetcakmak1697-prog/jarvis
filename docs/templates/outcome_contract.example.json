@@ -16,5 +16,6 @@
     "py -3.11 -m pytest .\\tests\\ -q --tb=no"
   ],
   "human_review_required": false,
-  "notes": "Optional notes about this contract, edge cases, or special instructions."
+  "minimum_pytest_collected": 0,
+  "notes": "Optional notes about this contract, edge cases, or special instructions. Set minimum_pytest_collected to the current known baseline (e.g. 658) to detect accidental test-count drops."
 }

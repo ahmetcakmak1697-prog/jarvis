@@ -34,7 +34,7 @@ def _load_contract(path: Path) -> dict[str, Any]:
         print(f"[VERIFIER] Contract not found: {path}", file=sys.stderr)
         sys.exit(2)
     try:
-        with open(path, encoding="utf-8") as f:
+        with open(path, encoding="utf-8-sig") as f:
             data = json.load(f)
     except (json.JSONDecodeError, OSError) as exc:
         print(f"[VERIFIER] Invalid contract: {exc}", file=sys.stderr)
@@ -147,6 +147,55 @@ def _scan_for_secrets(paths: list[Path]) -> list[str]:
     return list(dict.fromkeys(leaks))
 
 
+_PYTEST_COLLECT_FORMS = [
+    re.compile(r'collected\s+(\d+)\s+(?:tests?|items?)\s+in', re.IGNORECASE),
+    re.compile(r'(\d+)\s+(?:tests?|items?)\s+collected', re.IGNORECASE),
+    re.compile(r'collected\s+(\d+)\s+(?:tests?|items?)', re.IGNORECASE),
+]
+
+
+def _parse_pytest_collected_count(output: str) -> int | None:
+    for pat in _PYTEST_COLLECT_FORMS:
+        m = pat.search(output)
+        if m:
+            return int(m.group(1))
+    return None
+
+
+def _fallback_count_nodeids(output: str) -> int | None:
+    count = 0
+    for line in output.splitlines():
+        if "::" in line and line.strip():
+            count += 1
+    return count if count > 0 else None
+
+
+def _check_pytest_collection(
+    contract: dict[str, Any],
+) -> tuple[int | None, int | None, str | None]:
+    minimum = contract.get("minimum_pytest_collected", 0)
+    if not minimum or minimum <= 0:
+        return None, None, None
+    try:
+        result = subprocess.run(
+            ["py", "-3.11", "-m", "pytest", ".\\tests\\", "--collect-only", "-q"],
+            capture_output=True, text=True, check=False, cwd=ROOT,
+        )
+        combined = (result.stdout or "") + "\n" + (result.stderr or "")
+        if result.returncode != 0:
+            err = result.stderr.strip()[:500] or result.stdout.strip()[:500]
+            return minimum, None, f"pytest collection command failed: {err}"
+        actual = _parse_pytest_collected_count(combined)
+        if actual is not None:
+            return minimum, actual, None
+        fallback = _fallback_count_nodeids(result.stdout)
+        if fallback is not None:
+            return minimum, fallback, f"fallback nodeid count used (summary parse failed); actual={fallback}"
+        return minimum, None, "could not parse collected count from pytest output"
+    except FileNotFoundError:
+        return minimum, None, "py executable not found"
+
+
 def _run_commands(commands: list[str]) -> list[str]:
     failures: list[str] = []
     for cmd in commands:
@@ -167,13 +216,22 @@ def _make_report(
     path_errors: list[str],
     secret_leaks: list[str],
     command_failures: list[str],
+    pytest_collection: tuple[int | None, int | None, str | None] = (None, None, None),
 ) -> dict[str, Any]:
     has_forbidden_paths = bool(path_errors)
     has_secrets = bool(secret_leaks)
     has_failures = bool(command_failures)
     human_required = contract.get("human_review_required", False)
 
-    if has_forbidden_paths or has_secrets or has_failures:
+    minimum_collected, actual_collected, collection_error = pytest_collection
+    has_collection_failure = False
+    if minimum_collected is not None and minimum_collected > 0:
+        if collection_error:
+            has_collection_failure = True
+        elif actual_collected is not None and actual_collected < minimum_collected:
+            has_collection_failure = True
+
+    if has_forbidden_paths or has_secrets or has_failures or has_collection_failure:
         verdict = "FAIL"
         exit_code = 1
     elif human_required:
@@ -183,7 +241,7 @@ def _make_report(
         verdict = "PASS"
         exit_code = 0
 
-    return {
+    report: dict[str, Any] = {
         "verifier_version": "1.0.0",
         "task_id": contract.get("task_id"),
         "goal": contract.get("goal"),
@@ -194,6 +252,11 @@ def _make_report(
         "command_failures": command_failures,
         "human_review_required": human_required,
     }
+    if minimum_collected is not None:
+        report["minimum_pytest_collected"] = minimum_collected
+        report["actual_pytest_collected"] = actual_collected
+        report["pytest_collection_error"] = collection_error
+    return report
 
 
 def _write_report(report: dict[str, Any], path: Path) -> None:
@@ -239,7 +302,16 @@ def main() -> int:
         for f in command_failures:
             print(f"  ! {f}")
 
-    report = _make_report(contract, path_errors, secret_leaks, command_failures)
+    pytest_collection = _check_pytest_collection(contract)
+    minimum_collected, actual_collected, collection_error = pytest_collection
+    if minimum_collected is not None and minimum_collected > 0:
+        print(f"[VERIFIER] Pytest collection minimum={minimum_collected} actual={actual_collected} error={collection_error}")
+        if collection_error:
+            print(f"  ! Collection error: {collection_error}")
+        elif actual_collected is not None and actual_collected < minimum_collected:
+            print(f"  ! Collected {actual_collected} items, expected at least {minimum_collected}")
+
+    report = _make_report(contract, path_errors, secret_leaks, command_failures, pytest_collection)
     report_path = ROOT / ".verifier" / "reports" / f"verifier_report_{contract.get('task_id', 'unknown')}.json"
     _write_report(report, report_path)
     print(f"[VERIFIER] Report written: {report_path}")
