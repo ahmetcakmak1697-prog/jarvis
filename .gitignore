@@ -107,3 +107,6 @@ JARVIS_FILE_MAP.md
 JARVIS_LAST_COMMITS.txt
 
 memory/cost_ledger.jsonl
+
+# Verifier generated reports
+.verifier/reports/

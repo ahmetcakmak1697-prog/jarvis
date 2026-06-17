@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "task_id": "example-001",
+  "goal": "Brief description of what this task aims to accomplish.",
+  "allowed_paths": [
+    "scripts/",
+    "tests/",
+    "docs/"
+  ],
+  "forbidden_paths": [
+    ".env",
+    "memory/",
+    "config/"
+  ],
+  "required_commands": [
+    "py -3.11 -m pytest .\\tests\\ -q --tb=no"
+  ],
+  "human_review_required": false,
+  "notes": "Optional notes about this contract, edge cases, or special instructions."
+}
