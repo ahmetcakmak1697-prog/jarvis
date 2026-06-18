@@ -43,6 +43,7 @@ class LocalFirstRouter:
         cost_ledger=None,
         query_cache=None,
         redact_before_external: bool = True,
+        web_research_policy=None,
     ) -> None:
         self._kc_store = kc_store
         self._kc_min_confidence = kc_min_confidence
@@ -51,6 +52,7 @@ class LocalFirstRouter:
         self._cost_ledger = cost_ledger
         self._query_cache = query_cache
         self._redact_before_external = redact_before_external
+        self._web_research_policy = web_research_policy
 
     def _get_retriever(self):
         from agents.knowledge_card_retriever import KnowledgeCardRetriever
@@ -222,6 +224,49 @@ class LocalFirstRouter:
                         "ledger": gate,
                     },
                 }
+
+        # D2: Web research policy bridge
+        if self._web_research_policy is not None:
+            try:
+                wr_decision = self._web_research_policy.decide(question)
+                if wr_decision.allow and wr_decision.mode in (
+                    self._web_research_policy.MODE_CURRENT_INFO,
+                    self._web_research_policy.MODE_EXPLICIT_WEB,
+                ):
+                    return {
+                        "decision": "web_research",
+                        "route": "web_research",
+                        "confidence": 85,
+                        "reason": f"web_policy_gate:{wr_decision.mode}",
+                        "sanitized_query": wr_decision.sanitized_query,
+                        "signals": {
+                            "kc_found": False,
+                            "memory_hits": 0,
+                            "web_policy": {
+                                "mode": wr_decision.mode,
+                                "allow": wr_decision.allow,
+                                "reason": wr_decision.reason,
+                            },
+                        },
+                    }
+                if not wr_decision.allow and wr_decision.mode == self._web_research_policy.MODE_SENSITIVE_BLOCKED:
+                    return {
+                        "decision": "web_research_blocked",
+                        "route": "web_research_blocked",
+                        "confidence": 100,
+                        "reason": f"web_policy_sensitive:{wr_decision.reason}",
+                        "signals": {
+                            "kc_found": False,
+                            "memory_hits": 0,
+                            "web_policy": {
+                                "mode": wr_decision.mode,
+                                "allow": wr_decision.allow,
+                                "reason": wr_decision.reason,
+                            },
+                        },
+                    }
+            except Exception:
+                pass  # fail closed: fall through to safe local/API
 
         checked = ["knowledge_card", "memory"]
         escalation_reason = "no_local_knowledge:kc=0,memory=0"

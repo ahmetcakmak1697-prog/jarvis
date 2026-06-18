@@ -47,11 +47,12 @@ _QUICK_REPLIES: dict[str, str] = {
 }
 
 _LOCAL_ROUTES = {"knowledge_card", "memory", "cache"}
-_BLOCKED_DECISIONS = {"redacted_blocked", "external_blocked"}
+_BLOCKED_DECISIONS = {"redacted_blocked", "external_blocked", "web_research_blocked"}
 
 _BLOCKED_MESSAGES = {
     "redacted_blocked": "Bu soru hassas veri iceriyor ve disari gonderilemez.",
     "external_blocked": "Gunluk dis model limiti doldu. Daha sonra tekrar deneyin.",
+    "web_research_blocked": "Bu soru hassas veri icerdiginden web arastirmasi engellendi.",
 }
 
 
@@ -236,6 +237,17 @@ class AssistantExecutor:
                 "answer": answer,
                 "source": route,
                 "router_decision": rd,
+                "latency_ms": int((time.monotonic() - t0) * 1000),
+            }
+
+        # --- web research ---
+        if decision == "web_research" and route == "web_research":
+            return {
+                "ok": True,
+                "answer": "[Web arastirmasi secildi: henuz bir web arastirmasi bileseni bagli degil.]",
+                "source": "web_research",
+                "router_decision": rd,
+                "sanitized_query": rd.get("sanitized_query", question),
                 "latency_ms": int((time.monotonic() - t0) * 1000),
             }
 
