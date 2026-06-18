@@ -71,6 +71,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $ScriptRoot = Split-Path -Path $PSScriptRoot -Parent
+$RunnerCwd = (Get-Location).Path
+$RepoRoot = $ScriptRoot
 $LogDir = Join-Path -Path $ScriptRoot -ChildPath ".verifier\reports"
 $null = New-Item -ItemType Directory -Path $LogDir -Force
 
@@ -98,7 +100,8 @@ function Invoke-OpenCodeRun {
     param(
         [string]$Prompt,
         [string]$OutFile,
-        [int]$Round
+        [int]$Round,
+        [string]$TaskFilePath
     )
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     try {
@@ -109,6 +112,7 @@ function Invoke-OpenCodeRun {
         $pinfo.RedirectStandardError = $true
         $pinfo.UseShellExecute = $false
         $pinfo.CreateNoWindow = $true
+        $pinfo.WorkingDirectory = $RepoRoot
         $pinfo.StandardOutputEncoding = [System.Text.Encoding]::UTF8
         $pinfo.StandardErrorEncoding = [System.Text.Encoding]::UTF8
         $proc = [System.Diagnostics.Process]::Start($pinfo)
@@ -119,6 +123,9 @@ function Invoke-OpenCodeRun {
         $log = @"
 --- opencode run ---
 timestamp: $timestamp
+runner_cwd: $RunnerCwd
+process_working_directory: $RepoRoot
+task_file_path: $TaskFilePath
 prompt_length: $($Prompt.Length)
 round: $Round
 exit_code: $exitCode
@@ -128,12 +135,33 @@ $stdout
 $stderr
 "@
         $log | Set-Content -Path $OutFile -Encoding UTF8
-        return @{ ExitCode = $exitCode; Stdout = $stdout; Stderr = $stderr; Failed = $false }
+        $failed = $false
+        if ($exitCode -ne 0) {
+            $failed = $true
+        } else {
+            $taskName = Split-Path -Leaf $TaskFilePath
+            $combined = "$stdout $stderr"
+            $failurePatterns = @(
+                "Read.*$taskName.*failed",
+                "File not found:.*$taskName",
+                "The file does not exist in the current directory"
+            )
+            foreach ($pat in $failurePatterns) {
+                if ($combined -match $pat) {
+                    $failed = $true
+                    break
+                }
+            }
+        }
+        return @{ ExitCode = $exitCode; Stdout = $stdout; Stderr = $stderr; Failed = $failed }
     } catch {
         $errMsg = "opencode process launch failed with exception: $_"
         $log = @"
 --- opencode run ---
 timestamp: $timestamp
+runner_cwd: $RunnerCwd
+process_working_directory: $RepoRoot
+task_file_path: $TaskFilePath
 prompt_length: $($Prompt.Length)
 round: $Round
 exit_code: -1
@@ -149,12 +177,10 @@ $errMsg
 # ─── PRECHECK ─────────────────────────────────────────────────────────────────
 Write-Section "PRECHECK"
 
-# 1. Check TaskFile exists
-if (-not (Test-Path -LiteralPath $TaskFile)) {
-    Write-ErrorStep "TaskFile not found: $TaskFile"
-    exit 1
-}
-Write-Step "TaskFile OK: $TaskFile"
+# 1. Check TaskFile exists and resolve to absolute path
+$ResolvedTaskFile = Resolve-Path -LiteralPath $TaskFile -ErrorAction Stop
+$ResolvedTaskFile = $ResolvedTaskFile.Path
+Write-Step "TaskFile OK: $ResolvedTaskFile"
 
 # 2. Check opencode availability
 try {
@@ -210,8 +236,7 @@ for ($round = 1; $round -le $MaxRounds; $round++) {
     $roundLogs += $logFile
 
     if ($round -eq 1) {
-        # First round: run with the task file
-        $prompt = "Read and follow @$TaskFile exactly. Stay inside this worktree only. Do not inspect sibling worktrees or parent directories. Follow all safety rules in the task file."
+        $prompt = "Read and follow @$ResolvedTaskFile exactly. Stay inside this worktree only. Do not inspect sibling worktrees or parent directories. Follow all safety rules in the task file."
     } else {
         # Repair round: read the failure log
         $prevLog = Join-Path -Path $LogDir -ChildPath "autocoder_round_$($round - 1).log"
@@ -221,10 +246,12 @@ for ($round = 1; $round -le $MaxRounds; $round++) {
     Write-Step "Running opencode..."
     $ocOutFile = Join-Path -Path $LogDir -ChildPath "opencode_round_$round.log"
     $ocFailed = $false
-    $ocResult = Invoke-OpenCodeRun -Prompt $prompt -OutFile $ocOutFile -Round $round
+    $ocResult = Invoke-OpenCodeRun -Prompt $prompt -OutFile $ocOutFile -Round $round -TaskFilePath $ResolvedTaskFile
     if ($ocResult.Failed) {
         $ocFailed = $true
-        Write-ErrorStep "opencode process launch failed"
+        $ocExitCode = $ocResult.ExitCode
+        Write-Step "opencode exit code: $ocExitCode"
+        Write-ErrorStep "opencode failure detected (exit code $ocExitCode or task read failure)"
         Write-Step "See $ocOutFile for details" -Color Yellow
     } else {
         $ocExitCode = $ocResult.ExitCode
