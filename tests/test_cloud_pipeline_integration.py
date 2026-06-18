@@ -46,6 +46,17 @@ class AllowingAPIBudgetGate:
         return {"allowed": True, "reason": "within_limit", **kwargs}
 
 
+class AllowingRouterCostLedger:
+    """Test-only router cost ledger for generic external escalation."""
+
+    def __init__(self):
+        self.calls = []
+
+    def check_and_consume(self, operation):
+        self.calls.append(operation)
+        return {"allowed": True, "reason": "within_limit", "operation": operation}
+
+
 class LocalFallbackExecutor:
     def __init__(self, text="Yerel fallback cevabi."):
         self.text = text
@@ -96,7 +107,7 @@ def test_real_pipeline_routes_l3_cloud_to_api_without_network():
     registry = _build_cloud_executor(api_client, local_executor)
 
     executor = AssistantExecutor(
-        router=LocalFirstRouter(),
+        router=LocalFirstRouter(cost_ledger=AllowingRouterCostLedger()),
         execution_policy=ExecutionPolicy(cloud_api_enabled=True, cloud_levels={"L3"}),
         executor_registry=registry,
         api_budget_gate=budget_gate,
@@ -128,7 +139,7 @@ def test_real_pipeline_api_timeout_falls_back_to_local_without_crashing():
     registry = _build_cloud_executor(api_client, local_executor)
 
     executor = AssistantExecutor(
-        router=LocalFirstRouter(),
+        router=LocalFirstRouter(cost_ledger=AllowingRouterCostLedger()),
         execution_policy=ExecutionPolicy(cloud_api_enabled=True, cloud_levels={"L3"}),
         executor_registry=registry,
         api_budget_gate=budget_gate,
