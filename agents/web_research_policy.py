@@ -179,7 +179,7 @@ class WebResearchPolicy:
         risk_flags: list[str] = []
 
         if not q:
-            return self._decision(False, self.MODE_GENERAL_QA, "Bo? sorgu.", "", risk_flags)
+            return self._decision(False, self.MODE_GENERAL_QA, "Bo\u015f sorgu.", "", risk_flags)
 
         sensitive_hits = self._sensitive_hits(q)
         if sensitive_hits:
@@ -278,12 +278,12 @@ class WebResearchPolicy:
 
     def _normalize(self, text: str) -> str:
         table = str.maketrans({
-            "?": "i", "?": "i",
-            "?": "g", "?": "g",
-            "?": "u", "?": "u",
-            "?": "s", "?": "s",
-            "?": "o", "?": "o",
-            "?": "c", "?": "c",
+            "\u0130": "i", "\u0131": "i",
+            "\u011e": "g", "\u011f": "g",
+            "\u00dc": "u", "\u00fc": "u",
+            "\u015e": "s", "\u015f": "s",
+            "\u00d6": "o", "\u00f6": "o",
+            "\u00c7": "c", "\u00e7": "c",
         })
         return (text or "").translate(table).lower()
 
