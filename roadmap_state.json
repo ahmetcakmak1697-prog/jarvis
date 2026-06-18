@@ -183,15 +183,68 @@
       "title": "Proaktif davranış motoru",
       "phase": "3",
       "kind": "architectural",
-      "status": "todo",
-      "depends_on": ["FAZ-2-D2"],
-      "autonomy": "human_required",
-      "acceptance_criteria_machine": ["pytest::tests/test_proactive.py"],
-      "acceptance_criteria_human": [
-        "Proaktif tetikleme mantığı senin onayından geçti (yanlış zamanda müdahale etmiyor)"
+      "status": "in_progress",
+      "depends_on": [
+        "FAZ-2-D2"
       ],
-      "allowed_paths": ["jarvis/proactive/**", "tests/**"],
-      "notes": "Davranış tasarımı = yargı. Mimari + insan kriteri -> imza."
+      "autonomy": "human_required",
+      "acceptance_criteria_machine": [
+        "py -3.11 -m pytest tests/proactive_core_smoke.py tests/test_e1_2_proactive_profile.py tests/test_e1_3_proactive_alerts.py tests/test_e1_4A_ride_weather_risk.py tests/test_e1_4B_live_weather_bridge.py tests/test_e1_5A_telegram_brief.py tests/test_e1_5B_1_risk_visibility.py tests/test_e1_5B_2_system_health_threshold.py tests/test_e1_5B_3_brief_tone.py tests/test_e1_5B_telegram_brief_live.py tests/test_e1_5C_time_aware_brief.py -q --tb=short"
+      ],
+      "acceptance_criteria_human": [
+        "Proactive trigger policy reviewed",
+        "No automatic push/background behavior enabled blindly",
+        "Default-off JARVIS_PROACTIVE_ENABLED invariant accepted for any future push behavior",
+        "Cooldown/rate-limit and mute/opt-out design reviewed before delivery is enabled",
+        "Proactive behavior should help without becoming annoying or interruptive"
+      ],
+      "allowed_paths": [
+        "agents/proactive_core.py",
+        "agents/proactive_agent.py",
+        "tools/telegram_agent.py",
+        "tests/proactive_core_smoke.py",
+        "tests/test_e1_2_proactive_profile.py",
+        "tests/test_e1_3_proactive_alerts.py",
+        "tests/test_e1_4A_ride_weather_risk.py",
+        "tests/test_e1_4B_live_weather_bridge.py",
+        "tests/test_e1_5A_telegram_brief.py",
+        "tests/test_e1_5B_1_risk_visibility.py",
+        "tests/test_e1_5B_2_system_health_threshold.py",
+        "tests/test_e1_5B_3_brief_tone.py",
+        "tests/test_e1_5B_telegram_brief_live.py",
+        "tests/test_e1_5C_time_aware_brief.py",
+        "tests/test_proactive_policy.py",
+        "tests/test_proactive_delivery.py"
+      ],
+      "notes": "FAZ-3-E1 read-only audit found stale roadmap paths: jarvis/proactive/** does not exist and tests/test_proactive.py does not exist. Actual proactive code lives in agents/proactive_core.py, agents/proactive_agent.py, and tools/telegram_agent.py. Current proactive behavior is pull-based via Telegram/API brief/status paths; no push scheduler/background loop should be enabled blindly. First safe next step is policy/test-only design with any future push behavior kept default-off behind JARVIS_PROACTIVE_ENABLED=0.",
+      "evidence": {
+        "verdict": "AUDITED_STALE_PATHS_POLICY_TEST_ONLY_NEXT",
+        "at": "2026-06-18",
+        "stale_paths": [
+          "jarvis/proactive/**",
+          "tests/test_proactive.py"
+        ],
+        "actual_code_paths": [
+          "agents/proactive_core.py",
+          "agents/proactive_agent.py",
+          "tools/telegram_agent.py"
+        ],
+        "existing_tests": [
+          "tests/proactive_core_smoke.py",
+          "tests/test_e1_2_proactive_profile.py",
+          "tests/test_e1_3_proactive_alerts.py",
+          "tests/test_e1_4A_ride_weather_risk.py",
+          "tests/test_e1_4B_live_weather_bridge.py",
+          "tests/test_e1_5A_telegram_brief.py",
+          "tests/test_e1_5B_1_risk_visibility.py",
+          "tests/test_e1_5B_2_system_health_threshold.py",
+          "tests/test_e1_5B_3_brief_tone.py",
+          "tests/test_e1_5B_telegram_brief_live.py",
+          "tests/test_e1_5C_time_aware_brief.py"
+        ],
+        "architecture_status": "pull_based_no_background_push",
+        "next_safe_step": "policy/test-only; no live push; default-off JARVIS_PROACTIVE_ENABLED for any future delivery behavior"
+      }
     },
     {
       "id": "FAZ-T1",
