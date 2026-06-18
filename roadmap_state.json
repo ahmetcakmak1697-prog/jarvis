@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "JARVIS",
-  "updated": "2026-06-17",
+  "updated": "2026-06-18",
   "note": "TEK DOĞRULUK KAYNAGI. Orchestrator sıradaki adımı buradan seçer; günlük rapor durumu buradan üretir. Adım otonom çalışsın istiyorsan: kind=implement/refactor, autonomy=auto, acceptance_criteria_machine dolu, acceptance_criteria_human BOŞ olmalı. Aksi halde adım otomatik olarak imza kapısına gider.",
 
   "policy_defaults": {
@@ -57,8 +57,11 @@
       "title": "FAZ 1B.13 durum tespiti: sıradaki en küçük güvenli patch'i belirle",
       "phase": "1B",
       "kind": "spec",
-      "status": "in_progress",
-      "depends_on": ["FAZ-1B.13H", "DEVOPS-verifier"],
+      "status": "done",
+      "depends_on": [
+        "FAZ-1B.13H",
+        "DEVOPS-verifier"
+      ],
       "autonomy": "human_required",
       "acceptance_criteria_machine": [],
       "acceptance_criteria_human": [
@@ -66,26 +69,32 @@
         "Sıradaki implement adımı(ları) roadmap_state'e eklendi (machine criteria ile)"
       ],
       "allowed_paths": [],
-      "notes": "READ-ONLY. Çıktısı yeni implement adımlarına dönüşür. spec adımı = her zaman imza."
+      "notes": "READ-ONLY. Çıktısı yeni implement adımlarına dönüşür. spec adımı = her zaman imza.",
+      "evidence": {
+        "audit_result": "Read-only audit completed. Main remaining gap: provider_decision.resolve_provider() exists but is not wired into AssistantExecutor._ask_inner().",
+        "human_review": "accepted",
+        "at": "2026-06-18"
+      }
     },
     {
       "id": "FAZ-1B.13I-api-executor-routing",
-      "title": "APIExecutor routing'i ExecutorRegistry üzerinden netleştir",
+      "title": "Wire provider_decision.resolve_provider() into AssistantExecutor._ask_inner()",
       "phase": "1B",
       "kind": "implement",
       "status": "todo",
-      "depends_on": ["FAZ-1B.13-audit"],
+      "depends_on": [
+        "FAZ-1B.13-audit"
+      ],
       "autonomy": "auto",
       "acceptance_criteria_machine": [
-        "pytest::tests/test_assistant_executor.py",
-        "pytest::tests/test_executor_registry.py"
+        "py -3.11 -m pytest tests/test_assistant_executor.py -q --tb=short",
+        "py -3.11 -m pytest tests/test_provider_decision.py tests/test_provider_selector.py tests/test_provider_profiles.py tests/test_privacy_level_bridge.py tests/test_data_classifier.py -q --tb=short"
       ],
       "acceptance_criteria_human": [],
       "allowed_paths": [
-        "jarvis/executors/assistant_executor.py",
-        "jarvis/executors/executor_registry.py"
+        "agents/assistant_executor.py"
       ],
-      "notes": "ÖRNEK ŞEKİL (GPT). Testler önce bir spec adımında (insan onaylı) yazılır; bu implement adımı onları geçirir. tests/ allowed DEĞİL -> spec-by-test. Gerçek adımlar audit çıktısından gelecek; yollar dar, kriter makinece doğrulanabilir olmalı."
+      "notes": "Audit accepted. Keep existing 13I id for dependency continuity, but replace the old nonexistent jarvis/executors paths. Implement source-only wiring: resolve provider after data_class is known, handle ProviderSelectionError/unexpected errors safely, and preserve local fallback behavior. Do not modify tests in this implement step."
     },
 
     {
