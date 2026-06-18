@@ -81,7 +81,7 @@
       "title": "Wire provider_decision.resolve_provider() into AssistantExecutor._ask_inner()",
       "phase": "1B",
       "kind": "implement",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "FAZ-1B.13-audit"
       ],
@@ -94,7 +94,17 @@
       "allowed_paths": [
         "agents/assistant_executor.py"
       ],
-      "notes": "Audit accepted. Keep existing 13I id for dependency continuity, but replace the old nonexistent jarvis/executors paths. Implement source-only wiring: resolve provider after data_class is known, handle ProviderSelectionError/unexpected errors safely, and preserve local fallback behavior. Do not modify tests in this implement step."
+      "notes": "Audit accepted. Keep existing 13I id for dependency continuity, but replace the old nonexistent jarvis/executors paths. Implement source-only wiring: resolve provider after data_class is known, handle ProviderSelectionError/unexpected errors safely, and preserve local fallback behavior. Do not modify tests in this implement step.",
+      "evidence": {
+        "commit": "dacf2aeaf",
+        "verdict": "PASS",
+        "tests": [
+          "py -3.11 -m py_compile agents/assistant_executor.py",
+          "py -3.11 -m pytest tests/test_assistant_executor.py -q --tb=short -> 15 passed",
+          "py -3.11 -m pytest tests/test_provider_decision.py tests/test_provider_selector.py tests/test_provider_profiles.py tests/test_privacy_level_bridge.py tests/test_data_classifier.py -q --tb=short -> 126 passed"
+        ],
+        "at": "2026-06-18"
+      }
     },
 
     {
