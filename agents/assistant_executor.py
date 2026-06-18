@@ -68,6 +68,7 @@ class AssistantExecutor:
         executor_registry=None,
         api_budget_gate=None,
         provider_selector=None,
+        web_researcher=None,
     ) -> None:
         self._router = router
         self._executor = executor
@@ -76,6 +77,7 @@ class AssistantExecutor:
         self._executor_registry = executor_registry
         self._api_budget_gate = api_budget_gate
         self._provider_selector = provider_selector
+        self._web_researcher = web_researcher
 
     def _log_telemetry(self, result: dict, question: str) -> None:
         try:
@@ -242,12 +244,33 @@ class AssistantExecutor:
 
         # --- web research ---
         if decision == "web_research" and route == "web_research":
+            sanitized_query = rd.get("sanitized_query", question)
+            if self._web_researcher is not None:
+                try:
+                    report = self._web_researcher.research(sanitized_query, deep=False)
+                    return {
+                        "ok": True,
+                        "answer": report,
+                        "source": "web_research",
+                        "router_decision": rd,
+                        "sanitized_query": sanitized_query,
+                        "latency_ms": int((time.monotonic() - t0) * 1000),
+                    }
+                except Exception:
+                    return {
+                        "ok": False,
+                        "answer": "[Web arastirmasi sirasinda hata olustu.]",
+                        "source": "web_research",
+                        "router_decision": rd,
+                        "sanitized_query": sanitized_query,
+                        "latency_ms": int((time.monotonic() - t0) * 1000),
+                    }
             return {
                 "ok": True,
                 "answer": "[Web arastirmasi secildi: henuz bir web arastirmasi bileseni bagli degil.]",
                 "source": "web_research",
                 "router_decision": rd,
-                "sanitized_query": rd.get("sanitized_query", question),
+                "sanitized_query": sanitized_query,
                 "latency_ms": int((time.monotonic() - t0) * 1000),
             }
 

@@ -254,3 +254,121 @@ def test_normal_non_web_question_preserved():
     assert result["ok"] is True
     assert result["source"] == "ollama"
     assert len(dummy_exec.calls) == 1
+
+
+# --- WebResearcher injection tests ---
+
+
+class FakeWebResearcher:
+    def __init__(self, report="Web arastirma sonucu.", raise_on=None):
+        self._report = report
+        self._raise_on = raise_on
+        self.calls = []
+
+    def research(self, query, deep=False):
+        self.calls.append({"query": query, "deep": deep})
+        if self._raise_on is not None and query == self._raise_on:
+            raise RuntimeError("fake researcher crashed")
+        return self._report
+
+
+def test_web_research_no_researcher_uses_placeholder():
+    from agents.assistant_executor import AssistantExecutor
+
+    router = FakeRouter({
+        "decision": "web_research",
+        "route": "web_research",
+        "confidence": 85,
+        "reason": "web_policy_gate:current_info",
+        "sanitized_query": "bugun izmir hava durumu",
+        "signals": {"web_policy": {"mode": "current_info", "allow": True}},
+    })
+    ex = AssistantExecutor(router=router)
+    result = ex.ask("Bugun Izmir hava durumu nedir?")
+
+    assert result["ok"] is True
+    assert result["source"] == "web_research"
+    assert "henuz bir web arastirmasi bileseni bagli degil" in result["answer"].lower()
+
+
+def test_web_research_with_fake_researcher_called():
+    from agents.assistant_executor import AssistantExecutor
+
+    researcher = FakeWebResearcher(report="Izmir hava durumu: 30 derece, acik.")
+    router = FakeRouter({
+        "decision": "web_research",
+        "route": "web_research",
+        "confidence": 85,
+        "reason": "web_policy_gate:current_info",
+        "sanitized_query": "bugun izmir hava durumu",
+        "signals": {"web_policy": {"mode": "current_info", "allow": True}},
+    })
+    ex = AssistantExecutor(router=router, web_researcher=researcher)
+    result = ex.ask("Bugun Izmir hava durumu nedir?")
+
+    assert result["ok"] is True
+    assert result["answer"] == "Izmir hava durumu: 30 derece, acik."
+    assert result["source"] == "web_research"
+    assert result["sanitized_query"] == "bugun izmir hava durumu"
+    assert researcher.calls == [{"query": "bugun izmir hava durumu", "deep": False}]
+
+
+def test_web_research_fake_researcher_exception_handled():
+    from agents.assistant_executor import AssistantExecutor
+
+    researcher = FakeWebResearcher(report="Hata olmamali.", raise_on="crash query")
+    router = FakeRouter({
+        "decision": "web_research",
+        "route": "web_research",
+        "confidence": 85,
+        "reason": "web_policy_gate:current_info",
+        "sanitized_query": "crash query",
+        "signals": {"web_policy": {"mode": "current_info", "allow": True}},
+    })
+    ex = AssistantExecutor(router=router, web_researcher=researcher)
+    result = ex.ask("crash query")
+
+    assert result["ok"] is False
+    assert result["source"] == "web_research"
+    assert "hata" in result["answer"].lower()
+
+
+def test_web_research_does_not_call_injected_executor():
+    from agents.assistant_executor import AssistantExecutor
+
+    researcher = FakeWebResearcher(report="Sadece web sonucu.")
+    dummy_exec = FakeExecutor(text="Burası cagrilmamali.")
+    router = FakeRouter({
+        "decision": "web_research",
+        "route": "web_research",
+        "confidence": 85,
+        "reason": "web_policy_gate:explicit_web",
+        "sanitized_query": "internetten bak openai fiyatlar",
+        "signals": {"web_policy": {"mode": "explicit_web", "allow": True}},
+    })
+    ex = AssistantExecutor(router=router, executor=dummy_exec, web_researcher=researcher)
+    result = ex.ask("internetten bak: OpenAI fiyatlar?")
+
+    assert result["ok"] is True
+    assert result["source"] == "web_research"
+    assert result["answer"] == "Sadece web sonucu."
+    assert dummy_exec.calls == []
+
+
+def test_web_research_fake_researcher_called_with_fallback_query():
+    """When sanitized_query is missing, fall back to original question."""
+    from agents.assistant_executor import AssistantExecutor
+
+    researcher = FakeWebResearcher(report="Genel sonuc.")
+    router = FakeRouter({
+        "decision": "web_research",
+        "route": "web_research",
+        "confidence": 85,
+        "reason": "web_policy_gate:explicit_web",
+        "signals": {"web_policy": {"mode": "explicit_web", "allow": True}},
+    })
+    ex = AssistantExecutor(router=router, web_researcher=researcher)
+    result = ex.ask("Orijinal soru metni")
+
+    assert result["ok"] is True
+    assert researcher.calls == [{"query": "Orijinal soru metni", "deep": False}]
