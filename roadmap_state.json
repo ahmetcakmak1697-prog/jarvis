@@ -113,11 +113,32 @@
       "phase": "2",
       "kind": "implement",
       "status": "todo",
-      "depends_on": ["FAZ-1B.13I-api-executor-routing"],
-      "autonomy": "auto",
-      "acceptance_criteria_machine": ["pytest::tests/test_web_research.py"],
-      "acceptance_criteria_human": [],
-      "allowed_paths": ["jarvis/research/**", "tests/**"]
+      "depends_on": [
+        "FAZ-1B.13I-api-executor-routing"
+      ],
+      "autonomy": "human_required",
+      "acceptance_criteria_machine": [
+        "python eval/run_d2_web_policy_eval.py --verbose",
+        "python tests/test_d2_lifecycle.py",
+        "python tests/test_d2_4_cache.py"
+      ],
+      "acceptance_criteria_human": [
+        "FAZ-2-D2 allowed paths and acceptance tests reviewed after read-only audit",
+        "Decision made on whether Turkish _normalize corruption is fixed before web research expansion"
+      ],
+      "allowed_paths": [
+        "agents/web_research_policy.py",
+        "tools/web_research.py",
+        "eval/",
+        "tests/"
+      ],
+      "notes": "Read-only audit found old roadmap paths were stale: jarvis/research/** and tests/test_web_research.py do not exist. Actual web research files are under agents/, tools/, eval/, and existing D2 tests are standalone runners. Audit also found agents/web_research_policy.py _normalize Turkish character mapping appears corrupted with '?' placeholders. Keep this human-gated until the normalization bug and intended D2 scope are approved.",
+      "evidence": {
+        "audit": "FAZ-2-D2 read-only audit via jarvis_auto_task.ps1",
+        "verdict": "DO_NOT_ARM_AS_IS",
+        "at": "2026-06-18",
+        "reason": "stale allowed_paths and missing tests/test_web_research.py"
+      }
     },
     {
       "id": "FAZ-3-E1",
