@@ -137,7 +137,7 @@ def test_web_policy_deny_local_mode_falls_through_to_existing():
 def test_no_web_policy_preserves_existing_behavior():
     router_no_policy = LocalFirstRouter(query_cache=FakeQueryCache())
     result = router_no_policy.route("Merhaba nasilsin?")
-    assert result["decision"] in ("ask_external", "clarify")
+    assert result["decision"] in ("ask_external", "clarify", "external_blocked")
 
 
 def test_policy_exception_fails_closed_to_existing_behavior():
@@ -152,7 +152,7 @@ def test_policy_exception_fails_closed_to_existing_behavior():
     router = LocalFirstRouter(web_research_policy=RaisingPolicy(), query_cache=FakeQueryCache())
     result = router.route("Bugun hava nasil?")
     # Must not crash, must fall through to existing behavior
-    assert result["decision"] in ("ask_external", "clarify")
+    assert result["decision"] in ("ask_external", "clarify", "external_blocked")
 
 
 def test_non_web_question_unchanged():

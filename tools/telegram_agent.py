@@ -1348,6 +1348,42 @@ def _sanitize_for_telegram(text: str) -> str:
     return text
 
 
+def _web_research_enabled_from_env() -> bool:
+    value = os.environ.get("JARVIS_WEB_RESEARCH_ENABLED", "").strip().lower()
+    return value in ("1", "true", "yes", "on")
+
+
+def _build_assistant_executor(web_research_enabled: bool | None = None):
+    from agents.assistant_executor import AssistantExecutor
+    from agents.local_first_router import LocalFirstRouter
+    from agents.knowledge_card_store import KnowledgeCardStore
+    from agents.cost_ledger import CostLedger
+
+    if web_research_enabled is None:
+        web_research_enabled = _web_research_enabled_from_env()
+
+    _store = KnowledgeCardStore()
+    _ledger = CostLedger(daily_limit=0)
+
+    if web_research_enabled:
+        from agents.web_research_policy import WebResearchPolicy
+        from tools.web_research import WebResearcher
+        _router = LocalFirstRouter(
+            kc_store=_store,
+            cost_ledger=_ledger,
+            web_research_policy=WebResearchPolicy(),
+        )
+        _executor = AssistantExecutor(
+            router=_router,
+            web_researcher=WebResearcher(),
+        )
+    else:
+        _router = LocalFirstRouter(kc_store=_store, cost_ledger=_ledger)
+        _executor = AssistantExecutor(router=_router)
+
+    return _executor
+
+
 def handle_ask_command(
     chat_id: int,
     question: str,
@@ -1368,14 +1404,7 @@ def handle_ask_command(
 
     if executor is None:
         try:
-            from agents.assistant_executor import AssistantExecutor
-            from agents.local_first_router import LocalFirstRouter
-            from agents.knowledge_card_store import KnowledgeCardStore
-            from agents.cost_ledger import CostLedger
-            _store = KnowledgeCardStore()
-            _ledger = CostLedger(daily_limit=0)
-            _router = LocalFirstRouter(kc_store=_store, cost_ledger=_ledger)
-            executor = AssistantExecutor(router=_router)
+            executor = _build_assistant_executor()
         except Exception as e:
             send_fn(chat_id, f"Jarvis baslatma hatasi: {e}")
             return {"ok": False, "reason": "executor_init_error", "error": str(e)}

@@ -208,24 +208,7 @@ class LocalFirstRouter:
             except Exception:
                 pass  # redaction failure = fail open (let through, don't crash)
 
-        # 3. Cost ledger gate before external
-        ledger = self._get_ledger()
-        if ledger is not None:
-            gate = ledger.check_and_consume("external_call")
-            if not gate.get("allowed"):
-                return {
-                    "decision": "external_blocked",
-                    "route": "external_blocked",
-                    "confidence": 0,
-                    "reason": f"budget_limit:{gate.get('reason','exceeded')}",
-                    "signals": {
-                        "kc_found": False,
-                        "memory_hits": 0,
-                        "ledger": gate,
-                    },
-                }
-
-        # D2: Web research policy bridge
+        # 3. D2: Web research policy bridge before generic external budget gate
         if self._web_research_policy is not None:
             try:
                 wr_decision = self._web_research_policy.decide(question)
@@ -267,6 +250,23 @@ class LocalFirstRouter:
                     }
             except Exception:
                 pass  # fail closed: fall through to safe local/API
+
+        # 4. Cost ledger gate before generic external escalation
+        ledger = self._get_ledger()
+        if ledger is not None:
+            gate = ledger.check_and_consume("external_call")
+            if not gate.get("allowed"):
+                return {
+                    "decision": "external_blocked",
+                    "route": "external_blocked",
+                    "confidence": 0,
+                    "reason": f"budget_limit:{gate.get('reason','exceeded')}",
+                    "signals": {
+                        "kc_found": False,
+                        "memory_hits": 0,
+                        "ledger": gate,
+                    },
+                }
 
         checked = ["knowledge_card", "memory"]
         escalation_reason = "no_local_knowledge:kc=0,memory=0"
