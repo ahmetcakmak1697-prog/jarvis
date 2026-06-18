@@ -137,29 +137,35 @@
         "eval/",
         "tests/"
       ],
-      "notes": "FAZ-2-D2 stale roadmap paths were corrected after read-only audit. Turkish _normalize corruption was fixed in commit 4d4162060. D2 router bridge was added in commit 4cc9fce0b: LocalFirstRouter can now emit web_research/web_research_blocked, and AssistantExecutor handles web_research safely without live web calls. WebResearcher dependency injection was added in commit ae7305083: AssistantExecutor can call an injected researcher with fake/stub tests, while preserving placeholder behavior when no researcher is injected. Remaining work: wire real/default WebResearcher in the app composition layer only after explicit human approval; do not enable live web calls blindly.",
+      "notes": "FAZ-2-D2 stale roadmap paths were corrected after read-only audit. Turkish _normalize corruption was fixed in commit 4d4162060. D2 router bridge was added in commit 4cc9fce0b. WebResearcher dependency injection was added in commit ae7305083. Default-off Telegram composition wiring was added in commit cc2890a2f using JARVIS_WEB_RESEARCH_ENABLED=0. When the flag is disabled, live web is not wired. When explicitly enabled, WebResearchPolicy and WebResearcher are injected. Remaining human gate: decide whether to run a controlled live smoke test and whether FAZ-2-D2 can be marked done.",
       "evidence": {
         "audit": "FAZ-2-D2 read-only audit via jarvis_auto_task.ps1",
-        "verdict": "WEB_RESEARCHER_INJECTION_DONE_DEFAULT_WIRING_PENDING",
+        "verdict": "COMPOSITION_FLAG_DONE_HUMAN_LIVE_SMOKE_PENDING",
         "at": "2026-06-18",
         "reason": "stale allowed_paths and missing tests/test_web_research.py",
         "roadmap_correction_commit": "365e4ac6f",
         "normalize_fix_commit": "4d4162060",
         "router_bridge_commit": "4cc9fce0b",
         "validation": [
-          "tests/test_d2_web_router_integration.py -> 17 passed",
-          "tests/test_web_research_policy.py + tests/test_assistant_executor.py -> 18 passed",
-          "eval/run_d2_web_policy_eval.py --verbose -> 20/20 PASS, 0 sensitive leaks"
+          "tests/test_d2_web_research_composition.py + tests/test_d2_web_router_integration.py -> 23 passed",
+          "composition + router + assistant_executor + web_policy tests -> 41 passed",
+          "eval/run_d2_web_policy_eval.py --verbose -> 20/20 PASS, 0 sensitive leaks",
+          "git diff --check -> clean"
         ],
-        "remaining": "Real/default WebResearcher wiring in app composition layer is not enabled yet.",
+        "remaining": "Human approval/live smoke decision before marking FAZ-2-D2 done.",
         "router_bridge_roadmap_commit": "851e49f48",
         "web_researcher_injection_commit": "ae7305083",
         "completed": [
           "Corrected stale FAZ-2-D2 paths/tests",
           "Fixed Turkish web policy normalization",
           "Added web_research router bridge",
-          "Added AssistantExecutor WebResearcher dependency injection with fake/stub tests"
-        ]
+          "Added AssistantExecutor WebResearcher dependency injection with fake/stub tests",
+          "Added default-off JARVIS_WEB_RESEARCH_ENABLED composition flag",
+          "Wired Telegram AssistantExecutor composition behind explicit flag",
+          "Moved D2 web policy gate before generic external budget gate"
+        ],
+        "web_researcher_injection_roadmap_commit": "4b47d3a02",
+        "composition_flag_commit": "cc2890a2f"
       }
     },
     {
