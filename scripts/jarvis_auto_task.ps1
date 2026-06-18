@@ -94,6 +94,58 @@ function Write-ErrorStep {
     Write-Host "  !! $Msg" -ForegroundColor Red
 }
 
+function Invoke-OpenCodeRun {
+    param(
+        [string]$Prompt,
+        [string]$OutFile,
+        [int]$Round
+    )
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    try {
+        $pinfo = New-Object System.Diagnostics.ProcessStartInfo
+        $pinfo.FileName = "cmd.exe"
+        $pinfo.Arguments = "/c opencode run `"$Prompt`""
+        $pinfo.RedirectStandardOutput = $true
+        $pinfo.RedirectStandardError = $true
+        $pinfo.UseShellExecute = $false
+        $pinfo.CreateNoWindow = $true
+        $pinfo.StandardOutputEncoding = [System.Text.Encoding]::UTF8
+        $pinfo.StandardErrorEncoding = [System.Text.Encoding]::UTF8
+        $proc = [System.Diagnostics.Process]::Start($pinfo)
+        $stdout = $proc.StandardOutput.ReadToEnd()
+        $stderr = $proc.StandardError.ReadToEnd()
+        $proc.WaitForExit()
+        $exitCode = $proc.ExitCode
+        $log = @"
+--- opencode run ---
+timestamp: $timestamp
+prompt_length: $($Prompt.Length)
+round: $Round
+exit_code: $exitCode
+--- stdout ---
+$stdout
+--- stderr ---
+$stderr
+"@
+        $log | Set-Content -Path $OutFile -Encoding UTF8
+        return @{ ExitCode = $exitCode; Stdout = $stdout; Stderr = $stderr; Failed = $false }
+    } catch {
+        $errMsg = "opencode process launch failed with exception: $_"
+        $log = @"
+--- opencode run ---
+timestamp: $timestamp
+prompt_length: $($Prompt.Length)
+round: $Round
+exit_code: -1
+--- stdout ---
+--- stderr ---
+$errMsg
+"@
+        $log | Set-Content -Path $OutFile -Encoding UTF8
+        return @{ ExitCode = -1; Stdout = ""; Stderr = $errMsg; Failed = $true }
+    }
+}
+
 # ─── PRECHECK ─────────────────────────────────────────────────────────────────
 Write-Section "PRECHECK"
 
@@ -169,24 +221,17 @@ for ($round = 1; $round -le $MaxRounds; $round++) {
     Write-Step "Running opencode..."
     $ocOutFile = Join-Path -Path $LogDir -ChildPath "opencode_round_$round.log"
     $ocFailed = $false
-    try {
-        $opencodeArgs = @("run", $prompt)
-        $opencodeOutput = & opencode @opencodeArgs 2>&1
-        $ocExitCode = $LASTEXITCODE
-        $opencodeOutput | Set-Content -Path $ocOutFile -Encoding UTF8
+    $ocResult = Invoke-OpenCodeRun -Prompt $prompt -OutFile $ocOutFile -Round $round
+    if ($ocResult.Failed) {
+        $ocFailed = $true
+        Write-ErrorStep "opencode process launch failed"
+        Write-Step "See $ocOutFile for details" -Color Yellow
+    } else {
+        $ocExitCode = $ocResult.ExitCode
         Write-Step "opencode exit code: $ocExitCode"
         if ($ocExitCode -ne 0) {
             Write-ErrorStep "opencode exited with code $ocExitCode"
             $ocFailed = $true
-        }
-    } catch {
-        $ocExitCode = -1
-        $ocFailed = $true
-        $errMsg = "opencode run failed with exception: $_"
-        Write-ErrorStep $errMsg
-        $errMsg | Set-Content -Path $ocOutFile -Encoding UTF8
-        if ($null -eq $_.Exception.Message -or $_.Exception.Message -eq "") {
-            Write-Step "OpenCode invocation failed; see opencode_round_$round.log" -Color Yellow
         }
     }
 
