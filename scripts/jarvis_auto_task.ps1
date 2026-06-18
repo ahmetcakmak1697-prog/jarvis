@@ -64,7 +64,11 @@ param(
     [Parameter(Mandatory = $false)]
     [string[]]$CommitPaths,
 
-    [switch]$PrecheckOnly
+    [switch]$PrecheckOnly,
+
+    [Parameter(Mandatory = $false)]
+    [ValidateRange(1, [int]::MaxValue)]
+    [int]$OpenCodeTimeoutSeconds = 900
 )
 
 Set-StrictMode -Version Latest
@@ -101,25 +105,91 @@ function Invoke-OpenCodeRun {
         [string]$Prompt,
         [string]$OutFile,
         [int]$Round,
-        [string]$TaskFilePath
+        [string]$TaskFilePath,
+        [int]$TimeoutSeconds = 900
     )
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $tempDir = Join-Path -Path $LogDir -ChildPath "tmp"
+    $null = New-Item -ItemType Directory -Path $tempDir -Force
+    $stdoutFile = Join-Path -Path $tempDir -ChildPath "oc_stdout_$Round.txt"
+    $stderrFile = Join-Path -Path $tempDir -ChildPath "oc_stderr_$Round.txt"
+
+    # Early log marker: write "running" status before launch
+    $earlyLog = @"
+--- opencode run ---
+timestamp: $timestamp
+runner_cwd: $RunnerCwd
+process_working_directory: $RepoRoot
+task_file_path: $TaskFilePath
+prompt_length: $($Prompt.Length)
+round: $Round
+timeout_seconds: $TimeoutSeconds
+process_id: (not yet launched)
+status: running
+--- stdout ---
+(not yet available)
+--- stderr ---
+(not yet available)
+"@
+    $earlyLog | Set-Content -Path $OutFile -Encoding UTF8
+
     try {
         $pinfo = New-Object System.Diagnostics.ProcessStartInfo
         $pinfo.FileName = "cmd.exe"
-        $pinfo.Arguments = "/c opencode run `"$Prompt`""
-        $pinfo.RedirectStandardOutput = $true
-        $pinfo.RedirectStandardError = $true
+        # Redirect stdout/stderr to temp files to avoid deadlock
+        $cmdArgs = "/c opencode run `"$Prompt`" > `"$stdoutFile`" 2> `"$stderrFile`""
+        $pinfo.Arguments = $cmdArgs
+        $pinfo.RedirectStandardOutput = $false
+        $pinfo.RedirectStandardError = $false
         $pinfo.UseShellExecute = $false
         $pinfo.CreateNoWindow = $true
         $pinfo.WorkingDirectory = $RepoRoot
-        $pinfo.StandardOutputEncoding = [System.Text.Encoding]::UTF8
-        $pinfo.StandardErrorEncoding = [System.Text.Encoding]::UTF8
         $proc = [System.Diagnostics.Process]::Start($pinfo)
-        $stdout = $proc.StandardOutput.ReadToEnd()
-        $stderr = $proc.StandardError.ReadToEnd()
-        $proc.WaitForExit()
-        $exitCode = $proc.ExitCode
+
+        $pidFile = $proc.Id
+        Write-Step "OpenCode process ID: $pidFile" -Color Cyan
+        Write-Step "OpenCode timeout: $TimeoutSeconds seconds" -Color Cyan
+
+        # Wait for process with timeout
+        $timedOut = -not $proc.WaitForExit($TimeoutSeconds * 1000)
+
+        if ($timedOut) {
+            Write-Step "OpenCode TIMEOUT after $TimeoutSeconds seconds -- killing process tree." -Color Yellow
+            try {
+                & taskkill.exe /PID $pidFile /T /F 2>$null | Out-Null
+            } catch {
+                try { $proc.Kill() } catch { }
+            }
+            try {
+                if (-not $proc.HasExited) {
+                    try { $proc.Kill() } catch { }
+                }
+                $proc.WaitForExit(5000) | Out-Null
+            } catch { }
+            $exitCode = -1
+            $failed = $true
+            $timeoutReason = "TIMEOUT: opencode did not finish within $TimeoutSeconds seconds (PID $pidFile). Process tree kill attempted."
+        } else {
+            $exitCode = $proc.ExitCode
+            $failed = $false
+            $timeoutReason = $null
+        }
+
+        # Read temp files
+        $stdout = ""
+        $stderr = ""
+        if (Test-Path -LiteralPath $stdoutFile) {
+            $stdout = Get-Content -Path $stdoutFile -Raw -Encoding UTF8
+        }
+        if (Test-Path -LiteralPath $stderrFile) {
+            $stderr = Get-Content -Path $stderrFile -Raw -Encoding UTF8
+        }
+
+        # Clean up temp files
+        if (Test-Path -LiteralPath $stdoutFile) { Remove-Item -Path $stdoutFile -Force }
+        if (Test-Path -LiteralPath $stderrFile) { Remove-Item -Path $stderrFile -Force }
+
+        # Build final log
         $log = @"
 --- opencode run ---
 timestamp: $timestamp
@@ -128,32 +198,55 @@ process_working_directory: $RepoRoot
 task_file_path: $TaskFilePath
 prompt_length: $($Prompt.Length)
 round: $Round
+timeout_seconds: $TimeoutSeconds
+process_id: $pidFile
+status: completed
 exit_code: $exitCode
+timed_out: $($timedOut -eq $true)
+"@
+
+        if ($timedOut) {
+            $log += @"
+
+--- stdout ---
+(not available — timed out)
+--- stderr ---
+$timeoutReason
+"@
+        } else {
+            $log += @"
+
 --- stdout ---
 $stdout
 --- stderr ---
 $stderr
 "@
+        }
+
         $log | Set-Content -Path $OutFile -Encoding UTF8
-        $failed = $false
-        if ($exitCode -ne 0) {
-            $failed = $true
-        } else {
-            $taskName = Split-Path -Leaf $TaskFilePath
-            $combined = "$stdout $stderr"
-            $failurePatterns = @(
-                "Read.*$taskName.*failed",
-                "File not found:.*$taskName",
-                "The file does not exist in the current directory"
-            )
-            foreach ($pat in $failurePatterns) {
-                if ($combined -match $pat) {
-                    $failed = $true
-                    break
+
+        # False-success detection (only if not timeout)
+        if (-not $timedOut) {
+            if ($exitCode -ne 0) {
+                $failed = $true
+            } else {
+                $taskName = Split-Path -Leaf $TaskFilePath
+                $combined = "$stdout $stderr"
+                $failurePatterns = @(
+                    "Read.*$taskName.*failed",
+                    "File not found:.*$taskName",
+                    "The file does not exist in the current directory"
+                )
+                foreach ($pat in $failurePatterns) {
+                    if ($combined -match $pat) {
+                        $failed = $true
+                        break
+                    }
                 }
             }
         }
-        return @{ ExitCode = $exitCode; Stdout = $stdout; Stderr = $stderr; Failed = $failed }
+
+        return @{ ExitCode = $exitCode; Stdout = $stdout; Stderr = $stderr; Failed = $failed; TimedOut = $timedOut }
     } catch {
         $errMsg = "opencode process launch failed with exception: $_"
         $log = @"
@@ -164,13 +257,17 @@ process_working_directory: $RepoRoot
 task_file_path: $TaskFilePath
 prompt_length: $($Prompt.Length)
 round: $Round
+timeout_seconds: $TimeoutSeconds
+process_id: (launch failed)
+status: error
 exit_code: -1
+timed_out: false
 --- stdout ---
 --- stderr ---
 $errMsg
 "@
         $log | Set-Content -Path $OutFile -Encoding UTF8
-        return @{ ExitCode = -1; Stdout = ""; Stderr = $errMsg; Failed = $true }
+        return @{ ExitCode = -1; Stdout = ""; Stderr = $errMsg; Failed = $true; TimedOut = $false }
     }
 }
 
@@ -224,6 +321,9 @@ if ($PrecheckOnly) {
     exit 0
 }
 
+# Log timeout value
+Write-Step "OpenCodeTimeoutSeconds = $OpenCodeTimeoutSeconds" -Color Cyan
+
 # ─── MAIN LOOP ────────────────────────────────────────────────────────────────
 $allPassed = $false
 $roundLogs = @()
@@ -246,12 +346,16 @@ for ($round = 1; $round -le $MaxRounds; $round++) {
     Write-Step "Running opencode..."
     $ocOutFile = Join-Path -Path $LogDir -ChildPath "opencode_round_$round.log"
     $ocFailed = $false
-    $ocResult = Invoke-OpenCodeRun -Prompt $prompt -OutFile $ocOutFile -Round $round -TaskFilePath $ResolvedTaskFile
+    $ocResult = Invoke-OpenCodeRun -Prompt $prompt -OutFile $ocOutFile -Round $round -TaskFilePath $ResolvedTaskFile -TimeoutSeconds $OpenCodeTimeoutSeconds
     if ($ocResult.Failed) {
         $ocFailed = $true
         $ocExitCode = $ocResult.ExitCode
-        Write-Step "opencode exit code: $ocExitCode"
-        Write-ErrorStep "opencode failure detected (exit code $ocExitCode or task read failure)"
+        if ($ocResult.TimedOut) {
+            Write-ErrorStep "opencode TIMED OUT after ${OpenCodeTimeoutSeconds}s"
+        } else {
+            Write-Step "opencode exit code: $ocExitCode"
+            Write-ErrorStep "opencode failure detected (exit code $ocExitCode or task read failure)"
+        }
         Write-Step "See $ocOutFile for details" -Color Yellow
     } else {
         $ocExitCode = $ocResult.ExitCode
