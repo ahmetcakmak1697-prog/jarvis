@@ -46,6 +46,7 @@ class Step:
     kind: str = "implement"            # implement|refactor|spec|integration|architectural
     autonomy: str = "auto"             # auto|human_required
     acceptance_criteria_human: list[str] = field(default_factory=list)
+    correctness_critical: bool = False
 
 
 @dataclass
@@ -154,6 +155,12 @@ def decide(step: Step, verdict: str, diff: DiffStats,
         raise_to(Decision.HUMAN_GATE,
                  f"Çok silme: {diff.deletions} satır > {cfg.big_diff_deletions}.")
 
+    # 4) Correctness-critical gate: testler PASS olsa bile insan imzası gerekir
+    if step.correctness_critical:
+        raise_to(Decision.HUMAN_GATE,
+                 "Doğruluk-kritik adım (correctness_critical): deterministik testler PASS olsa "
+                 "da insan imzası gereklidir.")
+
     if decision == Decision.PROCEED_COMMIT:
         reasons.append("PASS + imza tetikleyicisi yok -> otonom devam.")
     return decision, reasons
@@ -170,6 +177,7 @@ def _from_payload(data: dict) -> tuple[Step, str, DiffStats, float, int, PolicyC
         kind=s.get("kind", "implement"),
         autonomy=s.get("autonomy", "auto"),
         acceptance_criteria_human=s.get("acceptance_criteria_human", []),
+        correctness_critical=s.get("correctness_critical", False),
     )
     d = data.get("diff", {})
     diff = DiffStats(
@@ -208,6 +216,9 @@ def _selftest() -> int:
         (Step("k", "implement", "auto"), "PASS",
          DiffStats(1, 40, 1, ["jarvis/old.py"]), 0.1, 0,
          Decision.HUMAN_GATE),  # kaynak dosya silindi -> kapı
+        (Step("l", "implement", "auto", correctness_critical=True), "PASS",
+         DiffStats(1, 3, 0, ["jarvis/util/x.py"]), 0.1, 0,
+         Decision.HUMAN_GATE),  # correctness_critical -> PASS olsa da kapı
     ]
     ok = True
     for step, verdict, diff, cost, fails, expected in cases:
