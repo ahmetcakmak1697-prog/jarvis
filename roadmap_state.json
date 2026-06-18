@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "project": "JARVIS",
+  "updated": "2026-06-17",
+  "note": "TEK DOĞRULUK KAYNAGI. Orchestrator sıradaki adımı buradan seçer; günlük rapor durumu buradan üretir. Adım otonom çalışsın istiyorsan: kind=implement/refactor, autonomy=auto, acceptance_criteria_machine dolu, acceptance_criteria_human BOŞ olmalı. Aksi halde adım otomatik olarak imza kapısına gider.",
+
+  "policy_defaults": {
+    "budget_usd": 5.0,
+    "max_repair_rounds": 4
+  },
+
+  "steps": [
+    {
+      "id": "FAZ-0",
+      "title": "Temel sistem (FastAPI + Ollama + RAG + memory)",
+      "phase": "0",
+      "kind": "implement",
+      "status": "done",
+      "depends_on": [],
+      "autonomy": "auto",
+      "acceptance_criteria_machine": ["pytest"],
+      "acceptance_criteria_human": [],
+      "allowed_paths": ["jarvis/**", "tests/**"],
+      "evidence": {"verdict": "PASS", "at": "2026-05"}
+    },
+    {
+      "id": "DEVOPS-verifier",
+      "title": "Deterministik verifier + auto-coder runner (dev otomasyon hattı)",
+      "phase": "infra",
+      "kind": "implement",
+      "status": "done",
+      "depends_on": ["FAZ-0"],
+      "autonomy": "auto",
+      "acceptance_criteria_machine": [
+        "pytest::tests/test_verifier_runner.py",
+        "verifier: minimum_pytest_collected guard çalışıyor"
+      ],
+      "acceptance_criteria_human": [],
+      "allowed_paths": ["scripts/**", "tests/**", "docs/templates/**", ".gitignore"],
+      "evidence": {"commit": "867b471b0", "verdict": "PASS", "at": "2026-06-17"}
+    },
+    {
+      "id": "FAZ-1B.13H",
+      "title": "Türkçe noktalı I (U+0130) folding düzeltmesi (_fold_tr)",
+      "phase": "1B",
+      "kind": "implement",
+      "status": "done",
+      "depends_on": ["FAZ-0"],
+      "autonomy": "auto",
+      "acceptance_criteria_machine": ["pytest::tests -k fold_tr"],
+      "acceptance_criteria_human": [],
+      "allowed_paths": ["jarvis/**assistant_executor*", "tests/**"],
+      "evidence": {"commit": "a99148f0d", "verdict": "PASS", "at": "2026-06-17"}
+    },
+    {
+      "id": "FAZ-1B.13-audit",
+      "title": "FAZ 1B.13 durum tespiti: sıradaki en küçük güvenli patch'i belirle",
+      "phase": "1B",
+      "kind": "spec",
+      "status": "in_progress",
+      "depends_on": ["FAZ-1B.13H", "DEVOPS-verifier"],
+      "autonomy": "human_required",
+      "acceptance_criteria_machine": [],
+      "acceptance_criteria_human": [
+        "Audit çıktısı incelendi",
+        "Sıradaki implement adımı(ları) roadmap_state'e eklendi (machine criteria ile)"
+      ],
+      "allowed_paths": [],
+      "notes": "READ-ONLY. Çıktısı yeni implement adımlarına dönüşür. spec adımı = her zaman imza."
+    },
+    {
+      "id": "FAZ-1B.13I-api-executor-routing",
+      "title": "APIExecutor routing'i ExecutorRegistry üzerinden netleştir",
+      "phase": "1B",
+      "kind": "implement",
+      "status": "todo",
+      "depends_on": ["FAZ-1B.13-audit"],
+      "autonomy": "auto",
+      "acceptance_criteria_machine": [
+        "pytest::tests/test_assistant_executor.py",
+        "pytest::tests/test_executor_registry.py"
+      ],
+      "acceptance_criteria_human": [],
+      "allowed_paths": [
+        "jarvis/executors/assistant_executor.py",
+        "jarvis/executors/executor_registry.py"
+      ],
+      "notes": "ÖRNEK ŞEKİL (GPT). Testler önce bir spec adımında (insan onaylı) yazılır; bu implement adımı onları geçirir. tests/ allowed DEĞİL -> spec-by-test. Gerçek adımlar audit çıktısından gelecek; yollar dar, kriter makinece doğrulanabilir olmalı."
+    },
+
+    {
+      "id": "FAZ-2-D2",
+      "title": "Web research yeteneği",
+      "phase": "2",
+      "kind": "implement",
+      "status": "todo",
+      "depends_on": ["FAZ-1B.13I-api-executor-routing"],
+      "autonomy": "auto",
+      "acceptance_criteria_machine": ["pytest::tests/test_web_research.py"],
+      "acceptance_criteria_human": [],
+      "allowed_paths": ["jarvis/research/**", "tests/**"]
+    },
+    {
+      "id": "FAZ-3-E1",
+      "title": "Proaktif davranış motoru",
+      "phase": "3",
+      "kind": "architectural",
+      "status": "todo",
+      "depends_on": ["FAZ-2-D2"],
+      "autonomy": "human_required",
+      "acceptance_criteria_machine": ["pytest::tests/test_proactive.py"],
+      "acceptance_criteria_human": [
+        "Proaktif tetikleme mantığı senin onayından geçti (yanlış zamanda müdahale etmiyor)"
+      ],
+      "allowed_paths": ["jarvis/proactive/**", "tests/**"],
+      "notes": "Davranış tasarımı = yargı. Mimari + insan kriteri -> imza."
+    },
+    {
+      "id": "FAZ-T1",
+      "title": "Türkçe kalite track'i",
+      "phase": "T",
+      "kind": "implement",
+      "status": "todo",
+      "depends_on": ["FAZ-0"],
+      "autonomy": "human_required",
+      "acceptance_criteria_machine": ["pytest::tests/test_tr_quality.py (regresyon)"],
+      "acceptance_criteria_human": [
+        "Türkçe çıktı kalitesi senin kulağına doğru geliyor (subjektif -> imza)"
+      ],
+      "allowed_paths": ["jarvis/**", "tests/**"],
+      "notes": "Kalite subjektif; deterministik gate yalnızca regresyonu tutar, kaliteyi sen onaylarsın."
+    },
+    {
+      "id": "FAZ-PHASE2-integration",
+      "title": "FAZ 2 entegrasyon kapısı (blokların birbiriyle çalıştığını doğrula)",
+      "phase": "2",
+      "kind": "integration",
+      "status": "todo",
+      "depends_on": ["FAZ-2-D2"],
+      "autonomy": "human_required",
+      "acceptance_criteria_machine": ["pytest::tests/integration/**"],
+      "acceptance_criteria_human": ["Entegrasyon davranışı uçtan uca incelendi"],
+      "allowed_paths": ["tests/integration/**"],
+      "notes": "Faz sınırlarında entegrasyon testi + imza. 'Hiçbir şey atlanmadı' garantisi burada."
+    }
+  ]
+}
