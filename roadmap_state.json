@@ -112,32 +112,46 @@
       "title": "Web research yeteneği",
       "phase": "2",
       "kind": "implement",
-      "status": "todo",
+      "status": "in_progress",
       "depends_on": [
         "FAZ-1B.13I-api-executor-routing"
       ],
       "autonomy": "human_required",
       "acceptance_criteria_machine": [
+        "py -3.11 -m pytest tests/test_d2_web_router_integration.py -q --tb=short",
+        "py -3.11 -m pytest tests/test_web_research_policy.py tests/test_assistant_executor.py -q --tb=short",
         "python eval/run_d2_web_policy_eval.py --verbose",
         "python tests/test_d2_lifecycle.py",
         "python tests/test_d2_4_cache.py"
       ],
       "acceptance_criteria_human": [
-        "FAZ-2-D2 allowed paths and acceptance tests reviewed after read-only audit",
-        "Decision made on whether Turkish _normalize corruption is fixed before web research expansion"
+        "FAZ-2-D2 router bridge reviewed and accepted",
+        "Decision made before wiring live WebResearcher into AssistantExecutor",
+        "Live web calls remain disabled unless explicitly implemented and tested with fake/stub first"
       ],
       "allowed_paths": [
         "agents/web_research_policy.py",
+        "agents/local_first_router.py",
+        "agents/assistant_executor.py",
         "tools/web_research.py",
         "eval/",
         "tests/"
       ],
-      "notes": "Read-only audit found old roadmap paths were stale: jarvis/research/** and tests/test_web_research.py do not exist. Actual web research files are under agents/, tools/, eval/, and existing D2 tests are standalone runners. Audit also found agents/web_research_policy.py _normalize Turkish character mapping appears corrupted with '?' placeholders. Keep this human-gated until the normalization bug and intended D2 scope are approved.",
+      "notes": "FAZ-2-D2 stale roadmap paths were corrected after read-only audit. Turkish _normalize corruption was fixed in commit 4d4162060. D2 router bridge was added in commit 4cc9fce0b: LocalFirstRouter can now emit web_research/web_research_blocked, and AssistantExecutor handles web_research safely without live web calls. Remaining work: wire a WebResearcher dependency into AssistantExecutor with fake/stub tests first; do not enable live web calls blindly.",
       "evidence": {
         "audit": "FAZ-2-D2 read-only audit via jarvis_auto_task.ps1",
-        "verdict": "DO_NOT_ARM_AS_IS",
+        "verdict": "ROUTER_BRIDGE_DONE_LIVE_WEB_PENDING",
         "at": "2026-06-18",
-        "reason": "stale allowed_paths and missing tests/test_web_research.py"
+        "reason": "stale allowed_paths and missing tests/test_web_research.py",
+        "roadmap_correction_commit": "365e4ac6f",
+        "normalize_fix_commit": "4d4162060",
+        "router_bridge_commit": "4cc9fce0b",
+        "validation": [
+          "tests/test_d2_web_router_integration.py -> 12 passed",
+          "tests/test_web_research_policy.py + tests/test_assistant_executor.py -> 18 passed",
+          "eval/run_d2_web_policy_eval.py --verbose -> 20/20 PASS, 0 sensitive leaks"
+        ],
+        "remaining": "AssistantExecutor live WebResearcher dependency injection is not wired yet."
       }
     },
     {
