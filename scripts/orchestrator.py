@@ -130,10 +130,13 @@ def _rollback(repo: Path, checkpoint: str, allowed: tuple = ()):
 
 def _park_to_review(repo: Path, checkpoint: str, step_id: str, allowed: list, msg: str) -> str:
     """Uncommitted değişiklikleri review/<id> dalına commit'le, ana dalı checkpoint'e sar.
+    Eğer commit başarısız olursa boş string döndür (çağıran HUMAN_GATE/HALT kararını versin).
     Temizlik KAPSAMLI -- global git clean YOK (ilgisiz untracked dosya silinmez)."""
     for p in allowed:
         _git(repo, "add", "--", p)
-    _git(repo, "commit", "-m", msg)
+    cp = _git(repo, "commit", "-m", msg)
+    if cp.returncode != 0:
+        return ""
     branch = f"review/{step_id}"
     _git(repo, "branch", "-f", branch)
     _git(repo, "reset", "--hard", checkpoint)
@@ -220,21 +223,60 @@ def _is_judgment(step: dict) -> bool:
             or bool(step.get("acceptance_criteria_human")))
 
 
+def _is_executable_criterion(text: str) -> bool:
+    """Heuristic: if text starts with a known command pattern, treat as executable."""
+    known_prefixes = ("pytest", "py ", "ruff", "mypy", "flake8", "black", "isort",
+                      "pytest::")
+    return text.strip().lower().startswith(known_prefixes)
+
+
+def _criterion_to_command(text: str) -> str:
+    """Convert a machine criterion to a shell command string."""
+    t = text.strip()
+    if t.startswith("pytest::"):
+        return "py -3.11 -m pytest " + t[len("pytest::"):].strip()
+    return t
+
+
 def _gen_contract(step: dict) -> dict:
     allowed = list(step.get("allowed_paths", []))
     if step.get("kind") in ("implement", "refactor"):
         allowed = _strip_tests(allowed)  # spec-by-test
-    crit = list(step.get("acceptance_criteria_machine", [])) + list(step.get("acceptance_criteria_human", []))
+
+    machine_criteria = list(step.get("acceptance_criteria_machine", []))
+    human_criteria = list(step.get("acceptance_criteria_human", []))
+
+    required_commands = []
+    machine_notes = []
+    for c in machine_criteria:
+        if _is_executable_criterion(c):
+            required_commands.append(_criterion_to_command(c))
+        else:
+            machine_notes.append(c)
+
+    notes_parts = list(step.get("notes", "").splitlines()) if step.get("notes") else []
+    if machine_notes:
+        notes_parts.append("Non-executable machine criteria: " + "; ".join(machine_notes))
+    if human_criteria:
+        notes_parts.append("Human criteria: " + "; ".join(human_criteria))
+
+    minimum_pytest = step.get("minimum_pytest_collected")
+    if minimum_pytest is None:
+        minimum_pytest = 0  # safe default from example template
+
+    notes_text = "\n".join(notes_parts).strip()
+
     return {
+        "schema_version": "1.0",
         "task_id": step["id"],
         "goal": step.get("title", ""),
-        "acceptance_criteria": crit,
         "allowed_paths": allowed,
         "forbidden_paths": [".env", ".env.*", "**/.env", "**/secrets/**",
                             "**/*.pem", "**/id_rsa", "**/id_ed25519", "memory/**"],
-        "required_checks": ["diff_scope", "no_secrets", "test_count", "pytest", "ruff"],
+        "required_commands": required_commands,
+        "minimum_pytest_collected": minimum_pytest,
         "human_review_required": _is_judgment(step),
-        "notes": step.get("notes", ""),
+        "notes": notes_text,
     }
 
 
@@ -276,31 +318,23 @@ def _runner_cmd(runner: Path, task_file: Path, max_rounds: int, contract_path: P
 
 
 def _read_verdict(reports_dir: Path, task_id: str, min_mtime: float) -> str:
-    """SADECE bu task_id'ye ait VE bu koşumda (min_mtime sonrası) üretilmiş raporu
-    kabul et. Rapor dosya kalıbı ve id anahtarı (contract_id/task_id) esnek ele alınır
-    çünkü gerçek verifier'ın çıktı adı farklı olabilir. Eşleşme yoksa FAIL.
-    Latest-fallback YOK -- eski/ilgisiz bir PASS raporunu okumamak için."""
-    if not reports_dir.exists():
+    """Strict report reading: accept ONLY the exact report filename produced by
+    verifier_runner.py, check it is fresh (mtime >= min_mtime), and task_id matches.
+    No latest-report fallback. If missing -> FAIL."""
+    report_file = reports_dir / f"verifier_report_{task_id}.json"
+    if not report_file.exists():
         return "FAIL"
-    patterns = [f"{task_id}_*.json", f"verifier_report_{task_id}*.json", f"*{task_id}*.json"]
-    seen, cand = set(), []
-    for pat in patterns:
-        for p in reports_dir.glob(pat):
-            if p in seen:
-                continue
-            seen.add(p)
-            if p.stat().st_mtime >= min_mtime - 1:
-                cand.append(p)
-    cand.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-    for f in cand:
-        try:
-            d = json.loads(f.read_text(encoding="utf-8-sig"))
-            rid = d.get("contract_id") or d.get("task_id")
-            if rid == task_id and "verdict" in d:
-                return d["verdict"]
-        except Exception:  # noqa: BLE001
-            continue
-    return "FAIL"
+    if report_file.stat().st_mtime < min_mtime - 1:
+        return "FAIL"
+    try:
+        d = json.loads(report_file.read_text(encoding="utf-8-sig"))
+        if d.get("task_id") == task_id:
+            v = d.get("verdict")
+            if v in ("PASS", "FAIL", "NEEDS_HUMAN"):
+                return v
+        return "FAIL"
+    except Exception:  # noqa: BLE001
+        return "FAIL"
 
 
 def _cost_so_far(ledger: Optional[Path]) -> float:
@@ -419,6 +453,15 @@ def run_cycle(step: dict, repo: Path, state_path: Path, state: dict, reports_dir
     # PASS ama yargı/hassasiyet kapısı -> geçerli değişikliği review dalına park et.
     branch = _park_to_review(repo, checkpoint, sid, contract["allowed_paths"],
                              f"review parking: {sid}")
+    if not branch:
+        # Review park commit başarısız -> rollback + HALT
+        _rollback(repo, checkpoint, tuple(contract["allowed_paths"]))
+        step["status"] = "needs_human"
+        step.setdefault("evidence", {}).update(
+            {"verdict": verdict, "reason": "review park commit failed",
+             "at": datetime.now().strftime("%Y-%m-%d")})
+        log.append(f"{sid}: PASS ama review park commit'i başarısız -> rollback + HAL.")
+        return "HALT"
     step["status"] = "needs_human"
     step.setdefault("evidence", {}).update(
         {"review_branch": branch, "verdict": verdict, "reasons": reasons,
@@ -489,14 +532,16 @@ def main(argv=None) -> int:
     while steps_done < args.max_steps:
         if _cost_so_far(ledger) >= cfg.budget_usd:
             log.append("Bütçe aşıldı -> HALT."); break
-        # Aktif bir karar/imza kapısı (in_progress yargı adımı, örn. audit) varsa
-        # ilgisiz bir todo track'ine atlama -> dur ve o kapıyı bildir.
-        pending = [s for s in state.get("steps", [])
-                   if s.get("status") == "in_progress" and _is_judgment(s)]
-        if pending:
-            log.append("Aktif karar/imza kapısı (in_progress): "
-                       + ", ".join(s["id"] for s in pending)
-                       + " -> çözülmeden yeni iş seçilmiyor.")
+        # İmza/karar kapısı bekleyen adım varsa, dur ve bildir.
+        # Tetikleyen durumlar:
+        #   a) status == needs_human (herhangi bir adım)
+        #   b) status == in_progress AND yargı adımı (judgment/human)
+        pending_steps = [s for s in state.get("steps", [])
+                         if s.get("status") == "needs_human"
+                         or (s.get("status") == "in_progress" and _is_judgment(s))]
+        if pending_steps:
+            log.append("Bekleyen imza/karar kapısı (çözülmeden yeni iş seçilmiyor): "
+                       + ", ".join(s["id"] for s in pending_steps))
             break
         step = _select_next(state.get("steps", []))
         if step is None:

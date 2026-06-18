@@ -59,6 +59,9 @@ param(
     [switch]$SkipFullTests,
 
     [Parameter(Mandatory = $false)]
+    [string]$ContractPath = "",
+
+    [Parameter(Mandatory = $false)]
     [string[]]$CommitPaths,
 
     [switch]$PrecheckOnly
@@ -239,7 +242,16 @@ $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
     }
 
     # c) verifier_runner
-    $verifierPath = Join-Path -Path $ScriptRoot -ChildPath "docs\templates\outcome_contract.example.json"
+    if ([string]::IsNullOrEmpty($ContractPath)) {
+        $verifierPath = Join-Path -Path $ScriptRoot -ChildPath "docs\templates\outcome_contract.example.json"
+    } else {
+        $verifierPath = $ContractPath
+        if (-not (Test-Path -LiteralPath $ContractPath)) {
+            Write-ErrorStep "ContractPath not found: $ContractPath"
+            exit 1
+        }
+        Write-Step "Using contract path: $ContractPath" -Color Cyan
+    }
     if ((-not $SkipVerifier) -and (Test-Path -LiteralPath $verifierPath)) {
         Write-Section "VERIFIER"
         Write-Step "Running verifier_runner.py..."

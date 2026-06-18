@@ -108,5 +108,8 @@ JARVIS_LAST_COMMITS.txt
 
 memory/cost_ledger.jsonl
 
-# Verifier generated reports
-.verifier/reports/
+# Verifier + orchestrator runtime data
+.verifier/
+outcome_contract.active.json
+cost_ledger.json
+TASK_*.md
