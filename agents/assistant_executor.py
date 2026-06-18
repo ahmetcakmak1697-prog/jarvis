@@ -66,6 +66,7 @@ class AssistantExecutor:
         execution_policy=None,
         executor_registry=None,
         api_budget_gate=None,
+        provider_selector=None,
     ) -> None:
         self._router = router
         self._executor = executor
@@ -73,6 +74,7 @@ class AssistantExecutor:
         self._execution_policy = execution_policy
         self._executor_registry = executor_registry
         self._api_budget_gate = api_budget_gate
+        self._provider_selector = provider_selector
 
     def _log_telemetry(self, result: dict, question: str) -> None:
         try:
@@ -129,6 +131,23 @@ class AssistantExecutor:
             ollama_url=self._ollama_url,
         )
         return self._executor_registry
+
+    def _get_provider_selector(self):
+        if self._provider_selector is not None:
+            return self._provider_selector
+        from pathlib import Path
+        from agents.provider_profiles import load_provider_profiles
+        from agents.provider_selector import ProviderSelector
+        cfg = Path(__file__).resolve().parents[1] / "config" / "provider_profiles.json"
+        if not cfg.is_file():
+            cfg = cfg.with_name("provider_profiles.example.json")
+        if not cfg.is_file():
+            return None
+        try:
+            self._provider_selector = ProviderSelector(load_provider_profiles(str(cfg)))
+        except Exception:
+            return None
+        return self._provider_selector
 
     def _check_api_budget(self, *, provider: str | None = None, level: str | None = None) -> dict[str, Any]:
         if self._api_budget_gate is None:
@@ -251,6 +270,16 @@ class AssistantExecutor:
                 }
 
             data_class, privacy_level = self._classify_for_external(question)
+
+            selector = self._get_provider_selector()
+            if selector is not None:
+                try:
+                    from agents.provider_decision import resolve_provider
+                    execution_decision = resolve_provider(
+                        execution_decision, data_class=data_class, selector=selector,
+                    )
+                except Exception:
+                    pass
 
             registry = self._get_executor_registry()
             order = registry.execution_order(execution_decision)
