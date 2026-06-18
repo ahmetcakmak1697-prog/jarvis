@@ -112,7 +112,7 @@
       "title": "Web research yeteneği",
       "phase": "2",
       "kind": "implement",
-      "status": "in_progress",
+      "status": "done",
       "depends_on": [
         "FAZ-1B.13I-api-executor-routing"
       ],
@@ -137,10 +137,10 @@
         "eval/",
         "tests/"
       ],
-      "notes": "FAZ-2-D2 stale roadmap paths were corrected after read-only audit. Turkish _normalize corruption was fixed in commit 4d4162060. D2 router bridge was added in commit 4cc9fce0b. WebResearcher dependency injection was added in commit ae7305083. Default-off Telegram composition wiring was added in commit cc2890a2f using JARVIS_WEB_RESEARCH_ENABLED=0. When the flag is disabled, live web is not wired. When explicitly enabled, WebResearchPolicy and WebResearcher are injected. Remaining human gate: decide whether to run a controlled live smoke test and whether FAZ-2-D2 can be marked done.",
+      "notes": "FAZ-2-D2 completed with safe default-off web research wiring. Turkish normalization fixed, web policy eval passed, router bridge added, AssistantExecutor WebResearcher injection added, and Telegram composition wiring added behind JARVIS_WEB_RESEARCH_ENABLED=0. Live web is not enabled by default. Future live smoke/activation requires explicit human opt-in by setting JARVIS_WEB_RESEARCH_ENABLED=1.",
       "evidence": {
         "audit": "FAZ-2-D2 read-only audit via jarvis_auto_task.ps1",
-        "verdict": "COMPOSITION_FLAG_DONE_HUMAN_LIVE_SMOKE_PENDING",
+        "verdict": "DONE_DEFAULT_OFF_LIVE_WEB_OPT_IN",
         "at": "2026-06-18",
         "reason": "stale allowed_paths and missing tests/test_web_research.py",
         "roadmap_correction_commit": "365e4ac6f",
@@ -165,7 +165,17 @@
           "Moved D2 web policy gate before generic external budget gate"
         ],
         "web_researcher_injection_roadmap_commit": "4b47d3a02",
-        "composition_flag_commit": "cc2890a2f"
+        "composition_flag_commit": "cc2890a2f",
+        "done_at": "2026-06-18",
+        "final_roadmap_progress_commit": "a43528aea",
+        "human_decision": "Do not run live web smoke now; keep live web default-off and opt-in.",
+        "final_validation": [
+          "tests/test_d2_web_research_composition.py + tests/test_d2_web_router_integration.py -> 23 passed",
+          "composition + router + assistant_executor + web_policy tests -> 41 passed",
+          "eval/run_d2_web_policy_eval.py --verbose -> 20/20 PASS, 0 sensitive leaks",
+          "git diff --check -> clean"
+        ],
+        "live_activation_rule": "Only enable live web by explicitly setting JARVIS_WEB_RESEARCH_ENABLED=1."
       }
     },
     {
