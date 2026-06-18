@@ -137,21 +137,29 @@
         "eval/",
         "tests/"
       ],
-      "notes": "FAZ-2-D2 stale roadmap paths were corrected after read-only audit. Turkish _normalize corruption was fixed in commit 4d4162060. D2 router bridge was added in commit 4cc9fce0b: LocalFirstRouter can now emit web_research/web_research_blocked, and AssistantExecutor handles web_research safely without live web calls. Remaining work: wire a WebResearcher dependency into AssistantExecutor with fake/stub tests first; do not enable live web calls blindly.",
+      "notes": "FAZ-2-D2 stale roadmap paths were corrected after read-only audit. Turkish _normalize corruption was fixed in commit 4d4162060. D2 router bridge was added in commit 4cc9fce0b: LocalFirstRouter can now emit web_research/web_research_blocked, and AssistantExecutor handles web_research safely without live web calls. WebResearcher dependency injection was added in commit ae7305083: AssistantExecutor can call an injected researcher with fake/stub tests, while preserving placeholder behavior when no researcher is injected. Remaining work: wire real/default WebResearcher in the app composition layer only after explicit human approval; do not enable live web calls blindly.",
       "evidence": {
         "audit": "FAZ-2-D2 read-only audit via jarvis_auto_task.ps1",
-        "verdict": "ROUTER_BRIDGE_DONE_LIVE_WEB_PENDING",
+        "verdict": "WEB_RESEARCHER_INJECTION_DONE_DEFAULT_WIRING_PENDING",
         "at": "2026-06-18",
         "reason": "stale allowed_paths and missing tests/test_web_research.py",
         "roadmap_correction_commit": "365e4ac6f",
         "normalize_fix_commit": "4d4162060",
         "router_bridge_commit": "4cc9fce0b",
         "validation": [
-          "tests/test_d2_web_router_integration.py -> 12 passed",
+          "tests/test_d2_web_router_integration.py -> 17 passed",
           "tests/test_web_research_policy.py + tests/test_assistant_executor.py -> 18 passed",
           "eval/run_d2_web_policy_eval.py --verbose -> 20/20 PASS, 0 sensitive leaks"
         ],
-        "remaining": "AssistantExecutor live WebResearcher dependency injection is not wired yet."
+        "remaining": "Real/default WebResearcher wiring in app composition layer is not enabled yet.",
+        "router_bridge_roadmap_commit": "851e49f48",
+        "web_researcher_injection_commit": "ae7305083",
+        "completed": [
+          "Corrected stale FAZ-2-D2 paths/tests",
+          "Fixed Turkish web policy normalization",
+          "Added web_research router bridge",
+          "Added AssistantExecutor WebResearcher dependency injection with fake/stub tests"
+        ]
       }
     },
     {
