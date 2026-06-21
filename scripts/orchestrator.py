@@ -275,7 +275,7 @@ def _gen_contract(step: dict) -> dict:
     notes_text = "\n".join(notes_parts).strip()
 
     return {
-        "schema_version": "1.0",
+        "schema_version": 1,
         "task_id": step["id"],
         "goal": step.get("title", ""),
         "allowed_paths": allowed,

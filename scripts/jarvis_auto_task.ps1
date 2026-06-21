@@ -417,18 +417,21 @@ $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
         }
     }
 
-    # c) verifier_runner
-    if ([string]::IsNullOrEmpty($ContractPath)) {
-        $verifierPath = Join-Path -Path $ScriptRoot -ChildPath "docs\templates\outcome_contract.example.json"
+    # c) verifier_runner -- fail closed: require explicit valid ContractPath when verifier runs
+    if ($SkipVerifier) {
+        Write-Step "Verifier SKIPPED (SkipVerifier)" -Color Yellow
+        $testOutput += "`n--- verifier --- SKIPPED`n"
     } else {
-        $verifierPath = $ContractPath
+        if ([string]::IsNullOrEmpty($ContractPath)) {
+            Write-ErrorStep "ContractPath is required when verifier runs. Use -ContractPath <path> or -SkipVerifier."
+            exit 1
+        }
         if (-not (Test-Path -LiteralPath $ContractPath)) {
             Write-ErrorStep "ContractPath not found: $ContractPath"
             exit 1
         }
         Write-Step "Using contract path: $ContractPath" -Color Cyan
-    }
-    if ((-not $SkipVerifier) -and (Test-Path -LiteralPath $verifierPath)) {
+        $verifierPath = $ContractPath
         Write-Section "VERIFIER"
         Write-Step "Running verifier_runner.py..."
         $verifierResult = & py -3.11 .\scripts\verifier_runner.py $verifierPath 2>&1
@@ -441,13 +444,6 @@ $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
         } else {
             Write-Step "verifier OK" -Color Green
         }
-    } else {
-        if ($SkipVerifier) {
-            Write-Step "Verifier SKIPPED (SkipVerifier)" -Color Yellow
-        } else {
-            Write-Step "Verifier SKIPPED (contract not found)" -Color Yellow
-        }
-        $testOutput += "`n--- verifier --- SKIPPED`n"
     }
 
     # Write round log
