@@ -88,7 +88,15 @@ def _touches(paths: list[str], globs: list[str]) -> list[str]:
     for p in paths:
         q = p.replace("\\", "/")
         for g in globs:
-            if fnmatch.fnmatch(q, g) or fnmatch.fnmatch(q, g.lstrip("*/")):
+            if fnmatch.fnmatch(q, g):
+                hit.append(p)
+                break
+            stripped = g.lstrip("*").lstrip("/")
+            if stripped and stripped != g and fnmatch.fnmatch(q, stripped):
+                hit.append(p)
+                break
+            basename_only = stripped.lstrip("_").lstrip("*")
+            if basename_only != stripped and fnmatch.fnmatch(q.split("/")[-1], stripped):
                 hit.append(p)
                 break
     return hit

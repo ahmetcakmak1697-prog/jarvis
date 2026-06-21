@@ -1,248 +1,270 @@
-"""Tests for orchestrator.py — _read_verdict strict report reading."""
-from __future__ import annotations
-
+"""
+orchestrator helper davranış kilidi.
+Saf fonksiyonlar + gerçek git mekaniği (geçici repo) ile.
+"""
 import json
-import os
+import subprocess
 import time
-from pathlib import Path
 
 import pytest
 
-from scripts.orchestrator import _gen_contract, _is_executable_criterion, _read_verdict
+import orchestrator as O
 
 
-# ---------------------------------------------------------------------------
-# _read_verdict — strict report reading
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------- #
+# Saf yardımcılar
+# --------------------------------------------------------------------------- #
+
+@pytest.mark.parametrize("path,globs,expected", [
+    ("jarvis/api/x.py", ["jarvis/api/**"], True),
+    ("jarvis/api/x.py", ["**/api/**"], True),
+    ("jarvis/x.py", ["jarvis/**"], True),
+    ("jarvis\\x.py", ["jarvis/**"], True),          # Windows backslash
+    ("other/x.py", ["jarvis/**"], False),
+    ("jarvis", ["jarvis/**"], True),                # dizinin kendisi
+    ("jarvis/sub/deep.py", ["jarvis/sub"], True),   # prefix eşleşmesi
+])
+def test_path_matches(path, globs, expected):
+    assert O._path_matches(path, globs) is expected
 
 
-def _write_report(dir: Path, task_id: str, verdict: str, mtime: float | None = None):
-    p = dir / f"verifier_report_{task_id}.json"
-    p.write_text(json.dumps({"task_id": task_id, "verdict": verdict}), encoding="utf-8")
-    if mtime is not None:
-        os_handle = p.open("a")
-        os_handle.close()
-    return p
+@pytest.mark.parametrize("path,expected", [
+    (".env", True),
+    ("config/.env", True),
+    ("pkg/secrets/key.txt", True),
+    ("deploy/cert.pem", True),
+    ("memory", True),                 # dizinin kendisi
+    ("memory/store.db", True),        # altındaki
+    ("jarvis/normal.py", False),
+])
+def test_is_forbidden(path, expected):
+    forbidden = [".env", ".env.*", "**/.env", "**/secrets/**",
+                 "**/*.pem", "**/id_rsa", "memory/**"]
+    assert O._is_forbidden(path, forbidden) is expected
 
 
-def test_read_verdict_missing_report(tmp_path: Path) -> None:
-    """a) missing report -> FAIL"""
-    reports_dir = tmp_path / "reports"
-    reports_dir.mkdir(parents=True, exist_ok=True)
-    result = _read_verdict(reports_dir, "step-001", time.time())
-    assert result == "FAIL"
+def test_strip_tests_removes_test_paths():
+    paths = ["jarvis/x.py", "tests/test_x.py", "pkg/tests/test_y.py"]
+    out = O._strip_tests(paths)
+    assert "jarvis/x.py" in out
+    assert all("test" not in p for p in out)
 
 
-def test_read_verdict_stale_report(tmp_path: Path) -> None:
-    """b) stale report (older than run_start) -> FAIL"""
-    reports_dir = tmp_path / "reports"
-    reports_dir.mkdir(parents=True, exist_ok=True)
-    p = reports_dir / "verifier_report_step-001.json"
-    p.write_text(json.dumps({"task_id": "step-001", "verdict": "PASS"}), encoding="utf-8")
-    # set mtime to a known old timestamp (well before any reasonable run_start)
-    OLD_MTIME = 1000000.0
-    os.utime(p, (OLD_MTIME, OLD_MTIME))
-    run_start = time.time()
-    result = _read_verdict(reports_dir, "step-001", run_start)
-    assert result == "FAIL", "stale report should be rejected"
+def test_is_judgment_true_cases():
+    assert O._is_judgment({"kind": "architectural"})
+    assert O._is_judgment({"kind": "spec"})
+    assert O._is_judgment({"kind": "integration"})
+    assert O._is_judgment({"autonomy": "human_required"})
+    assert O._is_judgment({"acceptance_criteria_human": ["x"]})
 
 
-def test_read_verdict_wrong_id(tmp_path: Path) -> None:
-    """c) report with wrong task_id -> FAIL"""
-    reports_dir = tmp_path / "reports"
-    reports_dir.mkdir(parents=True, exist_ok=True)
-    # write a report for a different task_id but same filename pattern
-    # verifier writes verifier_report_{task_id}.json, so a wrong id means wrong filename
-    p = reports_dir / "verifier_report_wrong-id.json"
-    p.write_text(json.dumps({"task_id": "wrong-id", "verdict": "PASS"}), encoding="utf-8")
-    run_start = time.time()
-    result = _read_verdict(reports_dir, "step-001", run_start)
-    assert result == "FAIL", "report for wrong task_id should be rejected"
+def test_is_judgment_false_for_plain_implement():
+    assert not O._is_judgment({"kind": "implement", "autonomy": "auto"})
 
 
-def test_read_verdict_fresh_matching_pass(tmp_path: Path) -> None:
-    """d) fresh matching report with PASS -> PASS"""
-    reports_dir = tmp_path / "reports"
-    reports_dir.mkdir(parents=True, exist_ok=True)
-    run_start = time.time()
-    p = reports_dir / "verifier_report_step-001.json"
-    p.write_text(json.dumps({"task_id": "step-001", "verdict": "PASS"}), encoding="utf-8")
-    # ensure mtime >= run_start with a small tolerance
-    now = time.time()
-    os_handle = p.open("a")
-    os_handle.close()
-    result = _read_verdict(reports_dir, "step-001", now - 2)
-    assert result == "PASS"
+def test_is_judgment_does_not_include_correctness_critical():
+    # correctness_critical TEK BAŞINA yargı değil -> maker yine koşar (sonra escalation imzaya çeker).
+    assert not O._is_judgment({"kind": "implement", "autonomy": "auto",
+                               "correctness_critical": True})
 
 
-def test_read_verdict_fresh_matching_fail(tmp_path: Path) -> None:
-    """fresh matching report with FAIL -> FAIL"""
-    reports_dir = tmp_path / "reports"
-    reports_dir.mkdir(parents=True, exist_ok=True)
-    run_start = time.time()
-    p = reports_dir / "verifier_report_step-002.json"
-    p.write_text(json.dumps({"task_id": "step-002", "verdict": "FAIL"}), encoding="utf-8")
-    now = time.time()
-    os_handle = p.open("a")
-    os_handle.close()
-    result = _read_verdict(reports_dir, "step-002", now - 2)
-    assert result == "FAIL"
+@pytest.mark.parametrize("crit,expected", [
+    (["reference test", "property invariant", "mutation gate"], True),
+    (["oracle karşılaştırma", "invariant kontrol", "mutation skoru"], True),
+    (["reference", "property"], False),                 # mutation eksik
+    (["reference", "mutation"], False),                 # property eksik
+    (["property", "mutation"], False),                  # reference eksik
+    (["pytest geçti"], False),
+])
+def test_has_correctness_gates(crit, expected):
+    assert O._has_correctness_gates({"acceptance_criteria_machine": crit}) is expected
 
 
-def test_read_verdict_fresh_matching_needs_human(tmp_path: Path) -> None:
-    """fresh matching report with NEEDS_HUMAN -> NEEDS_HUMAN"""
-    reports_dir = tmp_path / "reports"
-    reports_dir.mkdir(parents=True, exist_ok=True)
-    p = reports_dir / "verifier_report_step-003.json"
-    p.write_text(json.dumps({"task_id": "step-003", "verdict": "NEEDS_HUMAN"}), encoding="utf-8")
-    now = time.time()
-    os_handle = p.open("a")
-    os_handle.close()
-    result = _read_verdict(reports_dir, "step-003", now - 2)
-    assert result == "NEEDS_HUMAN"
+# --------------------------------------------------------------------------- #
+# Contract üretimi
+# --------------------------------------------------------------------------- #
+
+def test_gen_contract_strips_tests_for_implement():
+    step = {"id": "X", "kind": "implement",
+            "allowed_paths": ["jarvis/x.py", "tests/test_x.py"],
+            "acceptance_criteria_machine": ["pytest"]}
+    c = O._gen_contract(step)
+    assert "jarvis/x.py" in c["allowed_paths"]
+    assert all("test" not in p for p in c["allowed_paths"])     # spec-by-test
+    assert c["human_review_required"] is False
+    assert ".env" in c["forbidden_paths"]
+    assert "pytest" in c["required_commands"]
 
 
-def test_read_verdict_invalid_verdict_value(tmp_path: Path) -> None:
-    """report with invalid verdict value -> FAIL"""
-    reports_dir = tmp_path / "reports"
-    reports_dir.mkdir(parents=True, exist_ok=True)
-    p = reports_dir / "verifier_report_step-004.json"
-    p.write_text(json.dumps({"task_id": "step-004", "verdict": "INVALID"}), encoding="utf-8")
-    now = time.time()
-    os_handle = p.open("a")
-    os_handle.close()
-    result = _read_verdict(reports_dir, "step-004", now - 2)
-    assert result == "FAIL", "INVALID verdict should be rejected"
+def test_gen_contract_keeps_tests_for_spec():
+    step = {"id": "X", "kind": "spec",
+            "allowed_paths": ["tests/test_x.py"],
+            "acceptance_criteria_human": ["insan kararı"]}
+    c = O._gen_contract(step)
+    assert "tests/test_x.py" in c["allowed_paths"]   # spec adımında testler izinli
+    assert c["human_review_required"] is True
 
 
-def test_read_verdict_empty_reports_dir(tmp_path: Path) -> None:
-    """empty reports dir -> FAIL"""
-    reports_dir = tmp_path / "reports"
-    reports_dir.mkdir(parents=True, exist_ok=True)
-    result = _read_verdict(reports_dir, "step-005", time.time())
-    assert result == "FAIL"
+# --------------------------------------------------------------------------- #
+# select_next: dosya sırası + bağımlılık
+# --------------------------------------------------------------------------- #
+
+def test_select_next_respects_file_order():
+    steps = [
+        {"id": "A", "status": "done"},
+        {"id": "B", "status": "todo"},
+        {"id": "C", "status": "todo"},
+    ]
+    assert O._select_next(steps)["id"] == "B"
 
 
-# ---------------------------------------------------------------------------
-# _is_executable_criterion
-# ---------------------------------------------------------------------------
+def test_select_next_blocks_on_unmet_dependency():
+    steps = [
+        {"id": "A", "status": "todo"},
+        {"id": "B", "status": "todo", "depends_on": ["A"]},
+    ]
+    # A henüz done değil -> B seçilemez, A seçilir
+    assert O._select_next(steps)["id"] == "A"
 
 
-def test_is_executable_criterion_recognizes_pytest():
-    assert _is_executable_criterion("pytest")
-    assert _is_executable_criterion("pytest::tests/test_x.py")
-    assert _is_executable_criterion("py -3.11 -m pytest tests/")
+def test_select_next_allows_when_dependency_done():
+    steps = [
+        {"id": "A", "status": "done"},
+        {"id": "B", "status": "todo", "depends_on": ["A"]},
+    ]
+    assert O._select_next(steps)["id"] == "B"
 
 
-def test_is_executable_criterion_recognizes_ruff():
-    assert _is_executable_criterion("ruff")
-    assert _is_executable_criterion("ruff check .")
+def test_select_next_none_when_all_done():
+    steps = [{"id": "A", "status": "done"}]
+    assert O._select_next(steps) is None
 
 
-def test_is_executable_criterion_rejects_descriptive():
-    assert not _is_executable_criterion("verifier: minimum_pytest_collected guard çalışıyor")
-    assert not _is_executable_criterion("Audit çıktısı incelendi")
+# --------------------------------------------------------------------------- #
+# Gerçek git: repo fixture
+# --------------------------------------------------------------------------- #
+
+def _run(repo, *args):
+    return subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True)
 
 
-# ---------------------------------------------------------------------------
-# _gen_contract — schema alignment
-# ---------------------------------------------------------------------------
+@pytest.fixture
+def repo(tmp_path):
+    r = tmp_path / "repo"
+    r.mkdir()
+    _run(r, "init", "-q")
+    _run(r, "config", "user.email", "t@t.t")
+    _run(r, "config", "user.name", "t")
+    _run(r, "config", "commit.gpgsign", "false")
+    pkg = r / "pkg"
+    pkg.mkdir()
+    (pkg / "keep.py").write_text("x = 1\n")
+    _run(r, "add", "-A")
+    _run(r, "commit", "-q", "-m", "init")
+    return r
 
 
-def test_gen_contract_includes_required_fields():
-    step = {
-        "id": "test-step-001",
-        "title": "Test step",
-        "kind": "implement",
-        "allowed_paths": ["scripts/", "tests/"],
-        "acceptance_criteria_machine": ["pytest::tests/test_x.py"],
-        "acceptance_criteria_human": [],
-        "notes": "Some notes",
-    }
-    contract = _gen_contract(step)
-    assert contract["schema_version"] == "1.0"
-    assert contract["task_id"] == "test-step-001"
-    assert contract["goal"] == "Test step"
-    assert "allowed_paths" in contract
-    assert "forbidden_paths" in contract
-    assert contract["required_commands"] == ["py -3.11 -m pytest tests/test_x.py"]
-    assert "minimum_pytest_collected" in contract
-    assert "human_review_required" in contract
-    assert "notes" in contract
-    assert "acceptance_criteria" not in contract
-    assert "required_checks" not in contract
+# --------------------------------------------------------------------------- #
+# _read_verdict: katı eşleşme
+# --------------------------------------------------------------------------- #
+
+def _write_report(d, name, payload):
+    (d / name).write_text(json.dumps(payload), encoding="utf-8")
 
 
-def test_gen_contract_converts_machine_criteria():
-    step = {
-        "id": "test-step-002",
-        "title": "Convert test",
-        "kind": "implement",
-        "allowed_paths": ["scripts/"],
-        "acceptance_criteria_machine": [
-            "pytest::tests/test_a.py",
-            "ruff check .",
-            "verifier: some descriptive check",
-        ],
-        "acceptance_criteria_human": [],
-        "notes": "",
-    }
-    contract = _gen_contract(step)
-    assert "py -3.11 -m pytest tests/test_a.py" in contract["required_commands"]
-    assert "ruff check ." in contract["required_commands"]
-    assert "verifier: some descriptive check" in contract["notes"]
+def test_read_verdict_matches_correct_contract(tmp_path):
+    d = tmp_path / "reports"
+    d.mkdir()
+    _write_report(d, "verifier_report_S1.json", {"task_id": "S1", "verdict": "PASS"})
+    assert O._read_verdict(d, "S1", 0.0) == "PASS"
 
 
-def test_gen_contract_human_criteria_in_notes():
-    step = {
-        "id": "test-step-003",
-        "title": "Human criteria test",
-        "kind": "implement",
-        "allowed_paths": ["scripts/"],
-        "acceptance_criteria_machine": [],
-        "acceptance_criteria_human": ["Türkçe kalite iyi olmalı"],
-        "notes": "",
-    }
-    contract = _gen_contract(step)
-    assert "Türkçe kalite iyi olmalı" in contract["notes"]
+def test_read_verdict_no_substring_crosstalk_s1_vs_s12(tmp_path):
+    # S12 raporu, S1 sorgusunu KİRLETMEMELİ (dosya adı task_id içerse de task_id key farklı).
+    d = tmp_path / "reports"
+    d.mkdir()
+    _write_report(d, "verifier_report_S1.json", {"task_id": "S1", "verdict": "PASS"})
+    _write_report(d, "verifier_report_S12.json", {"task_id": "S12", "verdict": "FAIL"})
+    assert O._read_verdict(d, "S1", 0.0) == "PASS"
+    assert O._read_verdict(d, "S12", 0.0) == "FAIL"
 
 
-def test_gen_contract_minimum_pytest_default():
-    step = {
-        "id": "test-step-004",
-        "title": "Default test",
-        "kind": "implement",
-        "allowed_paths": ["scripts/"],
-        "acceptance_criteria_machine": [],
-        "acceptance_criteria_human": [],
-    }
-    contract = _gen_contract(step)
-    assert contract["minimum_pytest_collected"] == 0
+def test_read_verdict_missing_dir_is_fail(tmp_path):
+    assert O._read_verdict(tmp_path / "nope", "S1", 0.0) == "FAIL"
 
 
-def test_gen_contract_human_review_for_judgment():
-    step = {
-        "id": "test-step-005",
-        "title": "Judgment test",
-        "kind": "architectural",
-        "allowed_paths": ["docs/"],
-        "acceptance_criteria_machine": [],
-        "acceptance_criteria_human": [],
-    }
-    contract = _gen_contract(step)
-    assert contract["human_review_required"] is True
+def test_read_verdict_wrong_id_is_fail(tmp_path):
+    d = tmp_path / "reports"
+    d.mkdir()
+    _write_report(d, "verifier_report_S1.json", {"task_id": "OTHER", "verdict": "PASS"})
+    assert O._read_verdict(d, "S1", 0.0) == "FAIL"
 
 
-def test_gen_contract_no_acceptance_criteria_orphans():
-    step = {
-        "id": "test-step-006",
-        "title": "No orphans",
-        "kind": "implement",
-        "allowed_paths": ["scripts/"],
-        "acceptance_criteria_machine": [],
-        "acceptance_criteria_human": [],
-        "notes": "",
-    }
-    contract = _gen_contract(step)
-    assert "acceptance_criteria" not in contract
-    assert "required_checks" not in contract
+def test_read_verdict_stale_report_rejected(tmp_path):
+    d = tmp_path / "reports"
+    d.mkdir()
+    f = d / "verifier_report_S1.json"
+    _write_report(d, "verifier_report_S1.json", {"task_id": "S1", "verdict": "PASS"})
+    import os
+    old = time.time() - 3600
+    os.utime(f, (old, old))
+    # min_mtime = şimdi -> 1 saat önceki rapor reddedilir -> FAIL
+    assert O._read_verdict(d, "S1", time.time()) == "FAIL"
+
+
+def test_read_verdict_task_id_key_fallback(tmp_path):
+    d = tmp_path / "reports"
+    d.mkdir()
+    _write_report(d, "verifier_report_T1.json", {"task_id": "T1", "verdict": "PASS"})
+    assert O._read_verdict(d, "T1", 0.0) == "PASS"
+
+
+# --------------------------------------------------------------------------- #
+# _safe_commit: izinli / yasak / kapsam-dışı / rename
+# --------------------------------------------------------------------------- #
+
+def test_safe_commit_commits_allowed(repo):
+    (repo / "pkg" / "new.py").write_text("y = 2\n")
+    ok, msg = O._safe_commit(repo, ["pkg/**"], [".env"], "add new")
+    assert ok, msg
+    assert "new.py" in _run(repo, "show", "--name-only", "--oneline", "HEAD").stdout
+
+
+def test_safe_commit_refuses_forbidden(repo):
+    (repo / ".env").write_text("SECRET=1\n")
+    (repo / "pkg" / "new.py").write_text("y = 2\n")
+    ok, msg = O._safe_commit(repo, ["pkg/**", ".env"], [".env", "**/.env"], "x")
+    assert not ok
+    assert ".env" in msg
+
+
+def test_safe_commit_refuses_out_of_scope_source(repo):
+    # İzinli alan pkg/a.py; ama pkg/b.py da değişmiş -> kısmi commit REDDEDİLİR.
+    (repo / "pkg" / "a.py").write_text("a = 1\n")
+    (repo / "pkg" / "b.py").write_text("b = 1\n")
+    ok, msg = O._safe_commit(repo, ["pkg/a.py"], [".env"], "x")
+    assert not ok
+    assert "b.py" in msg
+
+
+def test_safe_commit_ignores_bookkeeping_files(repo):
+    # roadmap_state.json gibi defter dosyaları kapsam-dışı SAYILMAZ.
+    (repo / "pkg" / "a.py").write_text("a = 1\n")
+    (repo / "roadmap_state.json").write_text("{}\n")
+    ok, msg = O._safe_commit(repo, ["pkg/a.py"], [".env"], "x")
+    assert ok, msg
+
+
+def test_safe_commit_handles_staged_rename(repo):
+    # Stage'lenmiş rename porcelain'de "R old -> new" görünür; _path NEW tarafını almalı.
+    _run(repo, "mv", "pkg/keep.py", "pkg/renamed.py")
+    ok, msg = O._safe_commit(repo, ["pkg/**"], [".env"], "rename")
+    assert ok, msg
+    names = _run(repo, "show", "--name-only", "--oneline", "HEAD").stdout
+    assert "renamed.py" in names
+
+
+def test_safe_commit_nothing_to_stage(repo):
+    ok, msg = O._safe_commit(repo, ["pkg/**"], [".env"], "noop")
+    assert not ok
+    assert "yok" in msg.lower() or "no" in msg.lower()

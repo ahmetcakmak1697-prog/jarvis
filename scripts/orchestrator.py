@@ -223,6 +223,14 @@ def _is_judgment(step: dict) -> bool:
             or bool(step.get("acceptance_criteria_human")))
 
 
+def _has_correctness_gates(step: dict) -> bool:
+    criteria = [c.lower() for c in step.get("acceptance_criteria_machine", [])]
+    has_reference = any("reference" in c or "oracle" in c or "onaylı çıktı" in c or "known output" in c for c in criteria)
+    has_property = any("property" in c or "invariant" in c for c in criteria)
+    has_mutation = any("mutation" in c or "error-injection" in c or "error injection" in c for c in criteria)
+    return has_reference and has_property and has_mutation
+
+
 def _is_executable_criterion(text: str) -> bool:
     """Heuristic: if text starts with a known command pattern, treat as executable."""
     known_prefixes = ("pytest", "py ", "ruff", "mypy", "flake8", "black", "isort",
