@@ -1,4 +1,4 @@
-"""
+﻿"""
 Tests for j0_live_status.py — live, injectable, Unicode-safe.
 
 All tests use fake git output and fake roadmap JSON.
@@ -295,3 +295,31 @@ def test_faz3e1_done_no_in_progress_wording():
 
     assert "park edilmi\u015f" not in summary
     assert "FAZ-3-E1 durumu: in_progress" not in summary
+
+
+# ---- 17: subprocess CLI UTF-8 encoding regression ----
+def test_cli_utf8_subprocess():
+    import subprocess
+    import sys
+    import os
+    spath = os.path.join(os.path.dirname(os.path.dirname(__file__)), "scripts", "j0_live_status.py")
+    # Use PYTHONIOENCODING=utf-8 to protect pipe capture.
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+    result = subprocess.run(
+        [sys.executable, spath],
+        capture_output=True,
+        text=False,  # bytes
+        env=env,
+    )
+    raw = result.stdout
+    # Decode with strict UTF-8 — must not raise.
+    text = raw.decode("utf-8")
+    # Assert Turkish Unicode strings present
+    assert "Çalışma ağacı" in text
+    assert "Şu an" in text
+    assert "Sıra" in text
+    assert ("TEMİZ" in text) or ("KİRLİ" in text)
+    # Assert no mojibake or ASCII degradation
+    for bad in ["\ufffd", "Calisma", "Su an", "Sira", "TEMIZ", "KIRLI", "\u00e2", "\u00c3", "\u00c4", "\u00c5"]:
+        assert bad not in text, f"mojibake/ascii-degraded '{bad}' found in CLI output"
+

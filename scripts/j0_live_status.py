@@ -162,6 +162,8 @@ def collect_status(
 
 
 def main() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="strict")
     import traceback
     try:
         status = collect_status(
