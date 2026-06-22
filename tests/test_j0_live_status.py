@@ -1,4 +1,4 @@
-﻿"""
+"""
 Tests for j0_live_status.py — live, injectable, Unicode-safe.
 
 All tests use fake git output and fake roadmap JSON.
@@ -322,4 +322,3 @@ def test_cli_utf8_subprocess():
     # Assert no mojibake or ASCII degradation
     for bad in ["\ufffd", "Calisma", "Su an", "Sira", "TEMIZ", "KIRLI", "\u00e2", "\u00c3", "\u00c4", "\u00c5"]:
         assert bad not in text, f"mojibake/ascii-degraded '{bad}' found in CLI output"
-
