@@ -246,9 +246,12 @@
         "next_safe_step": "policy/test-only; no live push; default-off JARVIS_PROACTIVE_ENABLED for any future delivery behavior",
         "audit_commit": "991d0c65c",
         "proactive_policy_commit": "e94f77b98",
+        "proactive_delivery_commit": "887420cf9",
         "validation": [
           "tests/test_proactive_policy.py -> 19 passed",
-          "proactive suite including E1.2-E1.5C + proactive_policy -> 19 passed, 2 pre-existing warnings"
+          "proactive suite including E1.2-E1.5C + proactive_policy -> 19 passed, 2 pre-existing warnings",
+          "tests/test_proactive_delivery.py + proactive regression: 31 passed",
+          "governance + ContractPath suite: 91 passed"
         ],
         "completed": [
           "Recorded FAZ-3-E1 audit and corrected stale roadmap paths",
@@ -256,12 +259,14 @@
           "Added tests/test_proactive_policy.py",
           "Added JARVIS_PROACTIVE_ENABLED=0 default-off flag",
           "Implemented pure policy decisions: deliver/suppress/defer",
-          "Covered muted, DND, cooldown, low/normal/high/critical priority, and opt-in behavior"
+          "Covered muted, DND, cooldown, low/normal/high/critical priority, and opt-in behavior",
+          "887420cf9 added test-only ProactiveDelivery planning layer (DeliveryPlan + create_delivery_plan) with no runtime send/wiring; validation: proactive delivery/regression 31 passed, governance 91 passed. Runtime delivery remains pending."
         ],
         "remaining": [
           "No runtime delivery integration yet",
           "No scheduler/background push behavior yet",
-          "Delivery cooldown/rate-limit/mute/opt-out still requires human-reviewed design"
+          "Delivery cooldown/rate-limit/mute/opt-out still requires human-reviewed design",
+          "ProactiveDelivery planning layer exists but runtime delivery send/scheduler/background loop still pending."
         ],
         "safety_invariant": "No proactive push/background behavior is enabled by this step."
       }
