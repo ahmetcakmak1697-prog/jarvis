@@ -276,7 +276,7 @@
       "title": "Türkçe kalite track'i",
       "phase": "T",
       "kind": "implement",
-      "status": "todo",
+      "status": "done",
       "depends_on": ["FAZ-0"],
       "autonomy": "human_required",
       "acceptance_criteria_machine": ["pytest::tests/test_tr_quality.py (regresyon)"],
@@ -284,7 +284,16 @@
         "Türkçe çıktı kalitesi senin kulağına doğru geliyor (subjektif -> imza)"
       ],
       "allowed_paths": ["jarvis/**", "tests/**"],
-      "notes": "Kalite subjektif; deterministik gate yalnızca regresyonu tutar, kaliteyi sen onaylarsın."
+      "notes": "Kalite subjektif; deterministik gate yalnızca regresyonu tutar, kaliteyi sen onaylarsın.",
+      "evidence": {
+        "verdict": "PASS",
+        "at": "2026-06-24",
+        "signed_by": "Ahmet",
+        "notes": "PASS with minor wording concerns (local llama3.1 style limitations, not blockers). Turkish chars correct, no mojibake, project context grounded after 9bbdab0c4 fix.",
+        "smoke_log": "automation/T1_S2_SMOKE_RESULTS.md",
+        "t1_s1_commit": "e4c9d8d50",
+        "grounding_commits": ["0b127e7cc", "926616582", "9bbdab0c4"]
+      }
     },
     {
       "id": "FAZ-PHASE2-integration",

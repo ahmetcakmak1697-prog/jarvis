@@ -28,14 +28,17 @@ f777d3ca0 docs(automation): update codex re-review request
 - E1-S3B: telegram adapter seam — DONE (a6052aaf8)
 - T1-S1: test_tr_quality.py skeleton — DONE (e4c9d8d50)
 - Codex concern fix: invalid plan guards — DONE (91c38c405)
+- fix(cli): Rich markup crash in local mode diagnostic — DONE (0b127e7cc)
+- fix(local-agent): grounding rule + SESSION_SUMMARY injection — DONE (926616582)
+- fix(local-agent): compact GUNCEL PROJE DURUMU block with git log — DONE (9bbdab0c4)
+- T1-S2: Ahmet live Turkish quality sign-off — DONE / PASS (2026-06-24)
 
 ## Pending — HUMAN_REQUIRED (no SAFE_AUTONOMOUS tasks remain)
-- T1-S2: Ahmet live Turkish quality sign-off (HUMAN_REQUIRED)
-- E1-S4: live Telegram smoke test (HUMAN_REQUIRED — Ahmet provides chat_id, confirms message)
+- E1-S4: live Telegram smoke test (HUMAN_REQUIRED — Ahmet provides .env/token/chat_id, confirms message)
 - E1-S5: scheduler architecture/design gate (HUMAN_REQUIRED)
 
 ## Human-Needed Blocker
-yes — T1-S2, E1-S4, E1-S5 all require Ahmet
+yes — E1-S4 and E1-S5 require Ahmet
 
 ## Git State
 ```
@@ -43,6 +46,10 @@ branch:       auto/opencode-deepseek
 working tree: clean (at time of last edit — verify with git status)
 tests:        60/60 PASS across delivery + runtime + adapter + tr_quality suites
 ```
+
+## FAZ-T1 Status
+DONE — T1-S2 signed off by Ahmet 2026-06-24. PASS with minor wording concerns.
+roadmap_state.json FAZ-T1.status = "done". See automation/T1_S2_SMOKE_RESULTS.md.
 
 ## NOTE — Silent exception design debt
 Before live E1-S4/E1-S5, consider structured failure reason/logging instead of

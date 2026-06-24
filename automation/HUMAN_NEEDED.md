@@ -23,7 +23,6 @@ are placeholders. Do not treat them as real blockers. Only lines starting with
 - [ ] [YYYY-MM-DD] [TASK-ID] What is needed and exactly why Claude cannot proceed.
 -->
 
-- [ ] [2026-06-24] [T1-S2] Turkish quality subjective sign-off. Ahmet runs JARVIS with real Turkish queries, evaluates natural phrasing and diacritics, and marks FAZ-T1 done in roadmap_state.json. Cannot be tested with code.
 - [ ] [2026-06-24] [E1-S4] Live Telegram proactive smoke test. Ahmet sets JARVIS_PROACTIVE_ENABLED=1 in .env, triggers a proactive alert, and confirms Telegram message received on phone. Requires live token + .env edit + human judgment on cooldown/mute behavior.
 - [ ] [2026-06-24] [E1-S5] Scheduler / background loop architecture design gate. Requires Ahmet + design decision (cron-style vs asyncio loop vs external trigger) before any code. No code can be written until design is approved.
 
@@ -34,6 +33,8 @@ are placeholders. Do not treat them as real blockers. Only lines starting with
 <!-- Move resolved items here, then delete after next session. Format:
 - [x] [YYYY-MM-DD] [TASK-ID] Description. Resolved: YYYY-MM-DD
 -->
+
+- [x] [2026-06-24] [T1-S2] Turkish quality subjective sign-off. Resolved: 2026-06-24. Ahmet ran python main.py (llama3.1 local), confirmed Turkish chars correct, no mojibake, project context grounded. PASS with minor wording concerns. See automation/T1_S2_SMOKE_RESULTS.md.
 
 ---
 
