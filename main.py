@@ -61,10 +61,10 @@ def _run_local_mode():
     agent = LocalJarvisAgent()
 
     if not agent.ollama_available:
-        console.print("\n[red]❌ Ollama bağlanamadı![/]")
-        console.print("[yellow]1. Ollama kurulu mu? → 1_windows_hazirlik.bat")
-        console.print("2. Model var mı? → 2_model_indir.bat")
-        console.print("3. 'ollama serve' çalışıyor mu?[/]")
+        console.print("\n[red]❌ Ollama bağlanamadı![/red]")
+        console.print("[yellow]1. Ollama kurulu mu? → 1_windows_hazirlik.bat[/yellow]")
+        console.print("[yellow]2. Model var mı? → 2_model_indir.bat[/yellow]")
+        console.print("[yellow]3. 'ollama serve' çalışıyor mu?[/yellow]")
         return
 
     console.print("[bold green]Jarvis hazır![/] Konuşabilirsiniz.\n")
