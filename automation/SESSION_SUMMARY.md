@@ -9,17 +9,17 @@
 auto/opencode-deepseek
 
 ## Last Commit
-f0a05486c feat(proactive): add injectable deliver function
+58b72431e feat(proactive): add runtime wiring seam
 
 ## Completed This Session
 - AUTO-1A through AUTO-1D: automation harness — DONE (committed)
 - E1-S1: proactive delivery gap audit — DONE (df2ea4cfe)
 - E1-S2: deliver() + tests — DONE (f0a05486c)
-- E1-S3A: run_proactive_delivery() + tests — DONE (uncommitted, awaiting GPT approval)
+- E1-S3A: run_proactive_delivery() + tests — DONE (58b72431e)
+- E1-S3B: adapter seam (resolver + sender factory) — DONE (uncommitted, awaiting GPT approval)
 
 ## Pending
-- E1-S3B: wire real Telegram sender (GPT_REVIEW_REQUIRED — needs chat_id source answer)
-- E1-S4: live smoke (HUMAN_REQUIRED)
+- E1-S4: live smoke (HUMAN_REQUIRED — Ahmet provides chat_id, confirms Telegram message)
 - E1-S5: scheduler design (HUMAN_REQUIRED)
 - T1-S1: test_tr_quality.py skeleton (SAFE_AUTONOMOUS)
 - T1-S2: Ahmet quality sign-off (HUMAN_REQUIRED)
@@ -30,24 +30,23 @@ no
 ## Git State
 ```
 branch:       auto/opencode-deepseek
-last commit:  f0a05486c
-working tree: ?? agents/proactive_runtime.py (new, untracked)
-              ?? tests/test_proactive_runtime.py (new, untracked)
+last commit:  58b72431e
+working tree: ?? agents/proactive_telegram_adapter.py (new, untracked)
+              ?? tests/test_proactive_telegram_adapter.py (new, untracked)
 ```
 
 ## Next Safe Step
-GPT approves E1-S3A commit → answers chat_id source question → issues E1-S3B task card (GPT_REVIEW_REQUIRED)
+GPT approves E1-S3B commit → E1-S4 is HUMAN_REQUIRED (Ahmet live smoke test)
 
 ## Model Used
 Sonnet
 
 ## Notes for Next Session
-- run_proactive_delivery(plan, chat_id_resolver, sender_factory) in agents/proactive_runtime.py
-- chat_id_resolver: callable(user_id: str) -> str | None
-- sender_factory: callable(chat_id: str) -> callable(user_id: str, text: str) -> None
-- Both default to None → noop → returns False
-- No network, no Telegram, no env, no scheduler in this file
-- Open question for E1-S3B: where is Ahmet's Telegram chat_id stored?
+- make_static_chat_id_resolver(mapping: dict) in agents/proactive_telegram_adapter.py
+- make_telegram_sender_factory(send_message_fn) in agents/proactive_telegram_adapter.py
+- Full wiring for E1-S4: resolver({"ahmet": AHMET_CHAT_ID}) + factory(telegram_agent.send_message)
+- tools/telegram_agent.send_message signature: (chat_id: int|str, text: str, parse_mode=None) -> None
+- Composition root for E1-S4: inject real send_message_fn from tools/telegram_agent
 
 ---
 *Written by: Claude Code | Date: 2026-06-24*
