@@ -1,43 +1,46 @@
-# CODEX_REVIEW_REQUEST.md — Review Request for Codex
+# CODEX_REVIEW_REQUEST.md — Re-Review Request for Codex
 
 ---
 
-## Task
-T1-S1 — Turkish character quality test skeleton
+## Previous Review
+STATUS: CONCERN (not BLOCKER) — concerns addressed in commit 91c38c405
 
-## Commit
-pending (to be filled after commit)
+## Commit to Re-Review
+91c38c405 fix(proactive): handle invalid delivery plans safely
 
 ## Branch
 auto/opencode-deepseek
 
 ## Files Changed
 ```
-tests/test_tr_quality.py  (NEW — 13 tests)
+agents/proactive_delivery.py         +1 isinstance(plan, DeliveryPlan) guard in deliver()
+agents/proactive_runtime.py          +1 isinstance(plan, DeliveryPlan) guard in run_proactive_delivery()
+tests/test_proactive_delivery.py     +2 tests: deliver(None) → False, deliver(object()) → False
+tests/test_proactive_runtime.py      +2 tests: run(None) → False, run(object()) → False
+automation/FAZ3_E1_T1_DECOMPOSITION.md  stale status reconciled
+automation/SESSION_SUMMARY.md           stale status reconciled
 ```
 
 ## Tests Run
 ```
-pytest tests/test_tr_quality.py -q --tb=short  →  13/13 PASS
+pytest tests/test_proactive_delivery.py tests/test_proactive_runtime.py  →  35/35 PASS
+pytest (4 suites: delivery + runtime + adapter + tr_quality)              →  60/60 PASS
+git diff --check: clean
 ```
 
-## What to Review
+## Specific Re-Review Questions
 
-1. **Correctness of Turkish fold expectations**:
-   Are the expected fold outputs in `_TR_CASES` correct for all 7 chars?
-   Specifically: is İ→i, ı→i, ğ→g, ş→s, ç→c, ö→o, ü→u the right ASCII-fold mapping?
+1. **isinstance guard placement**: `isinstance(plan, DeliveryPlan)` is now first check in both
+   `deliver()` and `run_proactive_delivery()`. Is this guard sufficient, or should we also
+   guard against `plan is None` separately for clarity?
 
-2. **Python combining-dot test**:
-   `test_python_dotted_capital_i_lower_produces_combining_dot` asserts `"İ".lower()` gives
-   `'i' + U+0307`. Is this accurate for CPython 3.11?
+2. **Silent exception concern**: Acknowledged in SESSION_SUMMARY.md and GPT_REVIEW_PACKET.md.
+   No logging implemented yet. Is a bool-only result acceptable for the current E1-S3B state,
+   or should we implement a structured result type before E1-S4?
 
-3. **Coverage gaps**:
-   Are there Turkish encoding edge cases not covered here that should be regression-guarded?
-   (e.g. Turkish capital dotless I → Ş, Ğ, Ü, Ö uppercase variants)
-
-4. **Both modules**: We test `_fold_tr` from both `agents.data_classifier` and
-   `agents.assistant_executor`. Is it intentional to have two copies? Should the
-   consistency test be a canary that they stay in sync?
+3. **Consistency test**: `test_both_fold_tr_implementations_are_consistent` in test_tr_quality.py
+   tests that two separate `_fold_tr` copies produce identical output. Is having two copies
+   acceptable, or should one import from the other to remove the duplication risk?
 
 ## Review Verdict Expected
 PASS / CONCERN / BLOCKER
