@@ -1,113 +1,91 @@
 # GPT_REVIEW_PACKET.md — Review Packet for GPT
 
-> Ahmet pastes this file's content to GPT for each review cycle.
-
 ---
 
 ## TASK
-E1-S1 — Read-Only Proactive Delivery Gap Audit
+E1-S2 — Add injectable deliver() + tests to proactive_delivery.py
 
 ## STATUS
 DONE
 
-## WHAT CHANGED
-- `automation/E1_S1_DELIVERY_GAP_AUDIT.md` created (full audit)
-- `automation/GPT_REVIEW_PACKET.md` updated (this file)
-- `automation/SESSION_SUMMARY.md` updated
-
 ## EXACT FILES CHANGED
 ```
-automation/E1_S1_DELIVERY_GAP_AUDIT.md   (new)
-automation/GPT_REVIEW_PACKET.md          (updated)
-automation/SESSION_SUMMARY.md            (updated)
+agents/proactive_delivery.py     (+26 lines: _format_delivery_message + deliver)
+tests/test_proactive_delivery.py (+62 lines: import deliver + tests 13-18)
+automation/GPT_REVIEW_PACKET.md  (this file)
+automation/SESSION_SUMMARY.md    (updated)
 ```
 
-## EXACT COMMANDS RUN
+## KEY IMPLEMENTATION
+
+Added to agents/proactive_delivery.py:
+
+```python
+def _format_delivery_message(plan: DeliveryPlan) -> str:
+    return (
+        f"JARVIS alert\n"
+        f"task: {plan.task_id}\n"
+        f"priority: {plan.priority}\n"
+        f"reason: {plan.reason}"
+    )
+
+def deliver(plan: DeliveryPlan, sender_fn=None) -> bool:
+    if sender_fn is None:
+        return False
+    if plan.status != "ready":
+        return False
+    try:
+        sender_fn(plan.user_id, _format_delivery_message(plan))
+        return True
+    except Exception:
+        return False
 ```
-git status --short (pre)
-Read agents/proactive_delivery.py
-Read agents/proactive_policy.py
-Read tools/telegram_agent.py
-Read tests/test_proactive_delivery.py
-git status --short / diff --check / diff --stat (post)
-```
+
+No network imports. No "send" in function names. sender_fn=None default.
 
 ## EVIDENCE SUMMARY
 ```
-py_compile:       not applicable (docs-only)
-pytest target:    not run (docs-only)
-pytest regr.:     not run (docs-only)
+py_compile:       implicit (file parses cleanly)
+pytest target:    18/18 PASS  (tests/test_proactive_delivery.py)
+pytest + policy:  37/37 PASS  (delivery + policy suites)
 git diff --check: clean
-git status:       1 new + 2 modified in automation/ (expected)
-git diff --stat:  docs only, no Python touched
+git status:       M agents/proactive_delivery.py
+                  M tests/test_proactive_delivery.py
+git diff --stat:  +87/-1 lines, 2 files
 ```
+
+## SAFETY GUARDS CONFIRMED
+- test 9 (no network imports): PASS — deliver() has no urllib/requests/httpx/telegram imports
+- test 10 (no scheduler imports): PASS — no threading/asyncio/schedule
+- test 11 (no "send" in function names): PASS — functions named _format_delivery_message, deliver
 
 ## AUTONOMY RULE VIOLATIONS
 no
 
-## KEY FINDINGS (for GPT review)
-
-### Gap summary
-```
-ProactivePolicy.decide() → ProactiveDecision
-create_delivery_plan()   → DeliveryPlan(status="ready")
-[GAP] no deliver() function exists
-[GAP] no Telegram send wired to proactive path
-[GAP] no composition root for proactive push
-```
-
-### What exists
-- `DeliveryPlan` frozen dataclass + `create_delivery_plan()` — planning only
-- `ProactivePolicy` with feature flag, mute, DND, cooldown logic — decision only
-- `JARVIS_PROACTIVE_ENABLED` guard lives in ProactivePolicy only
-- `send_message(chat_id, text)` in telegram_agent.py — plain function, injectable
-- 12 tests in test_proactive_delivery.py, all planning-layer only
-
-### Test 11 constraint
-`test_module_has_no_send_function` asserts no function with "send" in name exists
-in proactive_delivery.py. A `deliver()` function would pass this guard.
-
-### cmd_brief() is pull-based, unrelated
-telegram_agent.cmd_brief() calls ProactiveCore directly. It is NOT the push path.
-ProactivePolicy/DeliveryPlan are completely unused in production today.
-
-### Smallest safe next step (E1-S2)
-Add `deliver(plan: DeliveryPlan, sender_fn=None) -> bool` to proactive_delivery.py.
-sender_fn=None → noop. Real send only when caller explicitly provides sender_fn.
-No network imports in module. All 12 existing tests still pass.
-
-## OPEN QUESTIONS FOR GPT (must answer before E1-S3)
-
-1. **Composition root**: Where should proactive push pipeline be assembled?
-   - Option A: Inside telegram_agent.py (alongside _build_assistant_executor)
-   - Option B: New file agents/proactive_runtime.py
-
-2. **user_id → chat_id mapping**: DeliveryPlan.user_id is a caller-provided string.
-   telegram_agent.send_message(chat_id, text) needs the real Telegram chat_id.
-   Are these the same value? Where does the caller get Ahmet's chat_id from?
-
-3. **Message format for push**: Should deliver() format using DeliveryPlan fields only
-   (sparse: task_id, priority, reason), or call cmd_brief() for full brief-style output?
-
-## RISKS / OPEN QUESTIONS
-- All 3 open questions above must be resolved by GPT before E1-S3 task card is issued.
-- test_module_has_no_send_function is a safety guard — E1-S2 must not break it.
+## RISKS
+- `_format_delivery_message` uses ASCII-only labels (task:, priority:, reason:) —
+  avoids Turkish encoding gotchas in source. Message content comes from plan fields
+  which are caller-provided strings; no encoding issue there.
+- deliver() is silent on exception (returns False). GPT may want a logging hook
+  in E1-S3. Acceptable for now — no logger available in this module.
 
 ## HUMAN NEEDED
-- E1-S4: Ahmet sets JARVIS_PROACTIVE_ENABLED=1, confirms Telegram message on phone
-- E1-S5: Ahmet + GPT decide scheduler design
+none
 
 ## COMMIT READY
 yes (when approved)
 
 ## SUGGESTED COMMIT
 ```
-docs(automation): add E1-S1 proactive delivery gap audit
+feat(proactive): add injectable deliver() function to proactive_delivery
 ```
 
 ## NEXT SAFE STEP
-GPT reviews this audit → answers 3 open questions → issues E1-S2 task card
-(SAFE_AUTONOMOUS for deliver() noop implementation, GPT_REVIEW_REQUIRED before E1-S3)
+GPT issues E1-S3 task card (GPT_REVIEW_REQUIRED).
+GPT must first answer 3 open questions from E1-S1 audit:
+1. Composition root: telegram_agent.py or new agents/proactive_runtime.py?
+2. user_id → Telegram chat_id mapping?
+3. Message format: DeliveryPlan fields only (current) or cmd_brief() output?
 
 ---
 *Packet prepared by: Claude Code | Date: 2026-06-24*

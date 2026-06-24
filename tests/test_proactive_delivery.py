@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from agents.proactive_delivery import DeliveryPlan, create_delivery_plan
+from agents.proactive_delivery import DeliveryPlan, create_delivery_plan, deliver
 from agents.proactive_policy import ProactiveDecision
 
 
@@ -135,6 +135,66 @@ def test_module_has_no_send_function():
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             if "send" in node.name.lower():
                 pytest.fail(f"found send-related function: {node.name}")
+
+
+# ---- deliver() tests ----
+
+# 13: deliver imports and is callable
+def test_deliver_function_exists():
+    assert callable(deliver)
+
+
+# 14: noop with no sender returns False
+def test_deliver_noop_returns_false():
+    d = _decision(decision="deliver")
+    plan = create_delivery_plan(d, user_id="u1", task_id="t1")
+    assert plan is not None
+    assert deliver(plan, sender_fn=None) is False
+
+
+# 15: deferred plan does not call sender, returns False
+def test_deliver_deferred_does_not_call_sender():
+    d = _decision(decision="defer", reason="dnd_active")
+    plan = create_delivery_plan(d, user_id="u1", task_id="t1")
+    assert plan is not None
+    assert plan.status == "deferred"
+    calls = []
+    result = deliver(plan, sender_fn=lambda uid, txt: calls.append((uid, txt)))
+    assert result is False
+    assert calls == []
+
+
+# 16: ready plan calls sender exactly once, returns True
+def test_deliver_ready_calls_sender_once_and_returns_true():
+    d = _decision(decision="deliver")
+    plan = create_delivery_plan(d, user_id="u1", task_id="t1")
+    assert plan is not None
+    calls = []
+    result = deliver(plan, sender_fn=lambda uid, txt: calls.append((uid, txt)))
+    assert result is True
+    assert len(calls) == 1
+    assert calls[0][0] == "u1"
+    assert len(calls[0][1]) > 0
+
+
+# 17: sender exception returns False, does not propagate
+def test_deliver_sender_exception_returns_false():
+    d = _decision(decision="deliver")
+    plan = create_delivery_plan(d, user_id="u1", task_id="t1")
+    assert plan is not None
+    def _bad(uid, txt):
+        raise RuntimeError("network error")
+    assert deliver(plan, sender_fn=_bad) is False
+
+
+# 18: sender receives correct user_id
+def test_deliver_passes_correct_user_id():
+    d = _decision(decision="deliver")
+    plan = create_delivery_plan(d, user_id="ahmet123", task_id="t1")
+    assert plan is not None
+    received = []
+    deliver(plan, sender_fn=lambda uid, txt: received.append(uid))
+    assert received == ["ahmet123"]
 
 
 # 12. test_created_at_is_deterministic_with_now

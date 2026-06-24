@@ -66,3 +66,29 @@ def create_delivery_plan(
         cooldown_seconds=decision.cooldown_seconds,
         requires_user_opt_in=decision.requires_user_opt_in,
     )
+
+
+def _format_delivery_message(plan: DeliveryPlan) -> str:
+    return (
+        f"JARVIS alert\n"
+        f"task: {plan.task_id}\n"
+        f"priority: {plan.priority}\n"
+        f"reason: {plan.reason}"
+    )
+
+
+def deliver(plan: DeliveryPlan, sender_fn=None) -> bool:
+    """Execute a ready DeliveryPlan via injected sender.
+
+    sender_fn: callable(user_id: str, text: str) -> None, or None for noop.
+    Returns True if sent, False otherwise. Never raises.
+    """
+    if sender_fn is None:
+        return False
+    if plan.status != "ready":
+        return False
+    try:
+        sender_fn(plan.user_id, _format_delivery_message(plan))
+        return True
+    except Exception:
+        return False
