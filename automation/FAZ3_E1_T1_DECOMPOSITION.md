@@ -14,16 +14,18 @@
 | JARVIS_PROACTIVE_ENABLED guard | agents/proactive_policy.py | DONE — env flag, default off |
 | DeliveryPlan struct | agents/proactive_delivery.py | DONE — frozen dataclass, planning only |
 | create_delivery_plan() | agents/proactive_delivery.py | DONE — returns DeliveryPlan, no executor |
-| deliver() runtime function | agents/proactive_delivery.py | **MISSING** |
-| Telegram send wiring | tools/telegram_agent.py | **NOT WIRED** to proactive path |
-| Scheduler / background loop | — | **NOT BUILT** |
-| tests/test_tr_quality.py | tests/ | **NOT CREATED** |
+| deliver() runtime function | agents/proactive_delivery.py | DONE — E1-S2 (f0a05486c) + invalid-plan guard |
+| run_proactive_delivery() seam | agents/proactive_runtime.py | DONE — E1-S3A (58b72431e) + invalid-plan guard |
+| Telegram adapter seam | agents/proactive_telegram_adapter.py | DONE — E1-S3B (a6052aaf8) |
+| Telegram send wiring (live) | tools/telegram_agent.py | PENDING — E1-S4 HUMAN_REQUIRED |
+| Scheduler / background loop | — | PENDING — E1-S5 HUMAN_REQUIRED (design gate) |
+| tests/test_tr_quality.py | tests/ | DONE — T1-S1 (e4c9d8d50) |
 
 ---
 
 ## FAZ-3-E1: Proaktif Davranış Motoru
 
-### E1-S1 — Delivery gap audit (read-only spec)
+### E1-S1 — Delivery gap audit (read-only spec) ✓ DONE (df2ea4cfe)
 **Classification: SAFE_AUTONOMOUS**
 
 - Read `agents/proactive_delivery.py`, `agents/proactive_policy.py`, `tools/telegram_agent.py`
@@ -34,7 +36,7 @@
 - Tests: none
 - Stop condition: if telegram_agent.py requires `.env` / live token to construct, stop and flag
 
-### E1-S2 — Add injectable `deliver()` with noop guard
+### E1-S2 — Add injectable `deliver()` with noop guard ✓ DONE (f0a05486c)
 **Classification: GPT_REVIEW_REQUIRED** (first runtime delivery function)
 
 - Add `deliver(plan: DeliveryPlan, sender=None)` to `agents/proactive_delivery.py`
@@ -48,8 +50,10 @@
 - Tests: `pytest tests/test_proactive_delivery.py -q --tb=short`
 - GPT must review before proceeding to E1-S3 (no live send yet, but first wiring step)
 
+### E1-S3A — Runtime seam run_proactive_delivery() ✓ DONE (58b72431e)
+### E1-S3B — Telegram adapter seam ✓ DONE (a6052aaf8)
 ### E1-S3 — Wire deliver() to real TelegramAgent sender
-**Classification: GPT_REVIEW_REQUIRED** (first real push behavior)
+**Classification: GPT_REVIEW_REQUIRED** (first real push behavior — superseded by E1-S3A/B above)
 
 - Create `TelegramSender` wrapper in `tools/telegram_agent.py` or thin adapter
 - Wire `deliver(plan, sender=TelegramSender())` in composition root
@@ -79,7 +83,7 @@
 
 ## FAZ-T1: Türkçe Kalite Track'i
 
-### T1-S1 — Create tests/test_tr_quality.py skeleton
+### T1-S1 — Create tests/test_tr_quality.py skeleton ✓ DONE (e4c9d8d50)
 **Classification: SAFE_AUTONOMOUS**
 
 - Create `tests/test_tr_quality.py`

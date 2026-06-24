@@ -3,50 +3,61 @@
 ---
 
 ## TASK
-T1-S1 — Create tests/test_tr_quality.py skeleton
+Codex Concern Fix — invalid plan safety guards
 
 ## STATUS
-DONE — SAFE_AUTONOMOUS auto-commit
+DONE — auto-commit (SAFE_AUTONOMOUS)
 
 ## EXACT FILES CHANGED
 ```
-tests/test_tr_quality.py    (NEW — 13 tests)
-automation/CLAUDE_PLAN.md   (updated)
-automation/GPT_REVIEW_PACKET.md  (this file)
-automation/SESSION_SUMMARY.md    (updated)
+agents/proactive_delivery.py         (+1 isinstance guard)
+agents/proactive_runtime.py          (+1 isinstance guard)
+tests/test_proactive_delivery.py     (+2 tests: deliver(None), deliver(object()))
+tests/test_proactive_runtime.py      (+2 tests: run(None), run(object()))
+automation/SESSION_SUMMARY.md        (updated — stale state reconciled)
+automation/FAZ3_E1_T1_DECOMPOSITION.md  (updated — completed items marked)
+automation/GPT_REVIEW_PACKET.md      (this file)
+automation/CODEX_REVIEW_REQUEST.md   (updated — re-review request)
 ```
 
-## KEY TESTS
+## KEY CHANGES
 
-```
-test_python_dotted_capital_i_lower_produces_combining_dot  — Python gotcha guard
-test_fold_tr_avoids_combining_dot_gotcha                   — _fold_tr fixes the gotcha
-test_fold_tr_executor_all_turkish_chars                    — 7 chars: İ ı ğ ş ç ö ü
-test_fold_tr_classifier_all_turkish_chars                  — same, data_classifier copy
-test_both_fold_tr_implementations_are_consistent           — both modules agree
-test_fold_tr_does_not_produce_empty_for_turkish_input      — no codepoint loss
-test_fold_tr_outputs_contain_no_replacement_chars          — no mojibake (U+FFFD)
-test_fold_tr_istanbul_uppercase                            — İSTANBUL → istanbul
-test_fold_tr_sehir_mixed                                   — şEHİR → sehir
-test_fold_tr_gunes_uppercase                               — GÜNEŞ → gunes
-test_fold_tr_empty_string                                  — edge case
-test_fold_tr_none_input                                    — edge case
-test_fold_tr_ascii_only_unchanged_case                     — no regression on ASCII
+```python
+# agents/proactive_delivery.py — deliver()
+if not isinstance(plan, DeliveryPlan):   # NEW — before plan.status access
+    return False
+
+# agents/proactive_runtime.py — run_proactive_delivery()
+if not isinstance(plan, DeliveryPlan):   # NEW — before plan.status access
+    return False
 ```
 
 ## EVIDENCE
 ```
-pytest tests/test_tr_quality.py:  13/13 PASS
-git diff --check:                  clean
+pytest delivery + runtime:    35/35 PASS
+pytest full scope (4 suites): 60/60 PASS
+git diff --check:              clean
 ```
 
-## RISKS
-none — read-only test file, no production code touched
+## SILENT EXCEPTION NOTE
+Before live E1-S4/E1-S5, consider structured failure reason/logging instead of
+bool-only silent failure. Currently all exceptions are swallowed silently; a
+structured result type or logger callback would aid production debugging.
+No implementation yet — noted for GPT to decide scope.
 
-## NEXT
-T1-S2 (HUMAN_REQUIRED): Ahmet live Turkish output sign-off.
-E1-S4 (HUMAN_REQUIRED): live Telegram smoke test.
-Both require Ahmet. No more SAFE_AUTONOMOUS tasks in current decomposition.
+## HUMAN NEEDED
+none
+
+## COMMIT READY
+yes (auto-commit per SAFE_AUTONOMOUS doctrine)
+
+## SUGGESTED COMMIT
+```
+fix(proactive): handle invalid delivery plans safely
+```
+
+## NEXT SAFE STEP
+Codex re-review → if PASS, wait for Ahmet at T1-S2 / E1-S4 / E1-S5.
 
 ---
 *Packet prepared by: Claude Code | Date: 2026-06-24*

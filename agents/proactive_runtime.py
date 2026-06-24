@@ -20,6 +20,8 @@ def run_proactive_delivery(
     sender_factory:   callable(chat_id: str) -> callable(user_id: str, text: str) -> None
     Returns True if delivered, False otherwise. Never raises.
     """
+    if not isinstance(plan, DeliveryPlan):
+        return False
     if plan.status != "ready":
         return False
     if chat_id_resolver is None:

@@ -83,6 +83,8 @@ def deliver(plan: DeliveryPlan, sender_fn=None) -> bool:
     sender_fn: callable(user_id: str, text: str) -> None, or None for noop.
     Returns True if sent, False otherwise. Never raises.
     """
+    if not isinstance(plan, DeliveryPlan):
+        return False
     if sender_fn is None:
         return False
     if plan.status != "ready":

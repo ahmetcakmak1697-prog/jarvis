@@ -166,6 +166,26 @@ def test_sender_exception_returns_false():
     ) is False
 
 
+# ---- invalid plan guard tests ----
+
+# 14: run_proactive_delivery(None) returns False, does not raise
+def test_run_none_plan_returns_false():
+    assert run_proactive_delivery(
+        None,
+        chat_id_resolver=lambda uid: "42",
+        sender_factory=lambda cid: lambda uid, txt: None,
+    ) is False
+
+
+# 15: run_proactive_delivery(object()) returns False, does not raise
+def test_run_invalid_plan_returns_false():
+    assert run_proactive_delivery(
+        object(),
+        chat_id_resolver=lambda uid: "42",
+        sender_factory=lambda cid: lambda uid, txt: None,
+    ) is False
+
+
 # 13. no real Telegram import / no tools.telegram_agent import
 def test_no_telegram_import_in_module():
     with open("agents/proactive_runtime.py", encoding="utf-8") as f:

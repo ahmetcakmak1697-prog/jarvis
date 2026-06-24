@@ -197,6 +197,18 @@ def test_deliver_passes_correct_user_id():
     assert received == ["ahmet123"]
 
 
+# ---- invalid plan guard tests ----
+
+# 19: deliver(None) returns False, does not raise
+def test_deliver_none_plan_returns_false():
+    assert deliver(None, sender_fn=lambda uid, txt: None) is False
+
+
+# 20: deliver(object()) returns False, does not raise
+def test_deliver_invalid_plan_returns_false():
+    assert deliver(object(), sender_fn=lambda uid, txt: None) is False
+
+
 # 12. test_created_at_is_deterministic_with_now
 def test_created_at_is_deterministic_with_now():
     d = _decision(decision="deliver")
