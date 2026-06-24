@@ -77,6 +77,13 @@ Tony Stark'ın JARVIS'i gibi konuş: zeki, özlü, kişisel.
 - Bilgiyi doğal cümlelerle aktar
 - Kaynak URL'lerini yalnızca gerektiğinde kısaca belirt
 - Sana verilen bilgileri özümse ve kendi sözcüklerinle anlat
+
+## PROJE DURUMU KURALI
+- Proje roadmap, commit gecmisi ve canli sistem durumu hakkinda bilgin YOKTUR — hayal etme.
+- Bu bilgiler asagida "PROJE DURUMU" bolumunde verilmisse, SADECE orada yazanlari soyle.
+- Verilmemisse: "Anlik proje durumuna erisimim yok; automation/SESSION_SUMMARY.md dosyasina bakin." de.
+- Tarih, gun ve saat gibi meta bilgileri uydurma; get_datetime aracini kullan veya bilmiyorum de.
+- Canli sistem durumu (proaktif bildirim, Telegram, scheduler) hakkinda asla tahminde bulunma.
 """
 
 
@@ -106,6 +113,7 @@ class LocalJarvisAgent:
         self.ollama_available = False
         self.available_models: list[str] = []
         self._ollama = None
+        self._project_ctx = self._load_project_context()
         self.memory = self._load_memory()
         self._tools = self._load_tools()
         self._init_ollama()
@@ -134,6 +142,20 @@ class LocalJarvisAgent:
         except Exception as e:
             console.print(f"[yellow]⚠ Araç hatası: {e}[/]")
             return {}
+
+    def _load_project_context(self) -> str:
+        """Read automation/SESSION_SUMMARY.md for grounding. Returns '' on any failure."""
+        summary_path = Path(__file__).parent.parent / "automation" / "SESSION_SUMMARY.md"
+        human_path = Path(__file__).parent.parent / "automation" / "HUMAN_NEEDED.md"
+        parts: list[str] = []
+        for path in (summary_path, human_path):
+            try:
+                text = path.read_text(encoding="utf-8")
+                lines = text.splitlines()[:40]
+                parts.append("\n".join(lines))
+            except Exception:
+                pass
+        return "\n\n---\n\n".join(parts) if parts else ""
 
     def _load_memory(self):
         try:
@@ -296,6 +318,8 @@ class LocalJarvisAgent:
 
         # System prompt
         system = SYSTEM_PROMPT
+        if self._project_ctx:
+            system += f"\n\n## PROJE DURUMU (SESSION_SUMMARY + HUMAN_NEEDED — anlik)\n{self._project_ctx}"
         if self.memory:
             ctx = self.memory.get_context_for_prompt()
             if ctx:

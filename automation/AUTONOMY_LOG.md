@@ -150,3 +150,29 @@ RISKS: none
 HUMAN_GATES_HIT: T1-S2 (Turkish quality sign-off), E1-S4 (live Telegram smoke), E1-S5 (scheduler design gate)
 NEXT STEP: Ahmet reviews HUMAN_NEEDED.md and proceeds with human-gate tasks
 ---
+
+---
+DATE: 2026-06-24
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: T1-S2 — Actual CLI runtime smoke (Ahmet ran python main.py + chcp 65001 + llama3.2)
+OUTCOME: FAIL — hallucinated project context, NOT encoding failure
+TESTS: n/a (human smoke, not automated)
+FILES CHANGED: 1 (new) — automation/T1_S2_FAIL_LOG.md
+RISKS: none (read-only investigation + log only)
+HUMAN_GATES_HIT: T1-S2 remains open
+NEXT STEP: Fix LocalJarvisAgent to ground project-status answers in actual docs
+---
+
+---
+DATE: 2026-06-24
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: T1-S2 FIX — LocalJarvisAgent project context grounding
+OUTCOME: DONE
+TESTS: tests/test_local_agent_grounding.py -> 5 passed; tests/test_main_cli_markup.py -> 2 passed; 7 total
+FILES CHANGED: 2 — agent/local_agent.py, tests/test_local_agent_grounding.py; 1 new — automation/T1_S2_FAIL_LOG.md
+RISKS: low; no live system touched; grounding rule + SESSION_SUMMARY injection follows existing memory pattern
+HUMAN_GATES_HIT: none
+NEXT STEP: Ahmet re-runs python main.py and repeats T1-S2 prompts to verify fix
+---
