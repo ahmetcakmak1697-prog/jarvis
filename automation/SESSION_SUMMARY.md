@@ -33,12 +33,22 @@ f777d3ca0 docs(automation): update codex re-review request
 - fix(local-agent): compact GUNCEL PROJE DURUMU block with git log — DONE (9bbdab0c4)
 - T1-S2: Ahmet live Turkish quality sign-off — DONE / PASS (2026-06-24)
 
-## Pending — HUMAN_REQUIRED (no SAFE_AUTONOMOUS tasks remain)
-- E1-S4: live Telegram smoke test (HUMAN_REQUIRED — Ahmet provides .env/token/chat_id, confirms message)
-- E1-S5: scheduler architecture/design gate (HUMAN_REQUIRED)
+## Completed This Session (continued)
+- E1-S5: scheduler architecture decision — DONE / APPROVED (Ahmet, 2026-06-24)
+- E1-S6A–E: decomposition written — SAFE_AUTONOMOUS tasks queued (no code yet)
+
+## Pending — SAFE_AUTONOMOUS (implementation queued)
+- E1-S6A: proactive_runner.py dry-run CLI (SAFE_AUTONOMOUS — next Claude task)
+- E1-S6B: DeliveryResult logging (SAFE_AUTONOMOUS)
+- E1-S6C: Windows Task Scheduler docs + script template (SAFE_AUTONOMOUS)
+- E1-S6D: live-mode guard (SAFE_AUTONOMOUS)
+- E1-S6E: throttle guard (SAFE_AUTONOMOUS)
+
+## Pending — HUMAN_REQUIRED
+- E1-S4: live Telegram smoke test (HUMAN_REQUIRED — after E1-S6A–E complete)
 
 ## Human-Needed Blocker
-yes — E1-S4 and E1-S5 require Ahmet
+Only E1-S4 requires Ahmet. E1-S6A–E are SAFE_AUTONOMOUS.
 
 ## Git State
 ```

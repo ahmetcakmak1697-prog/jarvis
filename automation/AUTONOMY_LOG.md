@@ -202,3 +202,16 @@ RISKS: none (docs only; roadmap state update is purely metadata)
 HUMAN_GATES_HIT: E1-S4 (Telegram), E1-S5 (scheduler design) remain open
 NEXT STEP: E1-S4 live Telegram smoke (HUMAN_REQUIRED) or E1-S5 design decision (HUMAN_REQUIRED)
 ---
+
+---
+DATE: 2026-06-24
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: E1-S5 — Scheduler architecture decision (Ahmet approved)
+OUTCOME: DONE (docs only)
+TESTS: py -3.11 -m json.tool roadmap_state.json -> VALID; git diff --check -> clean
+FILES CHANGED: 5 new — SCHEDULER_DECISION.md, E1_S6_DECOMPOSITION.md; updated — roadmap_state.json, HUMAN_NEEDED.md, SESSION_SUMMARY.md, AUTONOMY_LOG.md, CODEX_REVIEW_REQUEST.md
+RISKS: none (docs/roadmap only)
+HUMAN_GATES_HIT: E1-S5 resolved; E1-S4 remains
+NEXT STEP: E1-S6A (SAFE_AUTONOMOUS — proactive_runner.py dry-run CLI)
+---

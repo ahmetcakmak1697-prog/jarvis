@@ -263,13 +263,113 @@
           "887420cf9 added test-only ProactiveDelivery planning layer (DeliveryPlan + create_delivery_plan) with no runtime send/wiring; validation: proactive delivery/regression 31 passed, governance 91 passed. Runtime delivery remains pending."
         ],
         "remaining": [
-          "No runtime delivery integration yet",
-          "No scheduler/background push behavior yet",
-          "Delivery cooldown/rate-limit/mute/opt-out still requires human-reviewed design",
-          "ProactiveDelivery planning layer exists but runtime delivery send/scheduler/background loop still pending."
+          "E1-S6A-E: one-shot runner implementation (SAFE_AUTONOMOUS — see E1_S6_DECOMPOSITION.md)",
+          "E1-S4: live Telegram smoke test (HUMAN_REQUIRED)"
         ],
-        "safety_invariant": "No proactive push/background behavior is enabled by this step."
+        "safety_invariant": "No proactive push/background behavior is enabled by this step.",
+        "e1_s5_decision": {
+          "verdict": "APPROVED",
+          "at": "2026-06-24",
+          "signed_by": "Ahmet",
+          "decision": "Windows Task Scheduler + one-shot proactive runner + default dry-run",
+          "decision_doc": "automation/SCHEDULER_DECISION.md",
+          "decomposition_doc": "automation/E1_S6_DECOMPOSITION.md"
+        }
       }
+    },
+    {
+      "id": "E1-S6A",
+      "title": "proactive_runner.py dry-run CLI",
+      "phase": "3",
+      "kind": "implement",
+      "status": "todo",
+      "depends_on": ["FAZ-3-E1"],
+      "autonomy": "auto",
+      "acceptance_criteria_machine": [
+        "py -3.11 -m pytest tests/test_e1_6a_proactive_runner.py -q --tb=short"
+      ],
+      "acceptance_criteria_human": [],
+      "allowed_paths": [
+        "agents/proactive_runner.py",
+        "tests/test_e1_6a_proactive_runner.py"
+      ],
+      "notes": "One-shot runner. Default dry-run. --live flag raises RuntimeError if JARVIS_PROACTIVE_ENABLED!=1. No Telegram send, no network, no .env needed in tests."
+    },
+    {
+      "id": "E1-S6B",
+      "title": "Delivery result logging (DeliveryResult struct)",
+      "phase": "3",
+      "kind": "implement",
+      "status": "todo",
+      "depends_on": ["E1-S6A"],
+      "autonomy": "auto",
+      "acceptance_criteria_machine": [
+        "py -3.11 -m pytest tests/test_e1_6b_delivery_result.py tests/test_proactive_delivery.py tests/test_proactive_runtime.py -q --tb=short"
+      ],
+      "acceptance_criteria_human": [],
+      "allowed_paths": [
+        "agents/proactive_delivery.py",
+        "agents/proactive_runtime.py",
+        "tests/test_e1_6b_delivery_result.py",
+        "tests/test_proactive_delivery.py",
+        "tests/test_proactive_runtime.py"
+      ],
+      "notes": "Replace bool return with DeliveryResult dataclass. Resolves silent-exception design debt noted in SESSION_SUMMARY."
+    },
+    {
+      "id": "E1-S6C",
+      "title": "Windows Task Scheduler docs + script template",
+      "phase": "3",
+      "kind": "implement",
+      "status": "todo",
+      "depends_on": ["E1-S6A"],
+      "autonomy": "auto",
+      "acceptance_criteria_machine": [
+        "git diff --check"
+      ],
+      "acceptance_criteria_human": [],
+      "allowed_paths": [
+        "docs/scheduler_setup.md",
+        "scripts/create_jarvis_task.ps1"
+      ],
+      "notes": "Docs and commented-out PowerShell template only. No Task Scheduler task created. Script includes safety comment: uncomment only after E1-S4 passes."
+    },
+    {
+      "id": "E1-S6D",
+      "title": "Live-mode guard (blocked until E1-S4)",
+      "phase": "3",
+      "kind": "implement",
+      "status": "todo",
+      "depends_on": ["E1-S6A"],
+      "autonomy": "auto",
+      "acceptance_criteria_machine": [
+        "py -3.11 -m pytest tests/test_e1_6d_live_guard.py -q --tb=short"
+      ],
+      "acceptance_criteria_human": [],
+      "allowed_paths": [
+        "agents/proactive_runner.py",
+        "tests/test_e1_6d_live_guard.py"
+      ],
+      "notes": "Implement guard only — no live send. --live without JARVIS_PROACTIVE_ENABLED=1 logs error and exits 1. Actual live send wired only in E1-S4."
+    },
+    {
+      "id": "E1-S6E",
+      "title": "Duplicate / throttle guard",
+      "phase": "3",
+      "kind": "implement",
+      "status": "todo",
+      "depends_on": ["E1-S6A"],
+      "autonomy": "auto",
+      "acceptance_criteria_machine": [
+        "py -3.11 -m pytest tests/test_e1_6e_throttle.py -q --tb=short"
+      ],
+      "acceptance_criteria_human": [],
+      "allowed_paths": [
+        "agents/proactive_throttle.py",
+        "tests/test_e1_6e_throttle.py",
+        "agents/proactive_runner.py"
+      ],
+      "notes": "File-based cooldown store. Default 3600s cooldown. Dry-run checks throttle but does not record. Graceful fallback on corrupt/missing store."
     },
     {
       "id": "FAZ-T1",
