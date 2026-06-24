@@ -80,10 +80,13 @@ Tony Stark'ın JARVIS'i gibi konuş: zeki, özlü, kişisel.
 
 ## PROJE DURUMU KURALI
 - Proje roadmap, commit gecmisi ve canli sistem durumu hakkinda bilgin YOKTUR — hayal etme.
-- Bu bilgiler asagida "PROJE DURUMU" bolumunde verilmisse, SADECE orada yazanlari soyle.
+- Bu bilgiler asagida "GUNCEL PROJE DURUMU" bolumunde verilmisse, SADECE orada yazanlari soyle.
 - Verilmemisse: "Anlik proje durumuna erisimim yok; automation/SESSION_SUMMARY.md dosyasina bakin." de.
 - Tarih, gun ve saat gibi meta bilgileri uydurma; get_datetime aracini kullan veya bilmiyorum de.
-- Canli sistem durumu (proaktif bildirim, Telegram, scheduler) hakkinda asla tahminde bulunma.
+- Canli sistem durumu (proaktif bildirim, Telegram, zamanlayici) hakkinda asla tahminde bulunma.
+- Proaktif bildirimler CANLI DEGIL — JARVIS_PROACTIVE_ENABLED=0, insan onayi gerekiyor.
+- Telegram canli testi insan kapisidir — Ahmet .env/token/telefon ile bizzat yapacak.
+- Zamanlayici (scheduler) henuz tasarlanmadi — mimari karar bekliyor.
 """
 
 
@@ -144,18 +147,66 @@ class LocalJarvisAgent:
             return {}
 
     def _load_project_context(self) -> str:
-        """Read automation/SESSION_SUMMARY.md for grounding. Returns '' on any failure."""
-        summary_path = Path(__file__).parent.parent / "automation" / "SESSION_SUMMARY.md"
-        human_path = Path(__file__).parent.parent / "automation" / "HUMAN_NEEDED.md"
-        parts: list[str] = []
-        for path in (summary_path, human_path):
-            try:
-                text = path.read_text(encoding="utf-8")
-                lines = text.splitlines()[:40]
-                parts.append("\n".join(lines))
-            except Exception:
-                pass
-        return "\n\n---\n\n".join(parts) if parts else ""
+        """Build a compact, explicit current project state block for system prompt grounding."""
+        root = Path(__file__).parent.parent
+        lines: list[str] = ["## GUNCEL PROJE DURUMU"]
+
+        # 1. Git log (safe read-only subprocess)
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["git", "log", "-5", "--oneline"],
+                capture_output=True, text=True, timeout=5,
+                cwd=str(root),
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                lines.append("\n### Son Commitler")
+                for log_line in result.stdout.strip().splitlines():
+                    lines.append(f"  {log_line}")
+        except Exception:
+            pass
+
+        # 2. Human-needed pending items
+        human_path = root / "automation" / "HUMAN_NEEDED.md"
+        try:
+            human_text = human_path.read_text(encoding="utf-8")
+            pending = [
+                ln.strip() for ln in human_text.splitlines()
+                if ln.strip().startswith("- [ ]")
+            ]
+            if pending:
+                lines.append("\n### Insan Onayi Gereken Isler (HUMAN_NEEDED)")
+                lines.extend(f"  {p}" for p in pending)
+        except Exception:
+            pass
+
+        # 3. Explicit known state (always injected so model can't invent)
+        lines.append("\n### Bilinen Durum")
+        lines.append("  - T1-S2: Turkce kalite subjektif onayi — BEKLIYOR (Ahmet imzalayana kadar)")
+        lines.append("  - E1-S4: Canli Telegram smoke testi — BEKLIYOR (insan kapisi; .env/token/telefon gerekli)")
+        lines.append("  - E1-S5: Zamanlayici mimari karari — BEKLIYOR (tasarim kapisi; henuz kod yok)")
+        lines.append("  - Proaktif bildirimler: CANLI DEGIL (JARVIS_PROACTIVE_ENABLED=0)")
+        lines.append("  - Guvende otonom gorevler: TAMAMLANDI — sadece insan kapilari kaldi")
+
+        # 4. Optional: T1-S2 fail log summary if present
+        fail_log = root / "automation" / "T1_S2_FAIL_LOG.md"
+        try:
+            fail_text = fail_log.read_text(encoding="utf-8")
+            verdict_lines = [
+                ln.strip() for ln in fail_text.splitlines()
+                if "FAIL" in ln or "Verdict" in ln or "PASS" in ln
+            ]
+            if verdict_lines:
+                lines.append("\n### T1-S2 Son Sonuc")
+                lines.extend(f"  {v}" for v in verdict_lines[:3])
+        except Exception:
+            pass
+
+        lines.append("\n### Onemli Kural")
+        lines.append("  Bu blogun disindaki proje durumu, commit veya canli sistem")
+        lines.append("  bilgilerini UYDURMA. Bilmiyorsan soyle.")
+
+        return "\n".join(lines)
 
     def _load_memory(self):
         try:
@@ -319,7 +370,7 @@ class LocalJarvisAgent:
         # System prompt
         system = SYSTEM_PROMPT
         if self._project_ctx:
-            system += f"\n\n## PROJE DURUMU (SESSION_SUMMARY + HUMAN_NEEDED — anlik)\n{self._project_ctx}"
+            system += f"\n\n{self._project_ctx}"
         if self.memory:
             ctx = self.memory.get_context_for_prompt()
             if ctx:

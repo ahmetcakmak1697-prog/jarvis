@@ -176,3 +176,16 @@ RISKS: low; no live system touched; grounding rule + SESSION_SUMMARY injection f
 HUMAN_GATES_HIT: none
 NEXT STEP: Ahmet re-runs python main.py and repeats T1-S2 prompts to verify fix
 ---
+
+---
+DATE: 2026-06-24
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: T1-S2 FIX v2 — Compact project state block with git log + known-state facts
+OUTCOME: DONE
+TESTS: tests/test_local_agent_grounding.py -> 8 passed; tests/test_main_cli_markup.py -> 2 passed; 10 total
+FILES CHANGED: 2 — agent/local_agent.py, tests/test_local_agent_grounding.py
+RISKS: low; subprocess git log is read-only; graceful fallback on failure
+HUMAN_GATES_HIT: T1-S2 still open — Ahmet must re-run smoke after this fix
+NEXT STEP: Ahmet re-runs python main.py for T1-S2 third smoke
+---
