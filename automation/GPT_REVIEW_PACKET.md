@@ -3,71 +3,81 @@
 ---
 
 ## TASK
-E1-S2 — Add injectable deliver() + tests to proactive_delivery.py
+E1-S3A — Add ProactiveRuntime wiring seam (no live Telegram)
 
 ## STATUS
 DONE
 
 ## EXACT FILES CHANGED
 ```
-agents/proactive_delivery.py     (+26 lines: _format_delivery_message + deliver)
-tests/test_proactive_delivery.py (+62 lines: import deliver + tests 13-18)
+agents/proactive_runtime.py      (NEW — 35 lines)
+tests/test_proactive_runtime.py  (NEW — 13 tests)
 automation/GPT_REVIEW_PACKET.md  (this file)
 automation/SESSION_SUMMARY.md    (updated)
 ```
 
 ## KEY IMPLEMENTATION
 
-Added to agents/proactive_delivery.py:
+New file `agents/proactive_runtime.py`:
 
 ```python
-def _format_delivery_message(plan: DeliveryPlan) -> str:
-    return (
-        f"JARVIS alert\n"
-        f"task: {plan.task_id}\n"
-        f"priority: {plan.priority}\n"
-        f"reason: {plan.reason}"
-    )
+from agents.proactive_delivery import DeliveryPlan, deliver
 
-def deliver(plan: DeliveryPlan, sender_fn=None) -> bool:
-    if sender_fn is None:
-        return False
+def run_proactive_delivery(
+    plan: DeliveryPlan,
+    chat_id_resolver=None,
+    sender_factory=None,
+) -> bool:
     if plan.status != "ready":
         return False
+    if chat_id_resolver is None:
+        return False
+    if sender_factory is None:
+        return False
     try:
-        sender_fn(plan.user_id, _format_delivery_message(plan))
-        return True
+        chat_id = chat_id_resolver(plan.user_id)
     except Exception:
         return False
+    if not chat_id:
+        return False
+    try:
+        sender_fn = sender_factory(chat_id)
+    except Exception:
+        return False
+    return deliver(plan, sender_fn=sender_fn)
 ```
 
-No network imports. No "send" in function names. sender_fn=None default.
+No network imports. No Telegram imports. No env reads. No scheduler.
+Two injected dependencies: `chat_id_resolver` and `sender_factory`.
 
 ## EVIDENCE SUMMARY
 ```
-py_compile:       implicit (file parses cleanly)
-pytest target:    18/18 PASS  (tests/test_proactive_delivery.py)
-pytest + policy:  37/37 PASS  (delivery + policy suites)
+pytest target:    13/13 PASS  (tests/test_proactive_runtime.py)
+pytest combined:  31/31 PASS  (delivery + runtime suites)
 git diff --check: clean
-git status:       M agents/proactive_delivery.py
-                  M tests/test_proactive_delivery.py
-git diff --stat:  +87/-1 lines, 2 files
+git status:       ?? agents/proactive_runtime.py (untracked — new file)
+                  ?? tests/test_proactive_runtime.py (untracked — new file)
+diff --stat:      2 new files, 0 modified
 ```
 
 ## SAFETY GUARDS CONFIRMED
-- test 9 (no network imports): PASS — deliver() has no urllib/requests/httpx/telegram imports
-- test 10 (no scheduler imports): PASS — no threading/asyncio/schedule
-- test 11 (no "send" in function names): PASS — functions named _format_delivery_message, deliver
+- test 13 (no telegram import): PASS — only import is from agents.proactive_delivery
+- no tools.telegram_agent import: PASS
+- no env reads: PASS — no os.environ anywhere
+- no scheduler: PASS — no threading/asyncio/schedule
 
 ## AUTONOMY RULE VIOLATIONS
 no
 
 ## RISKS
-- `_format_delivery_message` uses ASCII-only labels (task:, priority:, reason:) —
-  avoids Turkish encoding gotchas in source. Message content comes from plan fields
-  which are caller-provided strings; no encoding issue there.
-- deliver() is silent on exception (returns False). GPT may want a logging hook
-  in E1-S3. Acceptable for now — no logger available in this module.
+- `deliver()` in proactive_delivery.py catches all exceptions silently.
+  `run_proactive_delivery()` does the same at resolver/factory level.
+  Silent-on-error is intentional for a noop-default runtime seam.
+  GPT may want a logging hook in E1-S3B. Acceptable for now.
+- `chat_id_resolver` returns `str | None`. The real resolver (E1-S3B)
+  will need to know where Ahmet's Telegram chat_id is stored
+  (TELEGRAM_ALLOWED_USER_IDS? .env? hardcoded?).
+  That mapping is GPT_REVIEW_REQUIRED per the open question from E1-S1.
 
 ## HUMAN NEEDED
 none
@@ -77,15 +87,13 @@ yes (when approved)
 
 ## SUGGESTED COMMIT
 ```
-feat(proactive): add injectable deliver() function to proactive_delivery
+feat(proactive): add runtime wiring seam (run_proactive_delivery)
 ```
 
 ## NEXT SAFE STEP
-GPT issues E1-S3 task card (GPT_REVIEW_REQUIRED).
-GPT must first answer 3 open questions from E1-S1 audit:
-1. Composition root: telegram_agent.py or new agents/proactive_runtime.py?
-2. user_id → Telegram chat_id mapping?
-3. Message format: DeliveryPlan fields only (current) or cmd_brief() output?
+E1-S3B (GPT_REVIEW_REQUIRED): Wire real Telegram sender.
+GPT must answer: where is Ahmet's Telegram chat_id stored?
+(TELEGRAM_ALLOWED_USER_IDS env var? hardcoded? per-user config?)
 
 ---
 *Packet prepared by: Claude Code | Date: 2026-06-24*
