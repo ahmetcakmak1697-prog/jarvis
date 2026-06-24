@@ -1,5 +1,10 @@
 # SESSION_SUMMARY.md — End-of-Session State
 
+> NOTE: This file may be updated by a later summary-only commit.
+> `git log -1 --oneline` is the source of truth for current HEAD.
+> "Last implementation commit" and "Last reconciliation commit" below are stable
+> references; they do not claim to equal HEAD.
+
 ---
 
 ## Session Date
@@ -8,8 +13,12 @@
 ## Current Branch
 auto/opencode-deepseek
 
-## Last Commit
+## Last Implementation Commit
+91c38c405 fix(proactive): handle invalid delivery plans safely
+
+## Last Reconciliation Commits
 f777d3ca0 docs(automation): update codex re-review request
+5d900b866 docs(automation): reconcile session summary after codex fix
 
 ## Completed This Session
 - AUTO-1A through AUTO-1E: automation harness + doctrine — DONE (committed)
@@ -18,7 +27,7 @@ f777d3ca0 docs(automation): update codex re-review request
 - E1-S3A: run_proactive_delivery() + tests — DONE (58b72431e)
 - E1-S3B: telegram adapter seam — DONE (a6052aaf8)
 - T1-S1: test_tr_quality.py skeleton — DONE (e4c9d8d50)
-- Codex concern fix: invalid plan guards + stale doc reconciliation — DONE (91c38c405, f777d3ca0)
+- Codex concern fix: invalid plan guards — DONE (91c38c405)
 
 ## Pending — HUMAN_REQUIRED (no SAFE_AUTONOMOUS tasks remain)
 - T1-S2: Ahmet live Turkish quality sign-off (HUMAN_REQUIRED)
@@ -31,8 +40,8 @@ yes — T1-S2, E1-S4, E1-S5 all require Ahmet
 ## Git State
 ```
 branch:       auto/opencode-deepseek
-last commit:  f777d3ca0
-working tree: clean
+working tree: clean (at time of last edit — verify with git status)
+tests:        60/60 PASS across delivery + runtime + adapter + tr_quality suites
 ```
 
 ## NOTE — Silent exception design debt
@@ -44,7 +53,6 @@ would make production debugging significantly easier.
 ## Notes for Next Session
 - deliver() guards: isinstance(plan, DeliveryPlan) before plan.status access
 - run_proactive_delivery() same guard
-- 60/60 tests pass across all proactive + tr_quality suites
 - E1-S4 composition root: run_proactive_delivery(plan, resolver, make_telegram_sender_factory(send_message))
   where resolver = make_static_chat_id_resolver({"ahmet": AHMET_CHAT_ID})
   and send_message = tools.telegram_agent.send_message

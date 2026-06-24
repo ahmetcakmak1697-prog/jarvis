@@ -5,8 +5,11 @@
 ## Previous Review
 STATUS: CONCERN (not BLOCKER) — all concerns addressed; requesting final PASS verdict
 
-## Commit to Re-Review
+## Commits to Re-Review
 91c38c405 fix(proactive): handle invalid delivery plans safely
+f777d3ca0 docs(automation): update codex re-review request
+5d900b866 docs(automation): reconcile session summary after codex fix
+(+ this commit — see git log for current HEAD)
 
 ## Branch
 auto/opencode-deepseek
