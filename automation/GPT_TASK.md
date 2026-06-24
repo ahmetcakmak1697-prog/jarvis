@@ -1,7 +1,7 @@
 # GPT_TASK.md — Current Task Card
 
 > Overwrite this file each time GPT assigns a new task.
-> Claude reads this at session start.
+> Claude reads this at session start. If this file contains only the template, Claude stops and waits.
 
 ---
 
@@ -10,6 +10,18 @@
 
 ## Objective
 <!-- One paragraph: what must be true when this task is done. -->
+
+## Autonomous continuation allowed
+<!-- yes / no -->
+
+## Human presence required
+<!-- yes / no — if yes, Claude stops immediately after reading this -->
+
+## Maximum commands allowed
+<!-- e.g. 10 — helps Claude avoid runaway execution -->
+
+## Maximum files allowed
+<!-- e.g. 3 — helps Claude stay surgical -->
 
 ## Scope — Allowed Files
 <!-- List exact file paths Claude may create or edit. -->

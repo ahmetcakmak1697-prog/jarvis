@@ -11,12 +11,16 @@
 - Ahmet acts and marks `[x] resolved: <date>`.
 - Resolved items can be deleted after the next session.
 
+**Note for Claude:** The comment-style template lines below (in `<!-- -->` blocks)
+are placeholders. Do not treat them as real blockers. Only lines starting with
+`- [ ]` outside comment blocks are real pending items.
+
 ---
 
 ## Pending Items
 
-<!-- Format:
-- [ ] [DATE] [TASK-ID] What is needed and why Claude cannot proceed without it.
+<!-- Add real items below this comment as they arise. Format:
+- [ ] [YYYY-MM-DD] [TASK-ID] What is needed and exactly why Claude cannot proceed.
 -->
 
 *(none)*
@@ -25,13 +29,15 @@
 
 ## Resolved Items
 
-<!-- Move here after resolution, then delete after next session.
-- [x] [DATE] [TASK-ID] Description. Resolved: YYYY-MM-DD
+<!-- Move resolved items here, then delete after next session. Format:
+- [x] [YYYY-MM-DD] [TASK-ID] Description. Resolved: YYYY-MM-DD
 -->
 
 ---
 
 ## Reference: What Always Requires Ahmet
+
+Real examples of items that must be added here:
 
 - Voice enrollment / wake-word recording / STT/TTS calibration
 - Microphone / speaker hardware test

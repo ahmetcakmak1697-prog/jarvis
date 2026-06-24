@@ -14,14 +14,24 @@
 ## WHAT CHANGED
 <!-- Bullet list: file → what and why. No prose. -->
 
-## EVIDENCE
+## EXACT FILES CHANGED
+<!-- One per line: full relative path -->
+
+## EXACT COMMANDS RUN
+<!-- One per line, in order: what Claude actually executed -->
+
+## EVIDENCE SUMMARY
 ```
-py_compile:    [OK / FAIL]
-pytest target: [N passed / N failed — command used]
-pytest regr.:  [N passed / N failed — command used]
-git diff --check: [clean / issues]
-git status:    [clean / N files]
+py_compile:       [OK / FAIL / not applicable]
+pytest target:    [N passed / N failed — exact command]
+pytest regr.:     [N passed / N failed — exact command / not run]
+git diff --check: [clean / issues found]
+git status:       [clean / N untracked / N modified]
+git diff --stat:  [empty / N files changed]
 ```
+
+## AUTONOMY RULE VIOLATIONS
+<!-- yes (describe) / no -->
 
 ## RISKS / OPEN QUESTIONS
 <!-- Anything GPT should review carefully. Empty = none. -->

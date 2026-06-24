@@ -8,9 +8,16 @@
 ## Selected Task
 <!-- Task ID and title from GPT_TASK.md -->
 
+## Session Bootstrap Status
+<!-- Output of scripts/jarvis_autonomy_status.ps1 — one-line summary -->
+<!-- e.g. "branch: auto/opencode-deepseek | status: clean | last: abc1234 ..." -->
+
 ## Safety Classification
 <!-- SAFE_AUTONOMOUS | GPT_REVIEW_REQUIRED | HUMAN_REQUIRED -->
-<!-- If not SAFE_AUTONOMOUS, explain why and stop here. -->
+
+## Stop Reason (if not SAFE_AUTONOMOUS)
+<!-- If GPT_REVIEW_REQUIRED or HUMAN_REQUIRED: explain exactly why Claude is stopping. -->
+<!-- Leave blank if SAFE_AUTONOMOUS. -->
 
 ## Dependency Check
 <!-- Are all depends_on steps marked done in roadmap_state.json? -->
@@ -22,6 +29,10 @@
 
 ## Files Expected NOT to Touch
 <!-- Explicit no-touch list based on task constraints. -->
+
+## Token-Saver Plan
+<!-- Minimal reads and commands needed — not a broad sweep. -->
+<!-- e.g. "Read only agents/foo.py lines 40-80; grep for symbol X; run 1 targeted test." -->
 
 ## Plan
 <!-- Step-by-step numbered list. Keep each step small and verifiable. -->

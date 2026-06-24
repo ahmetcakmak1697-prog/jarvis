@@ -5,6 +5,18 @@ Claude must follow these rules without exception.
 
 ---
 
+## 0. Session Start Protocol
+
+Every session begins with these steps in order — no exceptions:
+
+1. **Status first** — run `scripts/jarvis_autonomy_status.ps1` (read-only)
+2. **Task card second** — read `automation/GPT_TASK.md`; if it contains only the template, stop and wait
+3. **Safety classification third** — classify the task as `SAFE_AUTONOMOUS`, `GPT_REVIEW_REQUIRED`, or `HUMAN_REQUIRED`
+4. **Plan before edits** — write `automation/CLAUDE_PLAN.md` before touching any source file
+5. **No autonomous continuation without a task card** — do not pick the next roadmap step independently
+
+---
+
 ## 1. Roadmap-First Execution
 
 - Always read `roadmap_state.json` before starting any work.
