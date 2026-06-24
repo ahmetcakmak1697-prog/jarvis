@@ -1,8 +1,5 @@
 # SESSION_SUMMARY.md — End-of-Session State
 
-> Overwrite at the end of each Claude Code session.
-> Quick reference for Ahmet and the next session.
-
 ---
 
 ## Session Date
@@ -12,52 +9,52 @@
 auto/opencode-deepseek
 
 ## Last Commit
-f058ae46b docs(automation): add session bootstrap workflow
+f90e6501d docs(automation): add FAZ-3-E1 and FAZ-T1 decomposition
 
 ## Completed This Session
 - AUTO-1A: automation/ harness skeleton — DONE (8966afacc)
 - AUTO-1B: scripts/jarvis_autonomy_status.ps1 — DONE (29b162e49)
-- AUTO-1C: session bootstrap workflow + template improvements — DONE (f058ae46b)
-- AUTO-1D: FAZ-3-E1 / FAZ-T1 decomposition into sub-tasks — DONE (uncommitted)
-- TASK_J0_FIX_UTF8_CLI_OUTPUT: validation only — DONE (fix was pre-committed)
+- AUTO-1C: session bootstrap workflow — DONE (f058ae46b)
+- AUTO-1D: FAZ-3-E1 / FAZ-T1 sub-task decomposition — DONE (f90e6501d)
+- E1-S1: proactive delivery gap audit (read-only) — DONE (uncommitted)
 
 ## In Progress / Partial
 none
 
 ## Pending (not started)
-- E1-S1: delivery gap audit (SAFE_AUTONOMOUS) — needs GPT task card
-- E1-S2: add injectable deliver() (GPT_REVIEW_REQUIRED)
-- E1-S3: wire deliver() to Telegram (GPT_REVIEW_REQUIRED)
+- E1-S2: add deliver() noop to proactive_delivery.py (SAFE_AUTONOMOUS after GPT answers open questions)
+- E1-S3: wire deliver() to Telegram sender (GPT_REVIEW_REQUIRED)
 - E1-S4: live proactive smoke (HUMAN_REQUIRED)
 - E1-S5: scheduler design (HUMAN_REQUIRED)
-- T1-S1: test_tr_quality.py skeleton (SAFE_AUTONOMOUS) — needs GPT task card
+- T1-S1: test_tr_quality.py skeleton (SAFE_AUTONOMOUS — can run in parallel)
 - T1-S2: Ahmet quality sign-off (HUMAN_REQUIRED)
 
 ## Human-Needed Blocker
-no — E1-S1 and T1-S1 are SAFE_AUTONOMOUS; GPT task cards needed first
+no — E1-S2 and T1-S1 unblock after GPT task cards
 
 ## Git State
 ```
 branch:       auto/opencode-deepseek
-last commit:  f058ae46b docs(automation): add session bootstrap workflow
-working tree: 3 untracked/modified files in automation/ (AUTO-1D output, uncommitted)
-untracked:    automation/FAZ3_E1_T1_DECOMPOSITION.md
+last commit:  f90e6501d docs(automation): add FAZ-3-E1 and FAZ-T1 decomposition
+working tree: 3 files modified/new in automation/ (E1-S1 audit, uncommitted)
+untracked:    automation/E1_S1_DELIVERY_GAP_AUDIT.md
 ```
 
 ## Next Safe Step
-E1-S1 (SAFE_AUTONOMOUS) — GPT issues task card for proactive delivery gap audit.
-Read-only: agents/proactive_delivery.py, proactive_policy.py, tools/telegram_agent.py.
-Output: short interface spec. No code changes.
+GPT reviews E1-S1 audit and answers 3 open questions, then issues E1-S2 task card.
+E1-S2 (SAFE_AUTONOMOUS) — add deliver(plan, sender_fn=None) to agents/proactive_delivery.py.
 
 ## Model Used
 Sonnet
 
 ## Notes for Next Session
-- automation/FAZ3_E1_T1_DECOMPOSITION.md has the full sub-task map for FAZ-3-E1 and FAZ-T1
-- proactive_delivery.py has DeliveryPlan + create_delivery_plan() but NO deliver() function
+- E1-S1 audit is in automation/E1_S1_DELIVERY_GAP_AUDIT.md — read before E1-S2
+- proactive_delivery.py: DeliveryPlan + create_delivery_plan() only; NO deliver()
 - JARVIS_PROACTIVE_ENABLED guard lives in proactive_policy.py only
-- Telegram send is NOT wired to proactive path yet
-- Before E1-S3, GPT must clarify composition root file for proactive delivery
+- test 11 (test_module_has_no_send_function) guards against "send" in function names
+- telegram send_message() is a plain injectable function: send_message(chat_id, text)
+- cmd_brief() in telegram_agent.py is pull-based; completely separate from push path
+- GPT must answer: composition root? user_id→chat_id mapping? message format?
 
 ---
 *Written by: Claude Code | Date: 2026-06-24*
