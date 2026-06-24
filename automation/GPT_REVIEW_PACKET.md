@@ -3,82 +3,50 @@
 ---
 
 ## TASK
-E1-S3B — Add Telegram adapter seam (no live send)
+T1-S1 — Create tests/test_tr_quality.py skeleton
 
 ## STATUS
-DONE
+DONE — SAFE_AUTONOMOUS auto-commit
 
 ## EXACT FILES CHANGED
 ```
-agents/proactive_telegram_adapter.py      (NEW — 46 lines)
-tests/test_proactive_telegram_adapter.py  (NEW — 12 tests)
-automation/GPT_REVIEW_PACKET.md           (this file)
-automation/SESSION_SUMMARY.md             (updated)
+tests/test_tr_quality.py    (NEW — 13 tests)
+automation/CLAUDE_PLAN.md   (updated)
+automation/GPT_REVIEW_PACKET.md  (this file)
+automation/SESSION_SUMMARY.md    (updated)
 ```
 
-## KEY IMPLEMENTATION
+## KEY TESTS
 
-New file `agents/proactive_telegram_adapter.py`:
-
-```python
-def make_static_chat_id_resolver(mapping: dict) -> callable:
-    # Returns resolver(user_id) -> chat_id | None via static dict.
-    # No env reads. Does not assume user_id == chat_id.
-
-def make_telegram_sender_factory(send_message_fn) -> callable:
-    # Returns sender_factory(chat_id) -> sender_fn(user_id, text).
-    # sender_fn calls send_message_fn(chat_id, text).
-    # Exceptions propagate to deliver() which catches them silently.
+```
+test_python_dotted_capital_i_lower_produces_combining_dot  — Python gotcha guard
+test_fold_tr_avoids_combining_dot_gotcha                   — _fold_tr fixes the gotcha
+test_fold_tr_executor_all_turkish_chars                    — 7 chars: İ ı ğ ş ç ö ü
+test_fold_tr_classifier_all_turkish_chars                  — same, data_classifier copy
+test_both_fold_tr_implementations_are_consistent           — both modules agree
+test_fold_tr_does_not_produce_empty_for_turkish_input      — no codepoint loss
+test_fold_tr_outputs_contain_no_replacement_chars          — no mojibake (U+FFFD)
+test_fold_tr_istanbul_uppercase                            — İSTANBUL → istanbul
+test_fold_tr_sehir_mixed                                   — şEHİR → sehir
+test_fold_tr_gunes_uppercase                               — GÜNEŞ → gunes
+test_fold_tr_empty_string                                  — edge case
+test_fold_tr_none_input                                    — edge case
+test_fold_tr_ascii_only_unchanged_case                     — no regression on ASCII
 ```
 
-No network imports. No Telegram imports. No env reads. No scheduler.
-All live behavior is injected; tests use fake lambdas throughout.
-
-## EVIDENCE SUMMARY
+## EVIDENCE
 ```
-pytest target:    12/12 PASS  (tests/test_proactive_telegram_adapter.py)
-pytest combined:  25/25 PASS  (runtime + adapter suites)
-git diff --check: clean
-git status:       ?? agents/proactive_telegram_adapter.py (untracked — new file)
-                  ?? tests/test_proactive_telegram_adapter.py (untracked — new file)
+pytest tests/test_tr_quality.py:  13/13 PASS
+git diff --check:                  clean
 ```
-
-## SAFETY GUARDS CONFIRMED
-- test 10 (no telegram import in adapter): PASS
-- test 9 (no env read in adapter): PASS
-- integration test 11 (fake send, no live Telegram): PASS
-- integration test 12 (resolver miss → no send): PASS
-
-## DESIGN NOTE
-`sender_fn` propagates exceptions rather than catching them. This is intentional:
-`deliver()` in proactive_delivery.py already wraps sender_fn in try/except and returns
-False on any exception. The adapter does not need a second catch layer.
-
-## AUTONOMY RULE VIOLATIONS
-no
 
 ## RISKS
-- `make_static_chat_id_resolver` is purely in-memory. The real mapping (Ahmet's
-  Telegram chat_id) must be provided by the caller. E1-S4 (HUMAN_REQUIRED) is where
-  Ahmet provides this value and confirms live delivery.
-- tools/telegram_agent.send_message is not imported here. The composition root
-  (where real send_message is injected) is deferred to E1-S4.
+none — read-only test file, no production code touched
 
-## HUMAN NEEDED
-none
-
-## COMMIT READY
-yes (when approved)
-
-## SUGGESTED COMMIT
-```
-feat(proactive): add telegram adapter seam (resolver + sender factory)
-```
-
-## NEXT SAFE STEP
-E1-S4 (HUMAN_REQUIRED): Ahmet provides real Telegram chat_id, sets
-JARVIS_PROACTIVE_ENABLED=1, wires send_message as the injected fn,
-and confirms live Telegram message arrives on phone.
+## NEXT
+T1-S2 (HUMAN_REQUIRED): Ahmet live Turkish output sign-off.
+E1-S4 (HUMAN_REQUIRED): live Telegram smoke test.
+Both require Ahmet. No more SAFE_AUTONOMOUS tasks in current decomposition.
 
 ---
 *Packet prepared by: Claude Code | Date: 2026-06-24*

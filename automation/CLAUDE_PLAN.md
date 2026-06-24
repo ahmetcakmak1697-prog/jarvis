@@ -1,61 +1,38 @@
-# CLAUDE_PLAN.md — Pre-Edit Plan
-
-> Claude writes this before touching any file.
-> Overwrite each task. GPT or Ahmet may veto before execution begins.
-
----
+# CLAUDE_PLAN.md — T1-S1
 
 ## Selected Task
-<!-- Task ID and title from GPT_TASK.md -->
-
-## Session Bootstrap Status
-<!-- Output of scripts/jarvis_autonomy_status.ps1 — one-line summary -->
-<!-- e.g. "branch: auto/opencode-deepseek | status: clean | last: abc1234 ..." -->
+T1-S1 — Create tests/test_tr_quality.py skeleton
 
 ## Safety Classification
-<!-- SAFE_AUTONOMOUS | GPT_REVIEW_REQUIRED | HUMAN_REQUIRED -->
-
-## Stop Reason (if not SAFE_AUTONOMOUS)
-<!-- If GPT_REVIEW_REQUIRED or HUMAN_REQUIRED: explain exactly why Claude is stopping. -->
-<!-- Leave blank if SAFE_AUTONOMOUS. -->
-
-## Dependency Check
-<!-- Are all depends_on steps marked done in roadmap_state.json? -->
-- [ ] Yes — proceed
-- [ ] No — blocked on: [list]
+SAFE_AUTONOMOUS
 
 ## Files Expected to Touch
-<!-- List exact file paths. Must be subset of GPT_TASK.md allowed list. -->
+- tests/test_tr_quality.py (new)
+- automation/CLAUDE_PLAN.md (this file)
+- automation/SESSION_SUMMARY.md
+- automation/GPT_REVIEW_PACKET.md
 
 ## Files Expected NOT to Touch
-<!-- Explicit no-touch list based on task constraints. -->
-
-## Token-Saver Plan
-<!-- Minimal reads and commands needed — not a broad sweep. -->
-<!-- e.g. "Read only agents/foo.py lines 40-80; grep for symbol X; run 1 targeted test." -->
+- agents/data_classifier.py
+- agents/assistant_executor.py
+- roadmap_state.json
+- .env / secrets
 
 ## Plan
-<!-- Step-by-step numbered list. Keep each step small and verifiable. -->
-1.
-2.
-3.
+1. Create tests/test_tr_quality.py
+   - Import _fold_tr from both agents.data_classifier and agents.assistant_executor
+   - Guard: "İ".lower() Python combining-dot regression test
+   - Round-trips: all 7 Turkish chars (İ→i, ı→i, ğ→g, ş→s, ç→c, ö→o, ü→u)
+   - Consistency: both implementations produce identical output
+   - No codepoint loss: non-empty input → non-empty output
+   - Mojibake guard: no U+FFFD replacement chars in known outputs
+   - Mixed-case inputs (İSTANBUL, şEHİR, GÜNEŞ)
+2. pytest tests/test_tr_quality.py -q --tb=short
+3. If pass: commit, update docs
 
-## Commands Expected to Run
-```powershell
-# compile check
-
-# targeted test
-
-# regression (only if shared logic touched)
-
-# git status
-```
-
-## Risks Identified Before Starting
-<!-- Known edge cases, Türkçe encoding gotchas, import side effects, etc. -->
-
-## Estimated Scope
-<!-- Rough: lines changed, files touched, test count -->
+## Risks
+- _fold_tr is private (prefixed _); importable from both modules (already confirmed by grep)
+- Both implementations are identical; consistency test will trivially pass — intentional regression guard
 
 ---
-*Written by: Claude Code | Date: YYYY-MM-DD*
+*Written by: Claude Code | Date: 2026-06-24*

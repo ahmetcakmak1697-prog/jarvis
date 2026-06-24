@@ -9,44 +9,51 @@
 auto/opencode-deepseek
 
 ## Last Commit
-58b72431e feat(proactive): add runtime wiring seam
+c455fba75 docs(automation): make autonomous roadmap execution default
 
 ## Completed This Session
 - AUTO-1A through AUTO-1D: automation harness — DONE (committed)
+- AUTO-1E: autonomous execution doctrine — DONE (c455fba75)
 - E1-S1: proactive delivery gap audit — DONE (df2ea4cfe)
 - E1-S2: deliver() + tests — DONE (f0a05486c)
 - E1-S3A: run_proactive_delivery() + tests — DONE (58b72431e)
-- E1-S3B: adapter seam (resolver + sender factory) — DONE (uncommitted, awaiting GPT approval)
+- E1-S3B: telegram adapter seam — DONE (a6052aaf8)
+- T1-S1: test_tr_quality.py skeleton — DONE (uncommitted, auto-commit next)
 
-## Pending
-- E1-S4: live smoke (HUMAN_REQUIRED — Ahmet provides chat_id, confirms Telegram message)
+## Pending — HUMAN_REQUIRED (no more SAFE_AUTONOMOUS tasks)
+- T1-S2: Ahmet live Turkish quality sign-off (HUMAN_REQUIRED)
+- E1-S4: live Telegram smoke test (HUMAN_REQUIRED — Ahmet provides chat_id, confirms message)
 - E1-S5: scheduler design (HUMAN_REQUIRED)
-- T1-S1: test_tr_quality.py skeleton (SAFE_AUTONOMOUS)
-- T1-S2: Ahmet quality sign-off (HUMAN_REQUIRED)
 
 ## Human-Needed Blocker
-no
+yes — T1-S2 and E1-S4 both require Ahmet
 
 ## Git State
 ```
 branch:       auto/opencode-deepseek
-last commit:  58b72431e
-working tree: ?? agents/proactive_telegram_adapter.py (new, untracked)
-              ?? tests/test_proactive_telegram_adapter.py (new, untracked)
+last commit:  c455fba75
+working tree: M automation/CLAUDE_PLAN.md
+              M automation/GPT_REVIEW_PACKET.md
+              M automation/SESSION_SUMMARY.md
+              ?? tests/test_tr_quality.py
 ```
 
 ## Next Safe Step
-GPT approves E1-S3B commit → E1-S4 is HUMAN_REQUIRED (Ahmet live smoke test)
+All SAFE_AUTONOMOUS tasks in current decomposition are done.
+Next: Ahmet decides between:
+  1. T1-S2 — live Turkish query test (subjective sign-off)
+  2. E1-S4 — live Telegram smoke (requires chat_id + JARVIS_PROACTIVE_ENABLED=1)
+  3. GPT issues new task card for next phase (E1-S5 design, or new decomposition)
 
 ## Model Used
 Sonnet
 
 ## Notes for Next Session
-- make_static_chat_id_resolver(mapping: dict) in agents/proactive_telegram_adapter.py
-- make_telegram_sender_factory(send_message_fn) in agents/proactive_telegram_adapter.py
-- Full wiring for E1-S4: resolver({"ahmet": AHMET_CHAT_ID}) + factory(telegram_agent.send_message)
-- tools/telegram_agent.send_message signature: (chat_id: int|str, text: str, parse_mode=None) -> None
-- Composition root for E1-S4: inject real send_message_fn from tools/telegram_agent
+- T1-S1 tests cover both _fold_tr copies (data_classifier + assistant_executor)
+- Python combining-dot gotcha guard is in test 1 (documents the gotcha for future devs)
+- E1-S4 composition root: run_proactive_delivery(plan, resolver, make_telegram_sender_factory(send_message))
+  where resolver = make_static_chat_id_resolver({"ahmet": AHMET_CHAT_ID})
+  and send_message = tools.telegram_agent.send_message
 
 ---
 *Written by: Claude Code | Date: 2026-06-24*
