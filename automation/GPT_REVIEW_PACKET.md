@@ -6,49 +6,74 @@
 ---
 
 ## TASK
-<!-- Task ID and one-line description -->
+AUTO-1D — FAZ-3-E1 and FAZ-T1 human-gate decomposition
 
 ## STATUS
-<!-- DONE | DONE_WITH_RISKS | BLOCKED | PARTIAL -->
+DONE
 
 ## WHAT CHANGED
-<!-- Bullet list: file → what and why. No prose. -->
+- `automation/FAZ3_E1_T1_DECOMPOSITION.md` created — full sub-task breakdown
+- `automation/GPT_REVIEW_PACKET.md` updated (this file)
+- `automation/SESSION_SUMMARY.md` updated
 
 ## EXACT FILES CHANGED
-<!-- One per line: full relative path -->
+```
+automation/FAZ3_E1_T1_DECOMPOSITION.md   (new)
+automation/GPT_REVIEW_PACKET.md          (updated)
+automation/SESSION_SUMMARY.md            (updated)
+```
 
 ## EXACT COMMANDS RUN
-<!-- One per line, in order: what Claude actually executed -->
+```
+git status --short
+Get-ChildItem agents/ | Select Name
+Get-ChildItem tests/ | Where { match proactive|e1_|tr_quality }
+grep class|def|JARVIS_PROACTIVE in agents/proactive_delivery.py
+grep JARVIS_PROACTIVE_ENABLED|def send|def deliver in agents/
+grep def|class|ENABLED in agents/proactive_policy.py
+Write automation/FAZ3_E1_T1_DECOMPOSITION.md
+Write automation/GPT_REVIEW_PACKET.md
+Write automation/SESSION_SUMMARY.md
+git status --short (final)
+git diff --check
+git diff --stat
+```
 
 ## EVIDENCE SUMMARY
 ```
-py_compile:       [OK / FAIL / not applicable]
-pytest target:    [N passed / N failed — exact command]
-pytest regr.:     [N passed / N failed — exact command / not run]
-git diff --check: [clean / issues found]
-git status:       [clean / N untracked / N modified]
-git diff --stat:  [empty / N files changed]
+py_compile:       not applicable (docs-only)
+pytest target:    not run (docs-only)
+pytest regr.:     not run (docs-only)
+git diff --check: clean
+git status:       3 untracked/modified files in automation/ (expected)
+git diff --stat:  docs only, no Python touched
 ```
 
 ## AUTONOMY RULE VIOLATIONS
-<!-- yes (describe) / no -->
+no
 
 ## RISKS / OPEN QUESTIONS
-<!-- Anything GPT should review carefully. Empty = none. -->
+1. E1-S3 (Telegram wiring) needs GPT to clarify which file is the composition root
+   for proactive delivery. `tools/telegram_agent.py` or a new adapter?
+2. E1-S5 (scheduler design) depends on Ahmet's preferred runtime model
+   (cron? asyncio? FastAPI background task?). Not safe to assume.
+3. T1-S1 relies on `_fold_tr` being importable from a known module.
+   GPT task card should specify exact import path.
 
 ## HUMAN NEEDED
-<!-- Anything requiring Ahmet before next step. Empty = none. -->
+- E1-S4, E1-S5, T1-S2 all require Ahmet — no action needed now.
 
 ## COMMIT READY
-<!-- yes / no -->
+yes (when approved)
 
 ## SUGGESTED COMMIT
 ```
-<one-liner>
+docs(automation): add FAZ-3-E1 and FAZ-T1 sub-task decomposition
 ```
 
 ## NEXT SAFE STEP
-<!-- Task ID + autonomy level: SAFE_AUTONOMOUS | GPT_REVIEW_REQUIRED | HUMAN_REQUIRED -->
+E1-S1 (SAFE_AUTONOMOUS) — GPT issues task card for delivery gap audit
+(read-only: agents/proactive_delivery.py, proactive_policy.py, tools/telegram_agent.py)
 
 ---
-*Packet prepared by: Claude Code | Date: YYYY-MM-DD*
+*Packet prepared by: Claude Code | Date: 2026-06-24*
