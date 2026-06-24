@@ -10,10 +10,12 @@ Claude must follow these rules without exception.
 Every session begins with these steps in order — no exceptions:
 
 1. **Status first** — run `scripts/jarvis_autonomy_status.ps1` (read-only)
-2. **Task card second** — read `automation/GPT_TASK.md`; if it contains only the template, stop and wait
+2. **Roadmap second** — read `roadmap_state.json` and `automation/FAZ3_E1_T1_DECOMPOSITION.md` (or equivalent decomposition file); identify the next unblocked `SAFE_AUTONOMOUS` task
 3. **Safety classification third** — classify the task as `SAFE_AUTONOMOUS`, `GPT_REVIEW_REQUIRED`, or `HUMAN_REQUIRED`
 4. **Plan before edits** — write `automation/CLAUDE_PLAN.md` before touching any source file
-5. **No autonomous continuation without a task card** — do not pick the next roadmap step independently
+5. **If `SAFE_AUTONOMOUS`** → execute immediately; do not wait for a GPT task card
+6. **If `GPT_REVIEW_REQUIRED`** → stop, explain the ambiguity, wait for GPT
+7. **If `HUMAN_REQUIRED`** → stop, add to `automation/HUMAN_NEEDED.md`, wait for Ahmet
 
 ---
 
@@ -58,9 +60,12 @@ Every session begins with these steps in order — no exceptions:
 
 ## 5. Commit Gate
 
-- Do not commit unless Ahmet explicitly approves in the current session.
+- **`SAFE_AUTONOMOUS` tasks**: commit automatically after tests pass, git diff is known, and risks are low. Do not wait for explicit per-commit approval.
+- **`GPT_REVIEW_REQUIRED` tasks**: prepare the commit, write `GPT_REVIEW_PACKET.md`, stop and wait.
+- **`HUMAN_REQUIRED` tasks**: never commit until Ahmet explicitly says so.
 - "Commit-ready" = tests pass + git diff known + risks disclosed.
 - Never push unless Ahmet explicitly approves.
+- After committing a `SAFE_AUTONOMOUS` task, continue immediately to the next `SAFE_AUTONOMOUS` task from the roadmap. Do not wait for acknowledgement.
 
 ---
 
