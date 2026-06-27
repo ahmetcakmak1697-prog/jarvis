@@ -27,6 +27,29 @@ class DeliveryPlan:
     requires_user_opt_in: bool
 
 
+@dataclass(frozen=True)
+class DeliveryResult:
+    """Structured result from deliver() or run_proactive_delivery().
+
+    Replaces bare bool return to enable debugging without silent failures.
+
+    Reason codes:
+      sent            — sender called successfully
+      noop_dry_run    — dry_run=True; no sender attempted
+      noop_no_sender  — sender_fn is None; no sender attempted
+      not_ready       — plan.status != "ready"
+      invalid_plan    — plan is not a DeliveryPlan
+      sender_error    — sender raised an exception
+    """
+
+    sent: bool
+    dry_run: bool
+    plan_status: str | None
+    reason: str
+    error: str | None
+    ts: str
+
+
 def create_delivery_plan(
     decision: ProactiveDecision,
     *,
@@ -77,20 +100,52 @@ def _format_delivery_message(plan: DeliveryPlan) -> str:
     )
 
 
-def deliver(plan: DeliveryPlan, sender_fn=None) -> bool:
+def deliver(
+    plan: DeliveryPlan,
+    sender_fn=None,
+    *,
+    dry_run: bool = False,
+) -> DeliveryResult:
     """Execute a ready DeliveryPlan via injected sender.
 
     sender_fn: callable(user_id: str, text: str) -> None, or None for noop.
-    Returns True if sent, False otherwise. Never raises.
+    dry_run:   True to skip sender entirely and return noop result.
+    Never raises. Returns DeliveryResult with full status information.
     """
+    ts = datetime.now(timezone.utc).isoformat()
+
     if not isinstance(plan, DeliveryPlan):
-        return False
+        return DeliveryResult(
+            sent=False, dry_run=dry_run, plan_status=None,
+            reason="invalid_plan", error=None, ts=ts,
+        )
+
+    if dry_run:
+        return DeliveryResult(
+            sent=False, dry_run=True, plan_status=plan.status,
+            reason="noop_dry_run", error=None, ts=ts,
+        )
+
     if sender_fn is None:
-        return False
+        return DeliveryResult(
+            sent=False, dry_run=False, plan_status=plan.status,
+            reason="noop_no_sender", error=None, ts=ts,
+        )
+
     if plan.status != "ready":
-        return False
+        return DeliveryResult(
+            sent=False, dry_run=False, plan_status=plan.status,
+            reason="not_ready", error=None, ts=ts,
+        )
+
     try:
         sender_fn(plan.user_id, _format_delivery_message(plan))
-        return True
-    except Exception:
-        return False
+        return DeliveryResult(
+            sent=True, dry_run=False, plan_status=plan.status,
+            reason="sent", error=None, ts=ts,
+        )
+    except Exception as exc:
+        return DeliveryResult(
+            sent=False, dry_run=False, plan_status=plan.status,
+            reason="sender_error", error=str(exc), ts=ts,
+        )

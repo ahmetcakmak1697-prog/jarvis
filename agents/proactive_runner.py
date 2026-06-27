@@ -61,8 +61,9 @@ def run_once(
     if decision.decision != "suppress":
         plan = create_delivery_plan(decision, user_id=user_id, task_id=task_id)
 
-    # dry-run: sender_fn=None means deliver() always returns False (noop)
-    sent = deliver(plan, sender_fn=None) if plan is not None else False
+    # dry-run: DeliveryResult.sent is always False; structured result available for logging
+    delivery = deliver(plan, sender_fn=None, dry_run=True) if plan is not None else None
+    sent = delivery.sent if delivery is not None else False
 
     return {
         "ts": datetime.now(timezone.utc).isoformat(),

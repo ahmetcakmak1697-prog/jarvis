@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from agents.proactive_delivery import DeliveryPlan, create_delivery_plan, deliver
+from agents.proactive_delivery import DeliveryPlan, DeliveryResult, create_delivery_plan, deliver
 from agents.proactive_policy import ProactiveDecision
 
 
@@ -137,22 +137,25 @@ def test_module_has_no_send_function():
                 pytest.fail(f"found send-related function: {node.name}")
 
 
-# ---- deliver() tests ----
+# ---- deliver() tests (now return DeliveryResult) ----
 
 # 13: deliver imports and is callable
 def test_deliver_function_exists():
     assert callable(deliver)
 
 
-# 14: noop with no sender returns False
+# 14: noop with no sender returns DeliveryResult with sent=False
 def test_deliver_noop_returns_false():
     d = _decision(decision="deliver")
     plan = create_delivery_plan(d, user_id="u1", task_id="t1")
     assert plan is not None
-    assert deliver(plan, sender_fn=None) is False
+    result = deliver(plan, sender_fn=None)
+    assert isinstance(result, DeliveryResult)
+    assert result.sent is False
+    assert result.reason == "noop_no_sender"
 
 
-# 15: deferred plan does not call sender, returns False
+# 15: deferred plan does not call sender, sent=False
 def test_deliver_deferred_does_not_call_sender():
     d = _decision(decision="defer", reason="dnd_active")
     plan = create_delivery_plan(d, user_id="u1", task_id="t1")
@@ -160,31 +163,39 @@ def test_deliver_deferred_does_not_call_sender():
     assert plan.status == "deferred"
     calls = []
     result = deliver(plan, sender_fn=lambda uid, txt: calls.append((uid, txt)))
-    assert result is False
+    assert isinstance(result, DeliveryResult)
+    assert result.sent is False
+    assert result.reason == "not_ready"
     assert calls == []
 
 
-# 16: ready plan calls sender exactly once, returns True
+# 16: ready plan calls sender exactly once, sent=True
 def test_deliver_ready_calls_sender_once_and_returns_true():
     d = _decision(decision="deliver")
     plan = create_delivery_plan(d, user_id="u1", task_id="t1")
     assert plan is not None
     calls = []
     result = deliver(plan, sender_fn=lambda uid, txt: calls.append((uid, txt)))
-    assert result is True
+    assert isinstance(result, DeliveryResult)
+    assert result.sent is True
+    assert result.reason == "sent"
     assert len(calls) == 1
     assert calls[0][0] == "u1"
     assert len(calls[0][1]) > 0
 
 
-# 17: sender exception returns False, does not propagate
+# 17: sender exception → sent=False, reason=sender_error
 def test_deliver_sender_exception_returns_false():
     d = _decision(decision="deliver")
     plan = create_delivery_plan(d, user_id="u1", task_id="t1")
     assert plan is not None
     def _bad(uid, txt):
         raise RuntimeError("network error")
-    assert deliver(plan, sender_fn=_bad) is False
+    result = deliver(plan, sender_fn=_bad)
+    assert isinstance(result, DeliveryResult)
+    assert result.sent is False
+    assert result.reason == "sender_error"
+    assert result.error is not None
 
 
 # 18: sender receives correct user_id
@@ -199,14 +210,21 @@ def test_deliver_passes_correct_user_id():
 
 # ---- invalid plan guard tests ----
 
-# 19: deliver(None) returns False, does not raise
+# 19: deliver(None) → sent=False, reason=invalid_plan
 def test_deliver_none_plan_returns_false():
-    assert deliver(None, sender_fn=lambda uid, txt: None) is False
+    result = deliver(None, sender_fn=lambda uid, txt: None)
+    assert isinstance(result, DeliveryResult)
+    assert result.sent is False
+    assert result.reason == "invalid_plan"
+    assert result.plan_status is None
 
 
-# 20: deliver(object()) returns False, does not raise
+# 20: deliver(object()) → sent=False, reason=invalid_plan
 def test_deliver_invalid_plan_returns_false():
-    assert deliver(object(), sender_fn=lambda uid, txt: None) is False
+    result = deliver(object(), sender_fn=lambda uid, txt: None)
+    assert isinstance(result, DeliveryResult)
+    assert result.sent is False
+    assert result.reason == "invalid_plan"
 
 
 # 12. test_created_at_is_deterministic_with_now
@@ -219,3 +237,19 @@ def test_created_at_is_deterministic_with_now():
     assert plan2 is not None
     assert plan1.created_at == plan2.created_at
     assert plan1.created_at == "2025-06-22T12:00:00+00:00"
+
+
+# ---- dry_run flag tests ----
+
+# 21: deliver(plan, dry_run=True) → sent=False, reason=noop_dry_run
+def test_deliver_dry_run_flag():
+    d = _decision(decision="deliver")
+    plan = create_delivery_plan(d, user_id="u1", task_id="t1")
+    assert plan is not None
+    calls = []
+    result = deliver(plan, sender_fn=lambda uid, txt: calls.append((uid, txt)), dry_run=True)
+    assert isinstance(result, DeliveryResult)
+    assert result.sent is False
+    assert result.dry_run is True
+    assert result.reason == "noop_dry_run"
+    assert calls == []
