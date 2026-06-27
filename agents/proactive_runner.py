@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from datetime import datetime, timezone
 from typing import Any
@@ -51,8 +52,8 @@ def _check_throttle(state: dict[str, Any]) -> str | None:
     cooldown_raw = state.get("cooldown_seconds", _DEFAULT_COOLDOWN_SECONDS)
     try:
         cooldown = float(cooldown_raw)
-        if cooldown < 0:
-            raise ValueError("negative")
+        if not math.isfinite(cooldown) or cooldown < 0:
+            raise ValueError("non-finite or negative")
     except (TypeError, ValueError):
         return "throttle_state_invalid"
 

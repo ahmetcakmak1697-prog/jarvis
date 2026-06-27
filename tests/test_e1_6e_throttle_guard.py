@@ -241,3 +241,60 @@ def test_check_throttle_allows_after_default_cooldown():
 
 def test_default_cooldown_constant_is_1800():
     assert _DEFAULT_COOLDOWN_SECONDS == 1800
+
+
+# ---------------------------------------------------------------------------
+# Non-finite cooldown values (NaN, Infinity, -Infinity) must be rejected
+# ---------------------------------------------------------------------------
+
+def test_nan_string_cooldown_blocks_safely():
+    state = {"last_delivery_ts": _ts_ago(10), "cooldown_seconds": "NaN"}
+    result = run_once(state=state)
+    assert result["reason"] == "throttle_state_invalid"
+    assert result["sent"] is False
+
+
+def test_nan_float_cooldown_blocks_safely():
+    state = {"last_delivery_ts": _ts_ago(10), "cooldown_seconds": float("nan")}
+    result = run_once(state=state)
+    assert result["reason"] == "throttle_state_invalid"
+    assert result["sent"] is False
+
+
+def test_inf_string_cooldown_blocks_safely():
+    state = {"last_delivery_ts": _ts_ago(10), "cooldown_seconds": "Infinity"}
+    result = run_once(state=state)
+    assert result["reason"] == "throttle_state_invalid"
+    assert result["sent"] is False
+
+
+def test_inf_float_cooldown_blocks_safely():
+    state = {"last_delivery_ts": _ts_ago(10), "cooldown_seconds": float("inf")}
+    result = run_once(state=state)
+    assert result["reason"] == "throttle_state_invalid"
+    assert result["sent"] is False
+
+
+def test_neg_inf_float_cooldown_blocks_safely():
+    state = {"last_delivery_ts": _ts_ago(10), "cooldown_seconds": float("-inf")}
+    result = run_once(state=state)
+    assert result["reason"] == "throttle_state_invalid"
+    assert result["sent"] is False
+
+
+# ---------------------------------------------------------------------------
+# Future timestamp must be handled safely (elapsed < 0 < cooldown -> active)
+# ---------------------------------------------------------------------------
+
+def test_future_last_delivery_ts_does_not_crash():
+    state = {"last_delivery_ts": _ts_future(3600), "cooldown_seconds": 1800}
+    result = run_once(state=state)
+    assert isinstance(result, dict)
+    assert result["sent"] is False
+
+
+def test_future_last_delivery_ts_blocks_safely():
+    state = {"last_delivery_ts": _ts_future(3600), "cooldown_seconds": 1800}
+    result = run_once(state=state)
+    assert result["reason"] == "cooldown_active"
+    assert result["sent"] is False

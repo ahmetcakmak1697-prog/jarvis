@@ -375,11 +375,25 @@ DATE: 2026-06-28
 BRANCH: auto/opencode-deepseek
 MODEL: Sonnet
 TASK: E1-S6E — throttle/cooldown guard in proactive runner
-OUTCOME: DONE
-TESTS: 117 passed (33 new in test_e1_6e_throttle_guard.py + 84 existing)
+OUTCOME: DONE (initial commit); pending Codex review
+TESTS: 117 passed (23 new in test_e1_6e_throttle_guard.py + 94 existing)
 FILES CHANGED: 2 — agents/proactive_runner.py (cooldown guard + helper), tests/test_e1_6e_throttle_guard.py (new)
 RISKS: none; stateless guard; no persistence, no network, no .env; --live still always blocked
 HUMAN_GATES_HIT: none
 NEXT STEP: Codex review of c9c7d75b3; if PASS → E1-S4 (HUMAN_REQUIRED — live Telegram smoke)
 COMMIT: c9c7d75b3
+---
+
+---
+DATE: 2026-06-28
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: E1-S6E FIX — Codex BLOCKER: NaN/Infinity cooldown bypasses guard; docs test count wrong; missing future-ts test
+OUTCOME: DONE (fix commit); pending Codex re-review
+TESTS: 124 passed (30 in test_e1_6e_throttle_guard.py + 94 existing); was 117/23
+FILES CHANGED: 2 — agents/proactive_runner.py (math.isfinite check), tests/test_e1_6e_throttle_guard.py (+7 tests)
+RISKS: none; guard now fail-closed for NaN/Infinity/-Infinity; future-ts now has regression coverage
+HUMAN_GATES_HIT: none
+NEXT STEP: Codex re-review; if PASS → E1-S4 (HUMAN_REQUIRED)
+COMMIT: (see git log)
 ---

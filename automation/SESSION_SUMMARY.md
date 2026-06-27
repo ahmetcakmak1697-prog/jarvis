@@ -42,10 +42,10 @@ c8eee9a84 fix(proactive): harden dry-run runner CLI contract
 
 - E1-S6D: live-mode guard regression tests — DONE / Codex PASS 2026-06-28 (b4670036b)
 
-- E1-S6E: throttle/cooldown guard — DONE (c9c7d75b3)
+- E1-S6E: throttle/cooldown guard — BLOCKED / FIXED PENDING CODEX RE-REVIEW (c9c7d75b3 + fix pending)
 
 ## Pending — HUMAN_REQUIRED
-- E1-S4: live Telegram smoke test (HUMAN_REQUIRED — all E1-S6A–E complete)
+- E1-S4: live Telegram smoke test (HUMAN_REQUIRED — only after E1-S6E Codex PASS)
 
 ## E1-S6B Status
 DONE — Codex PASS 2026-06-27. Commits: a53001577 (initial) + 648b74455 (blocker fix).

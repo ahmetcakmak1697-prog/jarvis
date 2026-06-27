@@ -389,22 +389,21 @@
     },
     {
       "id": "E1-S6E",
-      "title": "Duplicate / throttle guard",
+      "title": "Throttle / cooldown guard",
       "phase": "3",
       "kind": "implement",
-      "status": "todo",
+      "status": "in_progress",
       "depends_on": ["E1-S6A"],
       "autonomy": "auto",
       "acceptance_criteria_machine": [
-        "py -3.11 -m pytest tests/test_e1_6e_throttle.py -q --tb=short"
+        "py -3.11 -m pytest tests/test_e1_6e_throttle_guard.py -q --tb=short"
       ],
       "acceptance_criteria_human": [],
       "allowed_paths": [
-        "agents/proactive_throttle.py",
-        "tests/test_e1_6e_throttle.py",
-        "agents/proactive_runner.py"
+        "agents/proactive_runner.py",
+        "tests/test_e1_6e_throttle_guard.py"
       ],
-      "notes": "File-based cooldown store. Default 3600s cooldown. Dry-run checks throttle but does not record. Graceful fallback on corrupt/missing store."
+      "notes": "Stateless cooldown guard in run_once(). State passed via state dict (last_delivery_ts, cooldown_seconds). Default 1800s. No file writes, no persistence. NaN/Infinity/negative cooldown rejected as throttle_state_invalid. Future ts safely throttled as cooldown_active. Pending Codex re-review after BLOCKER fix."
     },
     {
       "id": "FAZ-T1",
