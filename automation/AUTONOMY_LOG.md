@@ -341,3 +341,17 @@ HUMAN_GATES_HIT: none
 NEXT STEP: E1-S6D (SAFE_AUTONOMOUS — live-mode guard dedicated tests)
 COMMIT: (housekeeping commit — see git log)
 ---
+
+---
+DATE: 2026-06-28
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: E1-S6D — live-mode guard regression tests
+OUTCOME: DONE
+TESTS: 94 passed (14 new in test_e1_6d_live_guard.py + 80 existing)
+FILES CHANGED: 1 new — tests/test_e1_6d_live_guard.py (no code changes to runner)
+RISKS: none; tests only; no live send path introduced
+HUMAN_GATES_HIT: none
+NEXT STEP: Codex review of b4670036b; if PASS → E1-S6E (throttle guard)
+COMMIT: b4670036b
+---
