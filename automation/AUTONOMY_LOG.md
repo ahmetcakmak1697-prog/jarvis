@@ -367,5 +367,19 @@ FILES CHANGED: 4 — roadmap_state.json, SESSION_SUMMARY.md, AUTONOMY_LOG.md, CO
 RISKS: none
 HUMAN_GATES_HIT: none
 NEXT STEP: E1-S6E (SAFE_AUTONOMOUS — throttle/cooldown guard in runner)
-COMMIT: (housekeeping commit — see git log)
+COMMIT: dbe31a9ac
+---
+
+---
+DATE: 2026-06-28
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: E1-S6E — throttle/cooldown guard in proactive runner
+OUTCOME: DONE
+TESTS: 117 passed (33 new in test_e1_6e_throttle_guard.py + 84 existing)
+FILES CHANGED: 2 — agents/proactive_runner.py (cooldown guard + helper), tests/test_e1_6e_throttle_guard.py (new)
+RISKS: none; stateless guard; no persistence, no network, no .env; --live still always blocked
+HUMAN_GATES_HIT: none
+NEXT STEP: Codex review of c9c7d75b3; if PASS → E1-S4 (HUMAN_REQUIRED — live Telegram smoke)
+COMMIT: c9c7d75b3
 ---

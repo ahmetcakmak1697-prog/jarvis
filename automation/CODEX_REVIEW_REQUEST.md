@@ -24,38 +24,27 @@ auto/opencode-deepseek
 ## Commits to Review
 
 ```
-(commit hash TBD — E1-S6E not yet committed)
+c9c7d75b3  feat(proactive): add cooldown guard to runner  (E1-S6E)
 ```
 
 ## E1-S6E Scope
 
 Stateless cooldown guard in `agents/proactive_runner.py`.
-State is passed in via the `state` dict to `run_once()`.
-New file: `tests/test_e1_6e_throttle_guard.py`.
+State passed in via `state` dict to `run_once()` — no files, no persistence.
+New file: `tests/test_e1_6e_throttle_guard.py` (33 tests).
 
-### Contract
-- `state.last_delivery_ts` within `cooldown_seconds` → reason "cooldown_active", sent=False, delivery=None
-- `state.last_delivery_ts` older than cooldown → normal dry-run path
-- No `last_delivery_ts` in state → unchanged behavior
-- Invalid timestamp or invalid/negative cooldown → reason "throttle_state_invalid", no crash
-- Default cooldown if key missing: 1800 seconds
-- `--live` still always blocked (exit 1)
-- Default `main([])` still exits 0
-- `create_delivery_plan` and `deliver` NOT called when throttle is active
+### Contract Implemented
+- `_DEFAULT_COOLDOWN_SECONDS = 1800`
+- `_check_throttle(state) -> str|None`:
+    `"cooldown_active"` — last_delivery_ts within cooldown window
+    `"throttle_state_invalid"` — malformed ts or invalid/negative cooldown
+    `None` — no throttle applies
+- `run_once()`: throttle checked BEFORE policy; `create_delivery_plan` and `deliver` not called when active
+- No `last_delivery_ts` → behavior unchanged
+- Missing `cooldown_seconds` → uses default 1800s
+- `--live` still exit 1; `main([])` still exit 0
 
-### Tests Expected (tests/test_e1_6e_throttle_guard.py)
-- test_no_throttle_without_last_delivery_ts
-- test_throttle_blocks_recent_delivery
-- test_throttle_allows_after_cooldown
-- test_throttle_reason_visible_in_run_once_output
-- test_invalid_last_delivery_ts_does_not_crash
-- test_invalid_last_delivery_ts_blocks_safely
-- test_invalid_cooldown_seconds_blocks_safely
-- test_throttle_does_not_call_deliver_or_create_delivery_plan_when_active
-- test_default_cli_still_exits_0
-- test_live_cli_still_blocked
-
-### Validation Expected
+### Tests Run
 ```
 py -3.11 -m pytest tests/test_e1_6e_throttle_guard.py
                    tests/test_e1_6d_live_guard.py
@@ -63,9 +52,10 @@ py -3.11 -m pytest tests/test_e1_6e_throttle_guard.py
                    tests/test_e1_6b_delivery_result.py
                    tests/test_proactive_delivery.py
                    tests/test_proactive_runtime.py -q --tb=short
-py -3.11 -m agents.proactive_runner         -> exit 0, dry_run=true
-py -3.11 -m agents.proactive_runner --live  -> exit 1
-py -3.11 -m json.tool roadmap_state.json    -> VALID
+  -> 117/117 PASS
+
+py -3.11 -m agents.proactive_runner         -> exit 0, dry_run=true, sent=false
+py -3.11 -m agents.proactive_runner --live  -> exit 1, NOT IMPLEMENTED
 git diff --check -> clean
 ```
 
