@@ -208,7 +208,7 @@ def run_e1_s4_smoke(
             "reason": "send_error",
             "token": token_hint,
             "chat_id": chat_id_hint,
-            "error": str(exc),
+            "error": type(exc).__name__,  # class name only — exc message may contain secrets
             "ts": ts,
         }
 

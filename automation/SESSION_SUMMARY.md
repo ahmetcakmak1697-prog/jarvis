@@ -48,11 +48,11 @@ c8eee9a84 fix(proactive): harden dry-run runner CLI contract
 All five safety guards complete and Codex-approved.
 
 ## E1-S4 Wiring Status
-Wiring PREPARED and tested (not yet executed):
-- agents/e1_s4_smoke_sender.py (HTTP sender, stdlib urllib only)
-- agents/proactive_runner.py --e1-s4-smoke flag + run_e1_s4_smoke()
-- tests/test_e1_s4_live_smoke_wiring.py (21 tests, all mocked)
-- automation/E1_S4_LIVE_SMOKE_RUNBOOK.md (updated with exact command)
+Wiring BLOCKED / FIXED PENDING CODEX RE-REVIEW (0739333da + fix pending):
+- agents/e1_s4_smoke_sender.py (HTTP sender + response validation + sanitized errors)
+- agents/proactive_runner.py --e1-s4-smoke flag + run_e1_s4_smoke() (sanitized errors)
+- tests/test_e1_s4_live_smoke_wiring.py (33 tests, all mocked)
+- automation/E1_S4_LIVE_SMOKE_RUNBOOK.md (echo commands replaced with hidden checks)
 
 ## Pending — HUMAN_REQUIRED
 - E1-S4: Ahmet approves and runs: py -3.11 -m agents.proactive_runner --e1-s4-smoke

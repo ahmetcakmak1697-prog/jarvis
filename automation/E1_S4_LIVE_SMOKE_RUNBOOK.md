@@ -64,14 +64,25 @@ Before approving live send, verify you have the following in your environment
 - `TELEGRAM_BOT_TOKEN` — your JARVIS bot token
 - `TELEGRAM_CHAT_ID` — your personal Telegram chat ID (from BotFather `/getid` or `@userinfobot`)
 
-Check (run in a terminal only, never paste output into chat):
+Check presence and length without revealing values (run in a terminal, never paste output into chat):
 
 ```powershell
-echo $env:TELEGRAM_BOT_TOKEN   # should show token, not empty
-echo $env:TELEGRAM_CHAT_ID     # should show numeric chat ID
+$tok = $env:TELEGRAM_BOT_TOKEN
+if ($tok) { Write-Host "TELEGRAM_BOT_TOKEN: SET hidden length=$($tok.Length)" } else { Write-Host "TELEGRAM_BOT_TOKEN: MISSING" }
+Remove-Variable tok
+
+$cid = $env:TELEGRAM_CHAT_ID
+if ($cid) { Write-Host "TELEGRAM_CHAT_ID: SET hidden length=$($cid.Length)" } else { Write-Host "TELEGRAM_CHAT_ID: MISSING" }
+Remove-Variable cid
 ```
 
-**If either is missing or blank: ABORT. Set them before proceeding.**
+Expected output (values hidden):
+```
+TELEGRAM_BOT_TOKEN: SET hidden length=46
+TELEGRAM_CHAT_ID: SET hidden length=10
+```
+
+**Do not echo or print raw token / chat_id values. If either is MISSING: ABORT.**
 
 ---
 

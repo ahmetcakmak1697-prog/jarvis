@@ -417,11 +417,25 @@ DATE: 2026-06-28
 BRANCH: auto/opencode-deepseek
 MODEL: Sonnet
 TASK: E1-S4 live Telegram smoke wiring (preparation only — not yet executed)
-OUTCOME: DONE (wiring prepared; no message sent)
+OUTCOME: DONE (initial wiring; pending Codex review)
 TESTS: 145 passed (21 new test_e1_s4_live_smoke_wiring.py + 124 existing; all mocked)
-FILES CHANGED: 3 new — agents/e1_s4_smoke_sender.py, tests/test_e1_s4_live_smoke_wiring.py; 2 updated — agents/proactive_runner.py (+run_e1_s4_smoke, --e1-s4-smoke), automation/E1_S4_LIVE_SMOKE_RUNBOOK.md
-RISKS: none; no live send; --live still blocked; --e1-s4-smoke requires explicit creds + human approval to execute
-HUMAN_GATES_HIT: E1-S4 live execution — Ahmet must approve and run: py -3.11 -m agents.proactive_runner --e1-s4-smoke
-NEXT STEP: Ahmet runs pre-flight, approves execution, runs --e1-s4-smoke, confirms receipt on phone
+FILES CHANGED: 3 new — agents/e1_s4_smoke_sender.py, tests/test_e1_s4_live_smoke_wiring.py; 2 updated — agents/proactive_runner.py, automation/E1_S4_LIVE_SMOKE_RUNBOOK.md
+RISKS: none; no live send; --live still blocked; --e1-s4-smoke requires explicit creds + human approval
+HUMAN_GATES_HIT: E1-S4 live execution — Ahmet must approve
+NEXT STEP: Codex review; if PASS → Ahmet executes smoke
+COMMIT: 0739333da
+---
+
+---
+DATE: 2026-06-28
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: E1-S4 BLOCKER FIX — sanitize errors + validate Telegram response + fix runbook echo
+OUTCOME: DONE (fix commit); pending Codex re-review
+TESTS: 157 passed (33 in test_e1_s4_live_smoke_wiring.py + 124 existing; was 21/145)
+FILES CHANGED: 4 — agents/e1_s4_smoke_sender.py (response validation + sanitized errors), agents/proactive_runner.py (type(exc).__name__ not str(exc)), tests/test_e1_s4_live_smoke_wiring.py (+12 tests), automation/E1_S4_LIVE_SMOKE_RUNBOOK.md (echo removed)
+RISKS: none; no live send; no message sent
+HUMAN_GATES_HIT: E1-S4 execution — Ahmet must approve
+NEXT STEP: Codex re-review; if PASS → Ahmet runs: py -3.11 -m agents.proactive_runner --e1-s4-smoke
 COMMIT: (see git log)
 ---
