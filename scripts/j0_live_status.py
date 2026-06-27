@@ -32,7 +32,9 @@ RoadmapLoader = Callable[[], Any]
 
 def _default_git_runner(args: List[str]) -> str:
     cmd = ["git"] + args
-    return subprocess.check_output(cmd, cwd=str(_REPO_ROOT), text=True, stderr=subprocess.STDOUT)
+    return subprocess.check_output(
+        cmd, cwd=str(_REPO_ROOT), text=True, encoding="utf-8", stderr=subprocess.STDOUT
+    )
 
 
 def _default_roadmap_loader() -> Any:

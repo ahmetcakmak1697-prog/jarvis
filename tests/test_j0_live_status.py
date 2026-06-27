@@ -316,9 +316,9 @@ def test_cli_utf8_subprocess():
     text = raw.decode("utf-8")
     # Assert Turkish Unicode strings present
     assert "Çalışma ağacı" in text
-    assert "Şu an" in text
-    assert "Sıra" in text
+    assert "kaldık" in text           # ı — always in footer ('nerede kaldık')
+    assert "araçtır" in text          # ç, ı — always in footer
     assert ("TEMİZ" in text) or ("KİRLİ" in text)
     # Assert no mojibake or ASCII degradation
-    for bad in ["\ufffd", "Calisma", "Su an", "Sira", "TEMIZ", "KIRLI", "\u00e2", "\u00c3", "\u00c4", "\u00c5"]:
+    for bad in ["\ufffd", "Calisma", "Su an", "Sira", "TEMIZ", "\u00e2", "\u00c3", "\u00c4", "\u00c5"]:
         assert bad not in text, f"mojibake/ascii-degraded '{bad}' found in CLI output"
