@@ -229,3 +229,17 @@ HUMAN_GATES_HIT: none
 NEXT STEP: E1-S6B (SAFE_AUTONOMOUS — DeliveryResult struct + logging)
 COMMIT: cc0072ac5
 ---
+
+---
+DATE: 2026-06-27
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: E1-S6A FIX — Codex BLOCKER + 4 CONCERNs addressed
+OUTCOME: DONE
+TESTS: tests/test_e1_6a_proactive_runner.py -> 16 passed (was 11); test_proactive_delivery + runtime -> 35; total 51
+FILES CHANGED: 3 — agents/proactive_runner.py, tests/test_e1_6a_proactive_runner.py, roadmap_state.json; 1 updated — automation/E1_S6_DECOMPOSITION.md
+RISKS: none; gate now inside run_once so every caller protected; --live always blocked
+HUMAN_GATES_HIT: none
+NEXT STEP: Codex re-review of c8eee9a84; if PASS → E1-S6B
+COMMIT: c8eee9a84
+---
