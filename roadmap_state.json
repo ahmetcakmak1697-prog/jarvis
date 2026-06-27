@@ -309,7 +309,7 @@
       "title": "Delivery result logging (DeliveryResult struct)",
       "phase": "3",
       "kind": "implement",
-      "status": "in_progress",
+      "status": "done",
       "depends_on": ["E1-S6A"],
       "autonomy": "auto",
       "acceptance_criteria_machine": [
@@ -325,7 +325,15 @@
         "tests/test_proactive_runtime.py",
         "tests/test_e1_6a_proactive_runner.py"
       ],
-      "notes": "DeliveryResult dataclass in deliver() and run_proactive_delivery(). runner run_once() preserves full DeliveryResult in output delivery key. Codex BLOCKER fixed in 648b74455: deliver() precedence (not_ready before noop_no_sender), delivery dict in runner output, delivery field tests added."
+      "notes": "DeliveryResult dataclass in deliver() and run_proactive_delivery(). runner run_once() preserves full DeliveryResult in output delivery key. deliver() precedence: not_ready before noop_no_sender.",
+      "evidence": {
+        "verdict": "PASS",
+        "at": "2026-06-27",
+        "signed_by": "Codex",
+        "commits": ["a53001577", "648b74455"],
+        "tests": "80/80 PASS",
+        "notes": "Initial impl (a53001577) + Codex-BLOCKER fix (648b74455). deliver() precedence corrected; full DeliveryResult in runner output; subprocess delivery field tests added."
+      }
     },
     {
       "id": "E1-S6C",

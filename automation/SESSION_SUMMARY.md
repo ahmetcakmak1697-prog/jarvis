@@ -36,12 +36,20 @@ c8eee9a84 fix(proactive): harden dry-run runner CLI contract
 - E1-S6A: proactive_runner.py dry-run CLI — DONE (cc0072ac5)
 - E1-S6A FIX: Codex BLOCKER addressed — DONE (c8eee9a84) — Codex re-review PASS 2026-06-27
 
-- E1-S6B: DeliveryResult struct + logging — BLOCKED / FIXED PENDING CODEX RE-REVIEW (a53001577 + fix 648b74455)
+- E1-S6B: DeliveryResult struct + logging — DONE / Codex PASS 2026-06-27 (a53001577 + fix 648b74455)
 
 ## Pending — SAFE_AUTONOMOUS (implementation queued)
 - E1-S6C: Windows Task Scheduler docs + script template (SAFE_AUTONOMOUS — **next**)
 - E1-S6D: live-mode guard (SAFE_AUTONOMOUS)
 - E1-S6E: throttle guard (SAFE_AUTONOMOUS)
+
+## E1-S6B Status
+DONE — Codex PASS 2026-06-27. Commits: a53001577 (initial) + 648b74455 (blocker fix).
+- DeliveryResult frozen dataclass: sent, dry_run, plan_status, reason, error, ts
+- deliver() and run_proactive_delivery() return DeliveryResult; reason codes documented
+- deliver() precedence: not_ready checked before noop_no_sender
+- run_once() serialises DeliveryResult into "delivery" key in JSON output
+- roadmap_state.json E1-S6B.status = "done"
 
 ## Pending — HUMAN_REQUIRED
 - E1-S4: live Telegram smoke test (HUMAN_REQUIRED — after E1-S6A–E complete)
