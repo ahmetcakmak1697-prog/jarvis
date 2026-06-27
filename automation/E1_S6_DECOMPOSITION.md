@@ -17,7 +17,7 @@ Live delivery blocked until E1-S4 smoke complete.
 ## E1-S6A — proactive_runner.py dry-run CLI
 **Classification: SAFE_AUTONOMOUS**
 **Depends on:** E1-S3B (adapter seam done), E1-S5 (decision)
-**Status: DONE (cc0072ac5 + fix cc0072ac5→next)**
+**Status: DONE (cc0072ac5 + fix c8eee9a84) — Codex PASS 2026-06-27**
 
 ### Supported invocation (from repo root)
 ```
