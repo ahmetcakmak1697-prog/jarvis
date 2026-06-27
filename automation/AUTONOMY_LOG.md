@@ -325,5 +325,19 @@ FILES CHANGED: 2 — scripts/create_jarvis_task.ps1, docs/scheduler_setup.md
 RISKS: none; preview mode calls no ScheduledTask cmdlets; -Apply guard unchanged
 HUMAN_GATES_HIT: none
 NEXT STEP: Codex re-review; if PASS → E1-S6D (SAFE_AUTONOMOUS)
-COMMIT: (see git log)
+COMMIT: 4f6a5b6e0
+---
+
+---
+DATE: 2026-06-28
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: E1-S6C CODEX RE-REVIEW PASS — housekeeping + proceed to E1-S6D
+OUTCOME: DONE (housekeeping only; E1-S6D follows in same session)
+TESTS: n/a (docs/script task; preview exits 0)
+FILES CHANGED: 4 — roadmap_state.json, SESSION_SUMMARY.md, AUTONOMY_LOG.md, CODEX_REVIEW_REQUEST.md
+RISKS: none
+HUMAN_GATES_HIT: none
+NEXT STEP: E1-S6D (SAFE_AUTONOMOUS — live-mode guard dedicated tests)
+COMMIT: (housekeeping commit — see git log)
 ---
