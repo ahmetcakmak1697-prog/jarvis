@@ -126,16 +126,18 @@ def deliver(
             reason="noop_dry_run", error=None, ts=ts,
         )
 
-    if sender_fn is None:
-        return DeliveryResult(
-            sent=False, dry_run=False, plan_status=plan.status,
-            reason="noop_no_sender", error=None, ts=ts,
-        )
-
+    # Readiness check before sender check: a not-ready plan is not_ready regardless
+    # of whether a sender is provided.
     if plan.status != "ready":
         return DeliveryResult(
             sent=False, dry_run=False, plan_status=plan.status,
             reason="not_ready", error=None, ts=ts,
+        )
+
+    if sender_fn is None:
+        return DeliveryResult(
+            sent=False, dry_run=False, plan_status=plan.status,
+            reason="noop_no_sender", error=None, ts=ts,
         )
 
     try:

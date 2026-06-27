@@ -274,3 +274,29 @@ def test_deliver_object_never_raises():
     result = deliver(object(), sender_fn=None)
     assert isinstance(result, DeliveryResult)
     assert result.sent is False
+
+
+# ---------------------------------------------------------------------------
+# 5. Precedence fix (Codex BLOCKER A): not_ready must take priority over
+#    noop_no_sender so a deferred/not-ready plan is never mis-labelled.
+# ---------------------------------------------------------------------------
+
+def test_deliver_deferred_no_sender_reason_is_not_ready():
+    """deferred plan + sender_fn=None must return not_ready, not noop_no_sender."""
+    plan = _deferred_plan()
+    result = deliver(plan, sender_fn=None)
+    assert result.sent is False
+    assert result.reason == "not_ready", (
+        f"Expected 'not_ready', got {result.reason!r}. "
+        "Precedence error: sender_fn check must come after status check."
+    )
+    assert result.plan_status == "deferred"
+
+
+def test_deliver_ready_no_sender_reason_is_noop_no_sender():
+    """ready plan + sender_fn=None must still return noop_no_sender."""
+    plan = _ready_plan()
+    result = deliver(plan, sender_fn=None)
+    assert result.sent is False
+    assert result.reason == "noop_no_sender"
+    assert result.plan_status == "ready"

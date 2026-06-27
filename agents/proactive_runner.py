@@ -61,9 +61,21 @@ def run_once(
     if decision.decision != "suppress":
         plan = create_delivery_plan(decision, user_id=user_id, task_id=task_id)
 
-    # dry-run: DeliveryResult.sent is always False; structured result available for logging
+    # dry-run: structured DeliveryResult preserved for logging; sent always False here
     delivery = deliver(plan, sender_fn=None, dry_run=True) if plan is not None else None
-    sent = delivery.sent if delivery is not None else False
+
+    delivery_dict = (
+        {
+            "sent": delivery.sent,
+            "dry_run": delivery.dry_run,
+            "plan_status": delivery.plan_status,
+            "reason": delivery.reason,
+            "error": delivery.error,
+            "ts": delivery.ts,
+        }
+        if delivery is not None
+        else None
+    )
 
     return {
         "ts": datetime.now(timezone.utc).isoformat(),
@@ -72,7 +84,8 @@ def run_once(
         "reason": decision.reason,
         "priority": decision.priority,
         "plan_status": plan.status if plan is not None else None,
-        "sent": sent,
+        "sent": delivery.sent if delivery is not None else False,
+        "delivery": delivery_dict,
     }
 
 

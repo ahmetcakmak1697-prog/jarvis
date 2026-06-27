@@ -75,7 +75,7 @@ def test_dry_run_enabled_env_delivers():
 # Test 4: result dict has all required keys
 # ---------------------------------------------------------------------------
 
-_REQUIRED_KEYS = {"ts", "dry_run", "decision", "reason", "priority", "plan_status", "sent"}
+_REQUIRED_KEYS = {"ts", "dry_run", "decision", "reason", "priority", "plan_status", "sent", "delivery"}
 
 def test_result_dict_has_required_keys():
     result = _run_with_env("0")
@@ -213,16 +213,69 @@ def test_subprocess_module_invocation_exits_0():
 
 
 def test_subprocess_module_invocation_stdout_is_valid_json():
+    import os as _os
     proc = subprocess.run(
         [sys.executable, "-m", "agents.proactive_runner"],
         cwd=str(_REPO_ROOT),
         capture_output=True,
         text=True,
         timeout=15,
-        env={**__import__("os").environ, "JARVIS_PROACTIVE_ENABLED": "0"},
+        env={**_os.environ, "JARVIS_PROACTIVE_ENABLED": "0"},
     )
     data = json.loads(proc.stdout)
     missing = _REQUIRED_KEYS - data.keys()
     assert not missing, f"Missing keys in subprocess output: {missing}"
     assert data["dry_run"] is True
     assert data["sent"] is False
+    # suppress path: no plan, delivery must be null
+    assert data["delivery"] is None
+
+
+# ---------------------------------------------------------------------------
+# Tests 14–16: delivery field in run_once() output (Codex BLOCKER B+C)
+# ---------------------------------------------------------------------------
+
+_DELIVERY_KEYS = {"sent", "dry_run", "plan_status", "reason", "error", "ts"}
+
+
+def test_run_once_suppress_delivery_is_none():
+    """When policy suppresses, no plan exists — delivery must be null."""
+    with patch.dict("os.environ", {"JARVIS_PROACTIVE_ENABLED": "0"}, clear=False):
+        result = run_once()
+    assert result["decision"] == "suppress"
+    assert result["delivery"] is None
+
+
+def test_run_once_deliver_contains_structured_delivery(capsys):
+    """When policy delivers, delivery dict must be present with all required fields."""
+    with patch.dict("os.environ", {"JARVIS_PROACTIVE_ENABLED": "1"}, clear=False):
+        result = run_once()
+    assert result["decision"] == "deliver"
+    assert result["delivery"] is not None
+    missing = _DELIVERY_KEYS - result["delivery"].keys()
+    assert not missing, f"Missing delivery keys: {missing}"
+    assert result["delivery"]["sent"] is False      # dry_run mode
+    assert result["delivery"]["dry_run"] is True
+    assert result["delivery"]["reason"] == "noop_dry_run"
+    assert result["delivery"]["plan_status"] == "ready"
+    assert result["delivery"]["error"] is None
+
+
+def test_subprocess_stdout_delivery_populated_when_delivering():
+    """CLI with JARVIS_PROACTIVE_ENABLED=1: stdout JSON must contain delivery with reason."""
+    import os as _os
+    proc = subprocess.run(
+        [sys.executable, "-m", "agents.proactive_runner"],
+        cwd=str(_REPO_ROOT),
+        capture_output=True,
+        text=True,
+        timeout=15,
+        env={**_os.environ, "JARVIS_PROACTIVE_ENABLED": "1"},
+    )
+    assert proc.returncode == 0, f"exit {proc.returncode}: {proc.stderr}"
+    data = json.loads(proc.stdout)
+    assert "delivery" in data
+    assert data["delivery"] is not None
+    assert "reason" in data["delivery"]
+    assert data["delivery"]["sent"] is False
+    assert data["delivery"]["reason"] == "noop_dry_run"
