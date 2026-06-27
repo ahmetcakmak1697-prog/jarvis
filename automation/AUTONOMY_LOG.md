@@ -395,5 +395,19 @@ FILES CHANGED: 2 — agents/proactive_runner.py (math.isfinite check), tests/tes
 RISKS: none; guard now fail-closed for NaN/Infinity/-Infinity; future-ts now has regression coverage
 HUMAN_GATES_HIT: none
 NEXT STEP: Codex re-review; if PASS → E1-S4 (HUMAN_REQUIRED)
+COMMIT: 399587609
+---
+
+---
+DATE: 2026-06-28
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: E1-S6E CODEX RE-REVIEW PASS — housekeeping + E1-S4 runbook preparation
+OUTCOME: DONE (housekeeping + docs only; no live send)
+TESTS: 124/124 carried from 399587609
+FILES CHANGED: 6 — roadmap_state.json, SESSION_SUMMARY.md, AUTONOMY_LOG.md, CODEX_REVIEW_REQUEST.md + automation/E1_S4_LIVE_SMOKE_RUNBOOK.md (new)
+RISKS: none; docs only; no Telegram, no .env, no scheduler, no live send
+HUMAN_GATES_HIT: E1-S4 is HUMAN_REQUIRED — Ahmet must approve and run live smoke
+NEXT STEP: E1-S4 — Ahmet follows automation/E1_S4_LIVE_SMOKE_RUNBOOK.md and confirms receipt on phone
 COMMIT: (see git log)
 ---
