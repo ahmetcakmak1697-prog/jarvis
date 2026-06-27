@@ -35,11 +35,11 @@ f777d3ca0 docs(automation): update codex re-review request
 
 ## Completed This Session (continued)
 - E1-S5: scheduler architecture decision — DONE / APPROVED (Ahmet, 2026-06-24)
-- E1-S6A–E: decomposition written — SAFE_AUTONOMOUS tasks queued (no code yet)
+- E1-S6A–E: decomposition written — SAFE_AUTONOMOUS tasks queued
+- E1-S6A: proactive_runner.py dry-run CLI — DONE (cc0072ac5)
 
 ## Pending — SAFE_AUTONOMOUS (implementation queued)
-- E1-S6A: proactive_runner.py dry-run CLI (SAFE_AUTONOMOUS — next Claude task)
-- E1-S6B: DeliveryResult logging (SAFE_AUTONOMOUS)
+- E1-S6B: DeliveryResult logging (SAFE_AUTONOMOUS — next)
 - E1-S6C: Windows Task Scheduler docs + script template (SAFE_AUTONOMOUS)
 - E1-S6D: live-mode guard (SAFE_AUTONOMOUS)
 - E1-S6E: throttle guard (SAFE_AUTONOMOUS)

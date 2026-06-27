@@ -215,3 +215,17 @@ RISKS: none (docs/roadmap only)
 HUMAN_GATES_HIT: E1-S5 resolved; E1-S4 remains
 NEXT STEP: E1-S6A (SAFE_AUTONOMOUS — proactive_runner.py dry-run CLI)
 ---
+
+---
+DATE: 2026-06-27
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: E1-S6A — proactive_runner.py dry-run CLI
+OUTCOME: DONE
+TESTS: tests/test_e1_6a_proactive_runner.py -> 11 passed; test_proactive_delivery.py + test_proactive_runtime.py -> 35 passed; 46 total
+FILES CHANGED: 2 new — agents/proactive_runner.py, tests/test_e1_6a_proactive_runner.py
+RISKS: none; no network, no .env, no Telegram; --live guard blocks without JARVIS_PROACTIVE_ENABLED=1
+HUMAN_GATES_HIT: none
+NEXT STEP: E1-S6B (SAFE_AUTONOMOUS — DeliveryResult struct + logging)
+COMMIT: cc0072ac5
+---
