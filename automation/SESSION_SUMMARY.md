@@ -38,9 +38,10 @@ c8eee9a84 fix(proactive): harden dry-run runner CLI contract
 
 - E1-S6B: DeliveryResult struct + logging — DONE / Codex PASS 2026-06-27 (a53001577 + fix 648b74455)
 
+- E1-S6C: Windows Task Scheduler docs + ps1 template — DONE (3de2e1035)
+
 ## Pending — SAFE_AUTONOMOUS (implementation queued)
-- E1-S6C: Windows Task Scheduler docs + script template (SAFE_AUTONOMOUS — **next**)
-- E1-S6D: live-mode guard (SAFE_AUTONOMOUS)
+- E1-S6D: live-mode guard (SAFE_AUTONOMOUS — **next**)
 - E1-S6E: throttle guard (SAFE_AUTONOMOUS)
 
 ## E1-S6B Status

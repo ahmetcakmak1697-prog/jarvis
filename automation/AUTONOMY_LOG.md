@@ -299,3 +299,17 @@ HUMAN_GATES_HIT: none
 NEXT STEP: E1-S6C (SAFE_AUTONOMOUS — scheduler docs + ps1 template)
 COMMIT: (docs commit — see git log)
 ---
+
+---
+DATE: 2026-06-27
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: E1-S6C — Windows Task Scheduler docs + script template
+OUTCOME: DONE
+TESTS: none (docs/script only); git diff --check clean; py -3.11 -m json.tool roadmap_state.json VALID
+FILES CHANGED: 2 new — docs/scheduler_setup.md, scripts/create_jarvis_task.ps1
+RISKS: none; no Register-ScheduledTask called by default; no --live in scheduled command; no .env
+HUMAN_GATES_HIT: none
+NEXT STEP: Codex review of 3de2e1035; if PASS → E1-S6D or E1-S6E (both SAFE_AUTONOMOUS)
+COMMIT: 3de2e1035
+---
