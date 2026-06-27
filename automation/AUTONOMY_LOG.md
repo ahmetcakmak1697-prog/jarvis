@@ -355,3 +355,17 @@ HUMAN_GATES_HIT: none
 NEXT STEP: Codex review of b4670036b; if PASS → E1-S6E (throttle guard)
 COMMIT: b4670036b
 ---
+
+---
+DATE: 2026-06-28
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: E1-S6D CODEX RE-REVIEW PASS — housekeeping + proceed to E1-S6E
+OUTCOME: DONE (housekeeping only; E1-S6E follows in same session)
+TESTS: n/a
+FILES CHANGED: 4 — roadmap_state.json, SESSION_SUMMARY.md, AUTONOMY_LOG.md, CODEX_REVIEW_REQUEST.md
+RISKS: none
+HUMAN_GATES_HIT: none
+NEXT STEP: E1-S6E (SAFE_AUTONOMOUS — throttle/cooldown guard in runner)
+COMMIT: (housekeeping commit — see git log)
+---

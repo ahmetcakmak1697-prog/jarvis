@@ -366,7 +366,7 @@
       "title": "Live-mode guard (blocked until E1-S4)",
       "phase": "3",
       "kind": "implement",
-      "status": "todo",
+      "status": "done",
       "depends_on": ["E1-S6A"],
       "autonomy": "auto",
       "acceptance_criteria_machine": [
@@ -377,7 +377,15 @@
         "agents/proactive_runner.py",
         "tests/test_e1_6d_live_guard.py"
       ],
-      "notes": "Implement guard only — no live send. --live without JARVIS_PROACTIVE_ENABLED=1 logs error and exits 1. Actual live send wired only in E1-S4."
+      "notes": "Tests-only; live-mode guard was already implemented in E1-S6A. Dedicated regression suite locks the contract.",
+      "evidence": {
+        "verdict": "PASS",
+        "at": "2026-06-28",
+        "signed_by": "Codex",
+        "commits": ["b4670036b"],
+        "tests": "94/94 PASS (14 new in test_e1_6d_live_guard.py)",
+        "notes": "Tests-only commit. No code changes to runner. --live always exit 1 (with/without env), RuntimeError mentions E1-S4, AST import check."
+      }
     },
     {
       "id": "E1-S6E",

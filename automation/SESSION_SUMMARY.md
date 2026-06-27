@@ -40,10 +40,10 @@ c8eee9a84 fix(proactive): harden dry-run runner CLI contract
 
 - E1-S6C: Windows Task Scheduler docs + ps1 template — DONE / Codex PASS 2026-06-28 (3de2e1035 + fix 4f6a5b6e0)
 
-- E1-S6D: live-mode guard regression tests — DONE (b4670036b)
+- E1-S6D: live-mode guard regression tests — DONE / Codex PASS 2026-06-28 (b4670036b)
 
 ## Pending — SAFE_AUTONOMOUS (implementation queued)
-- E1-S6E: throttle guard (SAFE_AUTONOMOUS — **next**)
+- E1-S6E: throttle/cooldown guard (SAFE_AUTONOMOUS — **next**)
 
 ## E1-S6B Status
 DONE — Codex PASS 2026-06-27. Commits: a53001577 (initial) + 648b74455 (blocker fix).
