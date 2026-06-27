@@ -93,7 +93,7 @@ $Trigger = New-ScheduledTaskTrigger -RepetitionInterval (New-TimeSpan -Minutes 3
 $Settings = New-ScheduledTaskSettingsSet `
     -ExecutionTimeLimit (New-TimeSpan -Minutes 2) `
     -MultipleInstances IgnoreNew `
-    -StopIfGoingOnBatteries $false
+    -DontStopIfGoingOnBatteries
 
 Register-ScheduledTask `
     -TaskName "JARVIS_ProactiveRunner_DryRun" `

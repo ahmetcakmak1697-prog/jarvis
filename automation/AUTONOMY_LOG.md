@@ -313,3 +313,17 @@ HUMAN_GATES_HIT: none
 NEXT STEP: Codex review of 3de2e1035; if PASS → E1-S6D or E1-S6E (both SAFE_AUTONOMOUS)
 COMMIT: 3de2e1035
 ---
+
+---
+DATE: 2026-06-28
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: E1-S6C FIX — Codex BLOCKER: -StopIfGoingOnBatteries $false invalid parameter
+OUTCOME: DONE (fix commit); pending Codex re-review
+TESTS: none (docs/script only); powershell -NoProfile preview exits 0; git diff --check clean
+FILES CHANGED: 2 — scripts/create_jarvis_task.ps1, docs/scheduler_setup.md
+RISKS: none; preview mode calls no ScheduledTask cmdlets; -Apply guard unchanged
+HUMAN_GATES_HIT: none
+NEXT STEP: Codex re-review; if PASS → E1-S6D (SAFE_AUTONOMOUS)
+COMMIT: (see git log)
+---

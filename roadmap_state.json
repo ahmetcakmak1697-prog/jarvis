@@ -340,18 +340,19 @@
       "title": "Windows Task Scheduler docs + script template",
       "phase": "3",
       "kind": "implement",
-      "status": "todo",
+      "status": "in_progress",
       "depends_on": ["E1-S6A"],
       "autonomy": "auto",
       "acceptance_criteria_machine": [
-        "git diff --check"
+        "git diff --check",
+        "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/create_jarvis_task.ps1 (exits 0, print-only, no task created)"
       ],
       "acceptance_criteria_human": [],
       "allowed_paths": [
         "docs/scheduler_setup.md",
         "scripts/create_jarvis_task.ps1"
       ],
-      "notes": "Docs and commented-out PowerShell template only. No Task Scheduler task created. Script includes safety comment: uncomment only after E1-S4 passes."
+      "notes": "Docs and print-only PowerShell template. No Task Scheduler task created. Codex BLOCKER fixed: -StopIfGoingOnBatteries $false -> -DontStopIfGoingOnBatteries (switch). All New-Scheduled* cmdlets moved inside -Apply block so preview mode calls no ScheduledTask cmdlets."
     },
     {
       "id": "E1-S6D",
