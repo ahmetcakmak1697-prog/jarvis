@@ -257,3 +257,17 @@ HUMAN_GATES_HIT: none
 NEXT STEP: E1-S6B (SAFE_AUTONOMOUS — DeliveryResult struct)
 COMMIT: (docs commit — see git log)
 ---
+
+---
+DATE: 2026-06-27
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: E1-S6B — DeliveryResult struct + logging
+OUTCOME: DONE
+TESTS: 75 passed (30 new test_e1_6b_delivery_result; 21+17 updated delivery/runtime; 16 runner)
+FILES CHANGED: 6 — agents/proactive_delivery.py, agents/proactive_runtime.py, agents/proactive_runner.py, tests/test_e1_6b_delivery_result.py, tests/test_proactive_delivery.py, tests/test_proactive_runtime.py
+RISKS: none; all existing safety invariants preserved; JARVIS_PROACTIVE_ENABLED=0 default unchanged
+HUMAN_GATES_HIT: none
+NEXT STEP: Codex review; if PASS → E1-S6C (docs/scheduler_setup.md + create_jarvis_task.ps1)
+COMMIT: a53001577
+---

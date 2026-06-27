@@ -37,7 +37,7 @@ auto/opencode-deepseek
 ## Commits to Review
 
 ```
-(commit hash TBD — E1-S6B not yet committed)
+a53001577  feat(proactive): add delivery result logging  (E1-S6B)
 ```
 
 ## E1-S6B Scope
@@ -54,11 +54,17 @@ tests/test_proactive_delivery.py    UPDATED — adapt to DeliveryResult
 tests/test_proactive_runtime.py     UPDATED — adapt to DeliveryResult
 ```
 
-### Tests Expected
+### Tests Run
 ```
 py -3.11 -m pytest tests/test_e1_6b_delivery_result.py tests/test_proactive_delivery.py
                    tests/test_proactive_runtime.py tests/test_e1_6a_proactive_runner.py
                    -q --tb=short
+  -> 75/75 PASS
+
+py -3.11 -m agents.proactive_runner
+  -> exit 0, {"dry_run": true, "sent": false, ...}
+
+git diff --check -> clean
 ```
 
 ### Safety Invariants
