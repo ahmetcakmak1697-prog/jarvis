@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import sys
 from datetime import datetime, timezone
 from typing import Any
@@ -35,6 +36,11 @@ _LIVE_NOT_IMPLEMENTED = (
 )
 
 _DEFAULT_COOLDOWN_SECONDS = 1800
+
+_E1_S4_SMOKE_MESSAGE = (
+    "JARVIS E1-S4 live Telegram smoke test. "
+    "If you received this, live delivery path works."
+)
 
 
 def _check_throttle(state: dict[str, Any]) -> str | None:
@@ -140,6 +146,73 @@ def run_once(
     }
 
 
+def run_e1_s4_smoke(
+    send_fn=None,
+    *,
+    token: str | None = None,
+    chat_id: str | None = None,
+) -> dict[str, Any]:
+    """Send exactly one E1-S4 smoke message via injected or env-configured sender.
+
+    send_fn: callable(text: str) -> None. If None, built from token+chat_id via HTTP.
+    token, chat_id: if None, read from TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID env vars.
+
+    Never retries. Never raises. Returns structured result dict.
+    Token and chat_id values are never included in the result — only SET/NOT SET hints.
+    """
+    if token is None:
+        token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    if chat_id is None:
+        chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
+
+    token_hint = f"SET hidden length={len(token)}" if token else "NOT SET"
+    chat_id_hint = f"SET hidden length={len(chat_id)}" if chat_id else "NOT SET"
+    ts = datetime.now(timezone.utc).isoformat()
+
+    if not token:
+        return {
+            "sent": False,
+            "reason": "missing_token",
+            "token": token_hint,
+            "chat_id": chat_id_hint,
+            "error": "TELEGRAM_BOT_TOKEN not set in environment",
+            "ts": ts,
+        }
+    if not chat_id:
+        return {
+            "sent": False,
+            "reason": "missing_chat_id",
+            "token": token_hint,
+            "chat_id": chat_id_hint,
+            "error": "TELEGRAM_CHAT_ID not set in environment",
+            "ts": ts,
+        }
+
+    if send_fn is None:
+        from agents.e1_s4_smoke_sender import make_telegram_http_send_fn
+        send_fn = make_telegram_http_send_fn(token, chat_id)
+
+    try:
+        send_fn(_E1_S4_SMOKE_MESSAGE)
+        return {
+            "sent": True,
+            "reason": "sent",
+            "token": token_hint,
+            "chat_id": chat_id_hint,
+            "message": _E1_S4_SMOKE_MESSAGE,
+            "ts": ts,
+        }
+    except Exception as exc:
+        return {
+            "sent": False,
+            "reason": "send_error",
+            "token": token_hint,
+            "chat_id": chat_id_hint,
+            "error": str(exc),
+            "ts": ts,
+        }
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="py -3.11 -m agents.proactive_runner",
@@ -158,6 +231,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Live mode — NOT IMPLEMENTED until E1-S4.",
     )
+    group.add_argument(
+        "--e1-s4-smoke",
+        action="store_true",
+        default=False,
+        help="E1-S4 one-off smoke: sends exactly one message if credentials set.",
+    )
     return parser
 
 
@@ -171,6 +250,14 @@ def main(argv: list[str] | None = None) -> int:
         args = parser.parse_args(argv)
     except SystemExit as exc:
         return int(exc.code) if exc.code is not None else 1
+
+    if args.e1_s4_smoke:
+        result = run_e1_s4_smoke()
+        if result["sent"]:
+            print(json.dumps(result))
+            return 0
+        print(json.dumps(result), file=sys.stderr)
+        return 1
 
     live = args.live
     dry_run = not live

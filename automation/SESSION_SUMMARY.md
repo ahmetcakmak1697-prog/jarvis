@@ -45,10 +45,18 @@ c8eee9a84 fix(proactive): harden dry-run runner CLI contract
 - E1-S6E: throttle/cooldown guard — DONE / Codex PASS 2026-06-28 (c9c7d75b3 + fix 399587609)
 
 ## E1-S6A–E Status
-All five safety guards complete. E1-S4 (live Telegram smoke) is the only remaining step.
+All five safety guards complete and Codex-approved.
+
+## E1-S4 Wiring Status
+Wiring PREPARED and tested (not yet executed):
+- agents/e1_s4_smoke_sender.py (HTTP sender, stdlib urllib only)
+- agents/proactive_runner.py --e1-s4-smoke flag + run_e1_s4_smoke()
+- tests/test_e1_s4_live_smoke_wiring.py (21 tests, all mocked)
+- automation/E1_S4_LIVE_SMOKE_RUNBOOK.md (updated with exact command)
 
 ## Pending — HUMAN_REQUIRED
-- E1-S4: live Telegram smoke test — RUNBOOK PREPARED (automation/E1_S4_LIVE_SMOKE_RUNBOOK.md)
+- E1-S4: Ahmet approves and runs: py -3.11 -m agents.proactive_runner --e1-s4-smoke
+  then confirms receipt on phone. See automation/E1_S4_LIVE_SMOKE_RUNBOOK.md.
 
 ## E1-S6B Status
 DONE — Codex PASS 2026-06-27. Commits: a53001577 (initial) + 648b74455 (blocker fix).

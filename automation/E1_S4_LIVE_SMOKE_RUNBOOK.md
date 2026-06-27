@@ -75,48 +75,43 @@ echo $env:TELEGRAM_CHAT_ID     # should show numeric chat ID
 
 ---
 
-## Step 3 — What E1-S4 wiring will look like (review before approving)
+## Step 3 — Wiring implemented (review before approving execution)
 
-Live Telegram delivery in JARVIS uses injection — no hardcoded credentials in code:
+The E1-S4 smoke path is now wired in `agents/proactive_runner.py`.
 
-```python
-# Conceptual wiring (not yet implemented in runner):
-from agents.proactive_telegram_adapter import (
-    make_static_chat_id_resolver,
-    make_telegram_sender_factory,
-)
-import os
+Files added/changed:
+- `agents/e1_s4_smoke_sender.py` — HTTP sender factory using stdlib `urllib` only
+- `agents/proactive_runner.py` — `run_e1_s4_smoke()` function + `--e1-s4-smoke` CLI flag
+- `tests/test_e1_s4_live_smoke_wiring.py` — 21 tests (all mocked, no real sends)
 
-chat_id = os.environ["TELEGRAM_CHAT_ID"]
-bot_token = os.environ["TELEGRAM_BOT_TOKEN"]
+How it works:
+- `run_e1_s4_smoke()` reads `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` from env
+- If either is missing → fail closed, no send
+- Sends exactly one message via injected or HTTP sender
+- Token and chat_id values never appear in output (only SET/NOT SET hints)
+- No retry loop, no scheduler, no .env file touch
 
-# A real send_message_fn will use python-telegram-bot or requests
-# to POST to api.telegram.org — not yet wired in runner
+The existing `--live` flag **remains blocked** (raises RuntimeError / exits 1).
+Only `--e1-s4-smoke` sends a message.
 
-resolver = make_static_chat_id_resolver({"ahmet": chat_id})
-# sender_factory wraps the actual HTTP call
+**Exact command Ahmet must approve for execution:**
+```powershell
+py -3.11 -m agents.proactive_runner --e1-s4-smoke
 ```
-
-The adapter seam (`agents/proactive_telegram_adapter.py`) is already implemented
-and tested. The missing piece is the actual `send_message_fn` that calls the
-Telegram Bot API, and wiring it into `run_once()` behind a live-mode path.
-
-**Claude must implement the live send function and wire it before E1-S4 can run.**
-**This wiring must be reviewed and approved by Ahmet before it is executed.**
 
 ---
 
 ## Step 4 — Manual approval gate
 
 Ahmet must explicitly say one of the following in the chat session before
-Claude writes any live-send code or runs any live command:
+Claude executes the live smoke command:
 
-> "Proceed with E1-S4 live wiring."  
-> "Approve E1-S4."  
-> "Wire live Telegram and send the smoke test."
+> "Run the E1-S4 smoke now."  
+> "Execute --e1-s4-smoke."  
+> "Send the E1-S4 smoke message."
 
 A general "continue" or "go ahead" is NOT sufficient — the approval must
-be specific to E1-S4 live send.
+be specific to executing the smoke send.
 
 ---
 

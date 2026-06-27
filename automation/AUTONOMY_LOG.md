@@ -405,9 +405,23 @@ MODEL: Sonnet
 TASK: E1-S6E CODEX RE-REVIEW PASS — housekeeping + E1-S4 runbook preparation
 OUTCOME: DONE (housekeeping + docs only; no live send)
 TESTS: 124/124 carried from 399587609
-FILES CHANGED: 6 — roadmap_state.json, SESSION_SUMMARY.md, AUTONOMY_LOG.md, CODEX_REVIEW_REQUEST.md + automation/E1_S4_LIVE_SMOKE_RUNBOOK.md (new)
+FILES CHANGED: 5 — roadmap_state.json, SESSION_SUMMARY.md, AUTONOMY_LOG.md, CODEX_REVIEW_REQUEST.md, E1_S4_LIVE_SMOKE_RUNBOOK.md (new)
 RISKS: none; docs only; no Telegram, no .env, no scheduler, no live send
-HUMAN_GATES_HIT: E1-S4 is HUMAN_REQUIRED — Ahmet must approve and run live smoke
-NEXT STEP: E1-S4 — Ahmet follows automation/E1_S4_LIVE_SMOKE_RUNBOOK.md and confirms receipt on phone
+HUMAN_GATES_HIT: E1-S4 is HUMAN_REQUIRED
+NEXT STEP: Ahmet approves E1-S4 live wiring preparation
+COMMIT: 7fcfd8e8f + f8588c25f
+---
+
+---
+DATE: 2026-06-28
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: E1-S4 live Telegram smoke wiring (preparation only — not yet executed)
+OUTCOME: DONE (wiring prepared; no message sent)
+TESTS: 145 passed (21 new test_e1_s4_live_smoke_wiring.py + 124 existing; all mocked)
+FILES CHANGED: 3 new — agents/e1_s4_smoke_sender.py, tests/test_e1_s4_live_smoke_wiring.py; 2 updated — agents/proactive_runner.py (+run_e1_s4_smoke, --e1-s4-smoke), automation/E1_S4_LIVE_SMOKE_RUNBOOK.md
+RISKS: none; no live send; --live still blocked; --e1-s4-smoke requires explicit creds + human approval to execute
+HUMAN_GATES_HIT: E1-S4 live execution — Ahmet must approve and run: py -3.11 -m agents.proactive_runner --e1-s4-smoke
+NEXT STEP: Ahmet runs pre-flight, approves execution, runs --e1-s4-smoke, confirms receipt on phone
 COMMIT: (see git log)
 ---
