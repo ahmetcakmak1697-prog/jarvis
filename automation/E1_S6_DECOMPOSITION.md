@@ -17,27 +17,42 @@ Live delivery blocked until E1-S4 smoke complete.
 ## E1-S6A — proactive_runner.py dry-run CLI
 **Classification: SAFE_AUTONOMOUS**
 **Depends on:** E1-S3B (adapter seam done), E1-S5 (decision)
+**Status: DONE (cc0072ac5 + fix cc0072ac5→next)**
 
-### What to build
-- New file: `agents/proactive_runner.py`
-- CLI entry point: `python agents/proactive_runner.py [--dry-run] [--live]`
-- Default: `--dry-run` (no Telegram send, no network, no .env needed)
-- `--live` flag: raises `RuntimeError` if `JARVIS_PROACTIVE_ENABLED != "1"` (blocked until E1-S4)
-- Calls: `ProactiveCore.evaluate()` → `ProactivePolicy.decide()` → `create_delivery_plan()` → `deliver(plan, sender)`
-  - dry-run: `sender=None` (noop)
-  - live: `sender=make_telegram_sender_factory(send_message)` — gated behind env check
-- Exits with code 0 on success, 1 on error
+### Supported invocation (from repo root)
+```
+py -3.11 -m agents.proactive_runner [--dry-run] [--live]
+```
+Direct file invocation (`py agents/proactive_runner.py`) is NOT supported.
+Windows Task Scheduler must use module invocation with `--working-directory` set to repo root.
 
-### Tests
-- `tests/test_e1_6a_proactive_runner.py`
-- dry-run mode: no sender called, no network, exits 0
-- missing env in live mode: raises RuntimeError before any delivery
-- plan creation returns valid DeliveryPlan
-- runner function returns a result object with `dry_run: bool`, `plan: DeliveryPlan | None`
+### What was built
+- `agents/proactive_runner.py`
+- `run_once(state, *, dry_run, user_id, task_id) -> dict` — pure, no network
+- `main(argv) -> int` — argparse-based; rejects unknown args; --dry-run and --live are mutually exclusive
+- `--dry-run` (default): no send, no network, no .env needed; exits 0
+- `--live`: ALWAYS raises RuntimeError("NOT IMPLEMENTED until E1-S4") in E1-S6A regardless of env var
+- `run_once(dry_run=False)`: also raises RuntimeError so every caller is protected
+- Exit: 0 = success, 1 = error / not-implemented
+
+### Architecture note (Concern E addressed)
+E1-S6A wires **ProactivePolicy directly**, not ProactiveCore.evaluate().
+ProactiveCore integration is deferred to a later sub-task when a real state
+source (calendar, sensors, etc.) is available. Using ProactivePolicy directly
+allows full dry-run testing without ProactiveCore dependencies.
+
+### Tests (16 passing)
+- dry-run/suppress/deliver behavior, required keys
+- run_once(dry_run=False) raises RuntimeError
+- --live blocked with and without env var (Concern A)
+- --dry-run + --live mutually exclusive (Concern C)
+- unknown args rejected (Concern C)
+- one-shot non-blocking thread test
+- subprocess: `py -3.11 -m agents.proactive_runner` exits 0, stdout is valid JSON (Blocker fix)
 
 ### Allowed paths
-- `agents/proactive_runner.py` (NEW)
-- `tests/test_e1_6a_proactive_runner.py` (NEW)
+- `agents/proactive_runner.py`
+- `tests/test_e1_6a_proactive_runner.py`
 
 ---
 

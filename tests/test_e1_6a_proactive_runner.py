@@ -1,35 +1,42 @@
 """E1-S6A: proactive_runner.py dry-run CLI regression tests.
 
-Covers:
-1. dry-run mode: sent=False, no sender called
-2. dry-run with JARVIS_PROACTIVE_ENABLED=0 (default): decision=suppress, plan_status=None
-3. dry-run with JARVIS_PROACTIVE_ENABLED=1: policy allows delivery, plan_status=ready
-4. result dict has all required keys
-5. --live without env var: RuntimeError raised by _check_live_gate
-6. --live with env var set: gate passes (no RuntimeError), sent=False (sender not wired)
-7. main() returns 0 on dry-run success
-8. main() returns 1 when --live without env var
-9. run_once() is one-shot: does not loop, does not block
-10. plan is None when decision is suppress
+Covers Codex-reviewed contract:
+1.  dry-run mode: sent=False, no sender called
+2.  dry-run with JARVIS_PROACTIVE_ENABLED=0: decision=suppress, plan_status=None
+3.  dry-run with JARVIS_PROACTIVE_ENABLED=1: decision=deliver, plan_status=ready
+4.  result dict has all required keys
+5.  run_once(dry_run=False) raises RuntimeError — live not implemented
+6.  main(["--live"]) always returns 1 with "NOT IMPLEMENTED" error (Concern A)
+7.  main([]) returns 0 with valid JSON output
+8.  main(["--dry-run"]) returns 0 (explicit flag works)
+9.  main(["--dry-run", "--live"]) returns non-zero (mutually exclusive, Concern C)
+10. main(["--unknown-flag"]) returns non-zero (unknown arg rejected, Concern C)
+11. run_once is one-shot: returns immediately without blocking
+12. plan is None when decision is suppress
+13. subprocess: `py -3.11 -m agents.proactive_runner` emits valid JSON, exits 0 (Blocker fix)
 """
 from __future__ import annotations
 
 import json
-import io
+import subprocess
+import sys
+import threading
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from agents.proactive_runner import _check_live_gate, main, run_once
+from agents.proactive_runner import _LIVE_NOT_IMPLEMENTED, main, run_once
+
+_REPO_ROOT = Path(__file__).parent.parent
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _run_with_env(enabled: str | None, **kwargs):
-    env = {} if enabled is None else {"JARVIS_PROACTIVE_ENABLED": enabled}
-    with patch.dict("os.environ", env, clear=False):
+def _run_with_env(enabled: str, **kwargs):
+    with patch.dict("os.environ", {"JARVIS_PROACTIVE_ENABLED": enabled}, clear=False):
         return run_once(**kwargs)
 
 
@@ -43,7 +50,7 @@ def test_dry_run_sent_is_false():
 
 
 # ---------------------------------------------------------------------------
-# Test 2: default env (disabled) → decision=suppress, plan_status=None
+# Test 2: disabled env → suppress, plan_status=None
 # ---------------------------------------------------------------------------
 
 def test_dry_run_disabled_env_suppresses():
@@ -54,14 +61,14 @@ def test_dry_run_disabled_env_suppresses():
 
 
 # ---------------------------------------------------------------------------
-# Test 3: env=1 → policy allows delivery, plan_status=ready
+# Test 3: enabled env → deliver, plan_status=ready, sent still False (dry-run)
 # ---------------------------------------------------------------------------
 
 def test_dry_run_enabled_env_delivers():
     result = _run_with_env("1", dry_run=True)
     assert result["decision"] == "deliver"
     assert result["plan_status"] == "ready"
-    assert result["sent"] is False  # dry-run: no actual send
+    assert result["sent"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -73,79 +80,100 @@ _REQUIRED_KEYS = {"ts", "dry_run", "decision", "reason", "priority", "plan_statu
 def test_result_dict_has_required_keys():
     result = _run_with_env("0")
     missing = _REQUIRED_KEYS - result.keys()
-    assert not missing, f"Missing keys in result: {missing}"
+    assert not missing, f"Missing keys: {missing}"
 
 
 # ---------------------------------------------------------------------------
-# Test 5: --live without env var raises RuntimeError
+# Test 5: run_once(dry_run=False) raises RuntimeError (Concern B)
 # ---------------------------------------------------------------------------
 
-def test_check_live_gate_raises_without_env():
+def test_run_once_live_raises_not_implemented():
+    with pytest.raises(RuntimeError, match="NOT IMPLEMENTED"):
+        run_once(dry_run=False)
+
+
+def test_run_once_live_error_message_mentions_e1_s4():
+    with pytest.raises(RuntimeError) as exc_info:
+        run_once(dry_run=False)
+    assert "E1-S4" in str(exc_info.value)
+
+
+# ---------------------------------------------------------------------------
+# Test 6: --live always returns 1 regardless of env var (Concern A)
+# ---------------------------------------------------------------------------
+
+def test_main_live_blocked_without_env(capsys):
     with patch.dict("os.environ", {"JARVIS_PROACTIVE_ENABLED": "0"}, clear=False):
-        with pytest.raises(RuntimeError, match="LIVE MODE BLOCKED"):
-            _check_live_gate()
+        code = main(["--live"])
+    assert code == 1
+    err = json.loads(capsys.readouterr().err)
+    assert "NOT IMPLEMENTED" in err["error"]
+    assert err["sent"] is False
 
 
-def test_check_live_gate_raises_when_env_missing():
-    env = {k: v for k, v in __import__("os").environ.items()
-           if k != "JARVIS_PROACTIVE_ENABLED"}
-    with patch.dict("os.environ", env, clear=True):
-        with pytest.raises(RuntimeError, match="LIVE MODE BLOCKED"):
-            _check_live_gate()
-
-
-# ---------------------------------------------------------------------------
-# Test 6: --live with env=1 → gate passes, sent=False (sender not wired)
-# ---------------------------------------------------------------------------
-
-def test_live_mode_with_env_passes_gate_but_does_not_send():
+def test_main_live_blocked_even_with_env_set(capsys):
+    """--live is always blocked in E1-S6A, even if JARVIS_PROACTIVE_ENABLED=1."""
     with patch.dict("os.environ", {"JARVIS_PROACTIVE_ENABLED": "1"}, clear=False):
-        _check_live_gate()  # must not raise
-        result = run_once(dry_run=False)
-        assert result["sent"] is False  # live sender not wired in E1-S6A
+        code = main(["--live"])
+    assert code == 1
+    err = json.loads(capsys.readouterr().err)
+    assert "NOT IMPLEMENTED" in err["error"]
 
 
 # ---------------------------------------------------------------------------
-# Test 7: main() returns 0 on dry-run success
+# Test 7: main([]) returns 0 with valid JSON
 # ---------------------------------------------------------------------------
 
-def test_main_returns_0_on_dry_run(capsys):
+def test_main_default_returns_0_with_json(capsys):
     with patch.dict("os.environ", {"JARVIS_PROACTIVE_ENABLED": "0"}, clear=False):
         code = main([])
     assert code == 0
-    captured = capsys.readouterr()
-    data = json.loads(captured.out)
+    data = json.loads(capsys.readouterr().out)
     assert data["dry_run"] is True
     assert data["sent"] is False
 
 
 # ---------------------------------------------------------------------------
-# Test 8: main() returns 1 when --live without env var
+# Test 8: --dry-run explicit flag works
 # ---------------------------------------------------------------------------
 
-def test_main_returns_1_on_live_without_env(capsys):
+def test_main_explicit_dry_run_flag(capsys):
     with patch.dict("os.environ", {"JARVIS_PROACTIVE_ENABLED": "0"}, clear=False):
-        code = main(["--live"])
-    assert code == 1
-    captured = capsys.readouterr()
-    err = json.loads(captured.err)
-    assert "LIVE MODE BLOCKED" in err["error"]
-    assert err["sent"] is False
+        code = main(["--dry-run"])
+    assert code == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["dry_run"] is True
 
 
 # ---------------------------------------------------------------------------
-# Test 9: run_once is one-shot — returns immediately, does not block
+# Test 9: --dry-run and --live together → non-zero (mutually exclusive, Concern C)
+# ---------------------------------------------------------------------------
+
+def test_main_rejects_dry_run_and_live_together():
+    code = main(["--dry-run", "--live"])
+    assert code != 0, "Conflicting --dry-run --live must not succeed"
+
+
+# ---------------------------------------------------------------------------
+# Test 10: unknown arg → non-zero (Concern C)
+# ---------------------------------------------------------------------------
+
+def test_main_rejects_unknown_flag():
+    code = main(["--unknown-flag"])
+    assert code != 0, "Unknown flag must not succeed"
+
+
+# ---------------------------------------------------------------------------
+# Test 11: run_once is one-shot — does not block
 # ---------------------------------------------------------------------------
 
 def test_run_once_returns_immediately():
-    import threading
-    results = []
-    errors = []
+    results: list = []
+    errors: list = []
 
     def _run():
         try:
-            r = _run_with_env("0")
-            results.append(r)
+            results.append(_run_with_env("0"))
         except Exception as e:
             errors.append(e)
 
@@ -154,15 +182,47 @@ def test_run_once_returns_immediately():
     t.join(timeout=5.0)
     assert not t.is_alive(), "run_once blocked — did not return within 5 seconds"
     assert not errors, f"run_once raised: {errors}"
-    assert results, "run_once returned no result"
+    assert results
 
 
 # ---------------------------------------------------------------------------
-# Test 10: plan is None when decision is suppress
+# Test 12: plan is None when suppressed
 # ---------------------------------------------------------------------------
 
 def test_plan_is_none_when_suppressed():
     result = _run_with_env("0")
-    assert result["plan_status"] is None, (
-        "plan_status must be None when decision is suppress (no plan created)"
+    assert result["plan_status"] is None
+
+
+# ---------------------------------------------------------------------------
+# Test 13: subprocess — module invocation emits valid JSON, exits 0 (Blocker fix)
+# ---------------------------------------------------------------------------
+
+def test_subprocess_module_invocation_exits_0():
+    proc = subprocess.run(
+        [sys.executable, "-m", "agents.proactive_runner"],
+        cwd=str(_REPO_ROOT),
+        capture_output=True,
+        text=True,
+        timeout=15,
+        env={**__import__("os").environ, "JARVIS_PROACTIVE_ENABLED": "0"},
     )
+    assert proc.returncode == 0, (
+        f"Expected exit 0, got {proc.returncode}.\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
+    )
+
+
+def test_subprocess_module_invocation_stdout_is_valid_json():
+    proc = subprocess.run(
+        [sys.executable, "-m", "agents.proactive_runner"],
+        cwd=str(_REPO_ROOT),
+        capture_output=True,
+        text=True,
+        timeout=15,
+        env={**__import__("os").environ, "JARVIS_PROACTIVE_ENABLED": "0"},
+    )
+    data = json.loads(proc.stdout)
+    missing = _REQUIRED_KEYS - data.keys()
+    assert not missing, f"Missing keys in subprocess output: {missing}"
+    assert data["dry_run"] is True
+    assert data["sent"] is False

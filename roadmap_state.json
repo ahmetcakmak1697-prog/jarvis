@@ -282,18 +282,19 @@
       "title": "proactive_runner.py dry-run CLI",
       "phase": "3",
       "kind": "implement",
-      "status": "todo",
+      "status": "in_progress",
       "depends_on": ["FAZ-3-E1"],
       "autonomy": "auto",
       "acceptance_criteria_machine": [
-        "py -3.11 -m pytest tests/test_e1_6a_proactive_runner.py -q --tb=short"
+        "py -3.11 -m pytest tests/test_e1_6a_proactive_runner.py -q --tb=short",
+        "py -3.11 -m agents.proactive_runner (module invocation exits 0, stdout is valid JSON)"
       ],
       "acceptance_criteria_human": [],
       "allowed_paths": [
         "agents/proactive_runner.py",
         "tests/test_e1_6a_proactive_runner.py"
       ],
-      "notes": "One-shot runner. Default dry-run. --live flag raises RuntimeError if JARVIS_PROACTIVE_ENABLED!=1. No Telegram send, no network, no .env needed in tests."
+      "notes": "One-shot runner. Default dry-run. Supported invocation: py -3.11 -m agents.proactive_runner. --live always blocked until E1-S4 (raises RuntimeError regardless of env). argparse rejects unknown args and --dry-run+--live together. run_once(dry_run=False) also raises so every caller is protected. ProactivePolicy wired directly; ProactiveCore deferred."
     },
     {
       "id": "E1-S6B",
