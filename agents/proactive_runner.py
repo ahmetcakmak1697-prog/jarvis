@@ -33,6 +33,41 @@ _LIVE_NOT_IMPLEMENTED = (
     "Live send will be wired after E1-S4 sign-off."
 )
 
+_DEFAULT_COOLDOWN_SECONDS = 1800
+
+
+def _check_throttle(state: dict[str, Any]) -> str | None:
+    """Return a throttle reason if delivery should be suppressed, else None.
+
+    Reasons:
+      "cooldown_active"       — last_delivery_ts within cooldown window
+      "throttle_state_invalid" — last_delivery_ts or cooldown_seconds is malformed
+    Returns None when no throttle applies (no last_delivery_ts, or cooldown elapsed).
+    """
+    last_ts = state.get("last_delivery_ts")
+    if last_ts is None:
+        return None
+
+    cooldown_raw = state.get("cooldown_seconds", _DEFAULT_COOLDOWN_SECONDS)
+    try:
+        cooldown = float(cooldown_raw)
+        if cooldown < 0:
+            raise ValueError("negative")
+    except (TypeError, ValueError):
+        return "throttle_state_invalid"
+
+    try:
+        last_dt = datetime.fromisoformat(str(last_ts))
+        if last_dt.tzinfo is None:
+            last_dt = last_dt.replace(tzinfo=timezone.utc)
+        elapsed = (datetime.now(timezone.utc) - last_dt).total_seconds()
+        if elapsed < cooldown:
+            return "cooldown_active"
+    except (TypeError, ValueError, AttributeError):
+        return "throttle_state_invalid"
+
+    return None
+
 
 def run_once(
     state: dict[str, Any] | None = None,
@@ -54,8 +89,23 @@ def run_once(
     if not dry_run:
         raise RuntimeError(_LIVE_NOT_IMPLEMENTED)
 
+    state = state or {}
+
+    throttle_reason = _check_throttle(state)
+    if throttle_reason is not None:
+        return {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "dry_run": dry_run,
+            "decision": "suppress",
+            "reason": throttle_reason,
+            "priority": "normal",
+            "plan_status": None,
+            "sent": False,
+            "delivery": None,
+        }
+
     policy = ProactivePolicy()
-    decision = policy.decide(state=state or {})
+    decision = policy.decide(state=state)
 
     plan: DeliveryPlan | None = None
     if decision.decision != "suppress":
