@@ -271,3 +271,17 @@ HUMAN_GATES_HIT: none
 NEXT STEP: Codex review; if PASS → E1-S6C (docs/scheduler_setup.md + create_jarvis_task.ps1)
 COMMIT: a53001577
 ---
+
+---
+DATE: 2026-06-27
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: E1-S6B FIX — Codex BLOCKER addressed (deliver() precedence + delivery in runner output)
+OUTCOME: DONE (fix commit); pending Codex re-review before marking done
+TESTS: 80 passed (was 75); 5 new tests cover precedence + delivery field + CLI stdout
+FILES CHANGED: 4 — agents/proactive_delivery.py, agents/proactive_runner.py, tests/test_e1_6b_delivery_result.py, tests/test_e1_6a_proactive_runner.py
+RISKS: none; precedence fix makes not_ready take priority over noop_no_sender for deferred plans
+HUMAN_GATES_HIT: none
+NEXT STEP: Codex re-review of 648b74455; if PASS → mark E1-S6B done → E1-S6C
+COMMIT: 648b74455
+---

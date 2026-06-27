@@ -36,7 +36,7 @@ c8eee9a84 fix(proactive): harden dry-run runner CLI contract
 - E1-S6A: proactive_runner.py dry-run CLI — DONE (cc0072ac5)
 - E1-S6A FIX: Codex BLOCKER addressed — DONE (c8eee9a84) — Codex re-review PASS 2026-06-27
 
-- E1-S6B: DeliveryResult struct + logging — DONE (a53001577)
+- E1-S6B: DeliveryResult struct + logging — BLOCKED / FIXED PENDING CODEX RE-REVIEW (a53001577 + fix 648b74455)
 
 ## Pending — SAFE_AUTONOMOUS (implementation queued)
 - E1-S6C: Windows Task Scheduler docs + script template (SAFE_AUTONOMOUS — **next**)

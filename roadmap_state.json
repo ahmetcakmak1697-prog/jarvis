@@ -309,21 +309,23 @@
       "title": "Delivery result logging (DeliveryResult struct)",
       "phase": "3",
       "kind": "implement",
-      "status": "todo",
+      "status": "in_progress",
       "depends_on": ["E1-S6A"],
       "autonomy": "auto",
       "acceptance_criteria_machine": [
-        "py -3.11 -m pytest tests/test_e1_6b_delivery_result.py tests/test_proactive_delivery.py tests/test_proactive_runtime.py -q --tb=short"
+        "py -3.11 -m pytest tests/test_e1_6b_delivery_result.py tests/test_proactive_delivery.py tests/test_proactive_runtime.py tests/test_e1_6a_proactive_runner.py -q --tb=short"
       ],
       "acceptance_criteria_human": [],
       "allowed_paths": [
         "agents/proactive_delivery.py",
         "agents/proactive_runtime.py",
+        "agents/proactive_runner.py",
         "tests/test_e1_6b_delivery_result.py",
         "tests/test_proactive_delivery.py",
-        "tests/test_proactive_runtime.py"
+        "tests/test_proactive_runtime.py",
+        "tests/test_e1_6a_proactive_runner.py"
       ],
-      "notes": "Replace bool return with DeliveryResult dataclass. Resolves silent-exception design debt noted in SESSION_SUMMARY."
+      "notes": "DeliveryResult dataclass in deliver() and run_proactive_delivery(). runner run_once() preserves full DeliveryResult in output delivery key. Codex BLOCKER fixed in 648b74455: deliver() precedence (not_ready before noop_no_sender), delivery dict in runner output, delivery field tests added."
     },
     {
       "id": "E1-S6C",
