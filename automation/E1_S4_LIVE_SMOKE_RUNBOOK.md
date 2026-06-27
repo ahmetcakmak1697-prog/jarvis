@@ -195,17 +195,38 @@ None of these steps happen automatically — each requires explicit approval.
 
 ---
 
-## Evidence (fill in after E1-S4 completion)
+## Evidence — COMPLETED
 
 ```
-Status:       PENDING
-Completed at: —
-Command:      —
-git status:   —
-Messages sent: 0
-Ahmet confirmed: NO
+Status:           DONE
+Completed at:     2026-06-27T22:51:38.969829+00:00 (UTC)
+Command:          py -3.11 -m agents.proactive_runner --e1-s4-smoke
+Wiring commit:    a39db4568 (fix(proactive): sanitize E1-S4 smoke errors)
+Codex PASS:       a39db4568 — 33 smoke wiring tests + 157 full regression, all PASS
+Messages sent:    1 (exactly one)
+Ahmet confirmed:  YES — received on phone
+
+Message text (exact):
+  JARVIS E1-S4 live Telegram smoke test. If you received this, live delivery path works.
+
+CLI output (token/chat_id values hidden):
+  TELEGRAM_BOT_TOKEN: SET hidden length=46
+  TELEGRAM_CHAT_ID: SET hidden length=10
+  {"sent": true, "reason": "sent", "token": "SET hidden length=46",
+   "chat_id": "SET hidden length=10",
+   "message": "JARVIS E1-S4 live Telegram smoke test. If you received this, live delivery path works.",
+   "ts": "2026-06-27T22:51:38.969829+00:00"}
+
+Token exposed:    NO
+Chat ID exposed:  NO
+Retry:            NO
+Scheduler:        NO
+Background loop:  NO
+git status:       clean
 ```
+
+**Do not run --e1-s4-smoke again. One smoke per E1-S4 gate. Next step: explicit approval for scheduler or live delivery activation.**
 
 ---
 
-*Prepared by: Claude Code | Date: 2026-06-28*
+*Prepared by: Claude Code | Date: 2026-06-28 | Completed: 2026-06-27*

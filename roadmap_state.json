@@ -263,10 +263,24 @@
           "887420cf9 added test-only ProactiveDelivery planning layer (DeliveryPlan + create_delivery_plan) with no runtime send/wiring; validation: proactive delivery/regression 31 passed, governance 91 passed. Runtime delivery remains pending."
         ],
         "remaining": [
-          "E1-S6A-E: one-shot runner implementation (SAFE_AUTONOMOUS — see E1_S6_DECOMPOSITION.md)",
-          "E1-S4: live Telegram smoke test (HUMAN_REQUIRED)"
+          "E1-S6A-E: DONE (see individual E1-S6x steps below)",
+          "E1-S4: DONE — live Telegram smoke confirmed by Ahmet 2026-06-27"
         ],
-        "safety_invariant": "No proactive push/background behavior is enabled by this step.",
+        "e1_s4": {
+          "verdict": "DONE",
+          "at": "2026-06-27T22:51:38.969829+00:00",
+          "signed_by": "Ahmet (phone receipt confirmed)",
+          "command": "py -3.11 -m agents.proactive_runner --e1-s4-smoke",
+          "sent": true,
+          "message": "JARVIS E1-S4 live Telegram smoke test. If you received this, live delivery path works.",
+          "token_exposed": false,
+          "chat_id_exposed": false,
+          "messages_sent": 1,
+          "wiring_commit": "a39db4568",
+          "codex_pass_before_execution": true,
+          "notes": "Codex PASS on a39db4568 (33/33 wiring tests + 157/157 regression). One message sent. No scheduler, no retry, no background loop."
+        },
+        "safety_invariant": "No proactive push/background behavior is enabled by this step. Scheduler and background delivery remain future work requiring explicit approval.",
         "e1_s5_decision": {
           "verdict": "APPROVED",
           "at": "2026-06-24",

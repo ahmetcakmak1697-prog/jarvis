@@ -47,16 +47,23 @@ c8eee9a84 fix(proactive): harden dry-run runner CLI contract
 ## E1-S6A–E Status
 All five safety guards complete and Codex-approved.
 
-## E1-S4 Wiring Status
-Wiring BLOCKED / FIXED PENDING CODEX RE-REVIEW (0739333da + fix pending):
-- agents/e1_s4_smoke_sender.py (HTTP sender + response validation + sanitized errors)
-- agents/proactive_runner.py --e1-s4-smoke flag + run_e1_s4_smoke() (sanitized errors)
-- tests/test_e1_s4_live_smoke_wiring.py (33 tests, all mocked)
-- automation/E1_S4_LIVE_SMOKE_RUNBOOK.md (echo commands replaced with hidden checks)
+## E1-S4 Status
+DONE — Ahmet confirmed live Telegram receipt 2026-06-27T22:51:38Z
 
-## Pending — HUMAN_REQUIRED
-- E1-S4: Ahmet approves and runs: py -3.11 -m agents.proactive_runner --e1-s4-smoke
-  then confirms receipt on phone. See automation/E1_S4_LIVE_SMOKE_RUNBOOK.md.
+Evidence:
+- Command: py -3.11 -m agents.proactive_runner --e1-s4-smoke
+- sent=true, reason="sent", ts=2026-06-27T22:51:38.969829+00:00
+- Message: "JARVIS E1-S4 live Telegram smoke test. If you received this, live delivery path works."
+- Token/chat_id not exposed in output
+- Exactly 1 message sent; no retry; no scheduler; no background loop
+- Codex PASS on a39db4568 before execution (33+157 tests)
+
+## Next Recommended Phase
+E1 proactive runtime and scheduler activation — each requires explicit human approval:
+- Scheduler creation: scripts/create_jarvis_task.ps1 -Apply (NOT yet run)
+- Live delivery activation: JARVIS_PROACTIVE_ENABLED=1 (NOT yet enabled)
+- --live wiring in run_once() (NOT yet implemented)
+These remain future work behind explicit safety gates.
 
 ## E1-S6B Status
 DONE — Codex PASS 2026-06-27. Commits: a53001577 (initial) + 648b74455 (blocker fix).
@@ -67,10 +74,7 @@ DONE — Codex PASS 2026-06-27. Commits: a53001577 (initial) + 648b74455 (blocke
 - roadmap_state.json E1-S6B.status = "done"
 
 ## Pending — HUMAN_REQUIRED
-- E1-S4: live Telegram smoke test (HUMAN_REQUIRED — after E1-S6A–E complete)
-
-## Human-Needed Blocker
-Only E1-S4 requires Ahmet. E1-S6B–E are SAFE_AUTONOMOUS.
+None. All E1-S4–E1-S6E human gates are satisfied.
 
 ## Git State
 ```

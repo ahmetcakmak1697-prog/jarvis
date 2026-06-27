@@ -17,18 +17,17 @@ Commits reviewed and closed:
 
 ---
 
-## Status
-PENDING_CODEX_REVIEW — E1-S4 wiring BLOCKER fix
+## E1-S4 CLOSED — PASS + HUMAN CONFIRMED (2026-06-28)
 
-## Branch
-auto/opencode-deepseek
+Commits:
+- 0739333da  feat(proactive): prepare E1-S4 Telegram smoke wiring
+- a39db4568  fix(proactive): sanitize E1-S4 smoke errors  (Codex PASS)
 
-## Commits to Review
+Live execution: Ahmet ran `py -3.11 -m agents.proactive_runner --e1-s4-smoke`
+Result: sent=true, ts=2026-06-27T22:51:38.969829+00:00
+Phone receipt confirmed. One message sent. Token/chat_id not exposed.
 
-```
-0739333da  feat(proactive): prepare E1-S4 Telegram smoke wiring  (initial)
-(fix hash TBD — commit in progress)  fix(proactive): sanitize E1-S4 smoke errors  (BLOCKER fix)
-```
+No pending review. Future reviews should target next phase only.
 
 ## BLOCKER Fix Summary
 

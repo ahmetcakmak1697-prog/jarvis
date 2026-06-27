@@ -439,3 +439,21 @@ HUMAN_GATES_HIT: E1-S4 execution — Ahmet must approve
 NEXT STEP: Codex re-review; if PASS → Ahmet runs: py -3.11 -m agents.proactive_runner --e1-s4-smoke
 COMMIT: (see git log)
 ---
+
+---
+DATE: 2026-06-28
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: E1-S4 live Telegram smoke — HUMAN GATE SATISFIED (Ahmet phone receipt)
+OUTCOME: DONE
+TESTS: 157/157 carried from a39db4568 (no new code changes in this entry)
+FILES CHANGED: docs only — roadmap_state.json, E1_S4_LIVE_SMOKE_RUNBOOK.md, SESSION_SUMMARY.md, CODEX_REVIEW_REQUEST.md, AUTONOMY_LOG.md
+RISKS: none; no second Telegram send; no scheduler; no background loop; no .env access
+HUMAN_GATE_SATISFIED: Ahmet ran py -3.11 -m agents.proactive_runner --e1-s4-smoke
+  -> sent=true, ts=2026-06-27T22:51:38.969829+00:00
+  -> message: "JARVIS E1-S4 live Telegram smoke test. If you received this, live delivery path works."
+  -> token/chat_id not exposed in output; exactly 1 message sent
+CODEX_STATUS_AT_EXECUTION: a39db4568 was Codex PASS (33 wiring tests + 157 regression)
+NEXT STEP: Explicit approval required for each of: scheduler creation, JARVIS_PROACTIVE_ENABLED=1, --live wiring
+COMMIT: (see git log for docs commit)
+---
