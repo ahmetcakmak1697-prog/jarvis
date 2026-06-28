@@ -65,6 +65,17 @@ _MOCK_STT_MS = [500.0, 400.0, 300.0, 500.0, 600.0]
 
 _MOJIBAKE_MARKERS = ["Ã", "Ä", "Å", "�", "â€", "Ã§", "Ä±"]
 
+# Turkish character sentinel — used for status_summary_sample Unicode validation
+# when real status collection is unavailable (mock mode or collection failure).
+# Must contain: ç ğ ı İ ö ş ü
+_TURKISH_STATUS_SENTINEL = (
+    "Çalışma ağacı: TEMİZ\n"
+    "henüz devrede değil\n"
+    "Telegram gönderme\n"
+    "nerede kaldık araçtır\n"
+    "Şu an devam eden: İ"
+)
+
 # ---------------------------------------------------------------------------
 # Pure functions — testable without microphone
 # ---------------------------------------------------------------------------
@@ -145,18 +156,58 @@ def _stat(values: list[float]) -> dict[str, Any]:
     }
 
 
+def derive_gpu_verdict(
+    verdict: str,
+    gpu_used: bool | None,
+    measurement_valid: bool = True,
+) -> str:
+    """Compute gpu_verdict from latency verdict + GPU runtime evidence.
+
+    Only proven CUDA/GPU runtime (gpu_used=True) may yield 'yeterli' or 'sınırda'.
+    gpu_used=None (unproven) → 'ölçülemedi'.
+    gpu_used=False (no GPU) → 'yetersiz'.
+    measurement_valid=False → 'ölçülemedi' always.
+    """
+    if not measurement_valid:
+        return "ölçülemedi"
+    if gpu_used is None:
+        return "ölçülemedi"
+    if gpu_used is False:
+        return "yetersiz"
+    # gpu_used is True: map from latency/WER verdict
+    _map: dict[str, str] = {
+        "yeterli": "yeterli",
+        "sınırda": "sınırda",
+        "yetersiz": "yetersiz",
+        "yetersiz_veri": "ölçülemedi",
+        "geçersiz_ölçüm": "ölçülemedi",
+    }
+    return _map.get(verdict, "ölçülemedi")
+
+
 def aggregate_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
-    """Exclude warmup (first run) and ambient_ok=False runs; compute per-metric stats."""
+    """Exclude warmup, pre-excluded (stt_error/ambient_error), and loud-ambient runs.
+
+    Pre-set excluded_reason (stt_error, ambient_error, etc.) takes priority over
+    the ambient_ok check so that error runs are never silently included in stats.
+    gpu_verdict is NOT computed here — callers use derive_gpu_verdict().
+    """
     annotated: list[dict[str, Any]] = []
     usable: list[dict[str, Any]] = []
     warmup_excluded = False
     ambient_excluded = 0
+    error_excluded = 0
 
     for r in runs:
         r_out = dict(r)
         if r.get("warmup"):
             r_out["excluded_reason"] = "warmup"
             warmup_excluded = True
+            annotated.append(r_out)
+            continue
+        # Pre-set exclusion (stt_error, ambient_error, …) takes priority
+        if r.get("excluded_reason"):
+            error_excluded += 1
             annotated.append(r_out)
             continue
         if not r.get("ambient_ok", True):
@@ -183,8 +234,8 @@ def aggregate_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
             "n": n,
             "warmup_excluded": warmup_excluded,
             "ambient_excluded": ambient_excluded,
+            "error_excluded": error_excluded,
             "verdict": "yetersiz_veri",
-            "gpu_verdict": "ölçülemedi",
             "metric_stats": stats,
             "annotated_runs": annotated,
         }
@@ -196,18 +247,18 @@ def aggregate_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
 
     classes = [c for c in (audio_cls, wer_cls) if c != "not_measured"]
     if "fail" in classes:
-        verdict, gpu_verdict = "yetersiz", "yetersiz"
+        verdict = "yetersiz"
     elif "warn" in classes:
-        verdict, gpu_verdict = "sınırda", "sınırda"
+        verdict = "sınırda"
     else:
-        verdict, gpu_verdict = "yeterli", "yeterli"
+        verdict = "yeterli"
 
     return {
         "n": n,
         "warmup_excluded": warmup_excluded,
         "ambient_excluded": ambient_excluded,
+        "error_excluded": error_excluded,
         "verdict": verdict,
-        "gpu_verdict": gpu_verdict,
         "metric_stats": stats,
         "annotated_runs": annotated,
     }
@@ -272,11 +323,7 @@ def _make_mock_run(phrase: str, run_idx_0: int) -> dict[str, Any]:
         "wer_raw": wer_raw,
         "wer_normalized": wer_normalized,
         "status_route_matched": "nerede" in phrase,
-        "status_summary_sample": (
-            "Çalışma ağacı: TEMİZ"  # Çalışma ağacı: TEMİZ
-            if "nerede" in phrase
-            else None
-        ),
+        "status_summary_sample": _TURKISH_STATUS_SENTINEL,
     }
 
 
@@ -288,17 +335,17 @@ def run_mock(phrases: list[str] | None = None, n_runs: int = 5) -> dict[str, Any
     runs = [_make_mock_run(phrase, i) for i in range(n_runs)]
     agg = aggregate_runs(runs)
 
+    # BLOCKER 1: mock output must never look like a real pass.
+    # Override verdict and gpu_verdict unconditionally for measurement_valid=False.
+    verdict = "geçersiz_ölçüm"
+    gpu_verdict = derive_gpu_verdict(verdict, None, measurement_valid=False)  # → "ölçülemedi"
+
     warnings = [
         "MOCK — bu sayılar gerçek değildir, "
         "3070/GPU/latency kararı için KULLANILAMAZ"
     ]
     if any(r.get("t0_to_first_audio_ms") is None for r in runs if not r.get("warmup")):
-        warnings.append(
-            "TTS ölçülemedi, his metriği eksik"
-        )
-
-    backend_errors = validate_backend("cpu", "int8", None)
-    gpu_used = None  # mock: no GPU evidence
+        warnings.append("TTS ölçülemedi, his metriği eksik")
 
     summary = (
         "GEÇERSİZ ÖLÇÜM (MOCK) — bu çıktı yalnızca şema/matematik doğrulama içindir. "
@@ -315,7 +362,7 @@ def run_mock(phrases: list[str] | None = None, n_runs: int = 5) -> dict[str, Any
         "backend": "cpu",
         "model": "mock-whisper",
         "compute_type": "int8",
-        "gpu_used": gpu_used,
+        "gpu_used": None,  # mock: no GPU evidence
         "ambient_rms": _MOCK_AMBIENT_RMS,
         "ambient_peak": _MOCK_AMBIENT_PEAK,
         "ambient_ok": True,
@@ -332,17 +379,19 @@ def run_mock(phrases: list[str] | None = None, n_runs: int = 5) -> dict[str, Any
         "wer_raw": 0.0,
         "wer_normalized": 0.0,
         "status_route_matched": "nerede" in phrase,
-        "status_summary_sample": "Çalışma ağacı: TEMİZ",
+        # Always populated: sentinel guarantees Turkish char coverage for Unicode validation
+        "status_summary_sample": _TURKISH_STATUS_SENTINEL,
         "thresholds": THRESHOLDS,
         "metric_stats": agg["metric_stats"],
-        "verdict": agg["verdict"],
-        "gpu_verdict": agg["gpu_verdict"],
+        "verdict": verdict,
+        "gpu_verdict": gpu_verdict,
         "warnings": warnings,
         "summary": summary,
         "runs": agg["annotated_runs"],
         "n_usable": agg["n"],
         "warmup_excluded": agg["warmup_excluded"],
         "ambient_excluded": agg["ambient_excluded"],
+        "error_excluded": agg["error_excluded"],
     }
 
 
@@ -357,18 +406,31 @@ def _real_probe(
     *,
     device_lister=None,
     audio_recorder=None,
+    ambient_sampler=None,
     stt_runner=None,
 ) -> dict[str, Any]:
     """Injectable real probe core. Hardware dependencies injected for testability.
 
-    device_lister: () -> list[dict]  — list available input devices
-    audio_recorder: (seconds: float) -> ndarray  — capture audio
-    stt_runner: (audio: ndarray) -> tuple[str, float]  — (text, stt_ms)
+    device_lister:   () -> list[dict]                       list available input devices
+    audio_recorder:  (seconds: float) -> ndarray            capture main audio
+    ambient_sampler: () -> ndarray                          capture 0.5s ambient; defaults
+                                                            to audio_recorder(0.5) if None
+    stt_runner:      (audio: ndarray) -> tuple[str, float]  (text, stt_ms)
     """
     if phrases is None:
         phrases = STT_PHRASES
 
     ts = _ts()
+
+    # BLOCKER 6: t0_definition must appear on every output path, including early failures.
+    _early: dict[str, Any] = {
+        "mode": "real",
+        "measurement_valid": False,
+        "ts": ts,
+        "t0_definition": T0_DEFINITION,
+        "t0_to_first_text_ms": None,
+        "t0_to_first_audio_ms": None,
+    }
 
     # Resolve device_lister
     if device_lister is None:
@@ -378,26 +440,18 @@ def _real_probe(
             device_lister = lambda: [d for d in sd.query_devices() if d["max_input_channels"] > 0]
         except ImportError:
             return {
+                **_early,
                 "ok": False,
                 "error": "sounddevice_not_installed",
-                "mode": "real",
-                "measurement_valid": False,
-                "ts": ts,
-                "t0_to_first_text_ms": None,
-                "t0_to_first_audio_ms": None,
                 "warnings": ["Install: pip install sounddevice numpy faster-whisper"],
             }
 
     devices = device_lister()
     if not devices:
         return {
+            **_early,
             "ok": False,
             "error": "no_input_device",
-            "mode": "real",
-            "measurement_valid": False,
-            "ts": ts,
-            "t0_to_first_text_ms": None,
-            "t0_to_first_audio_ms": None,
             "warnings": ["No input audio device found. Connect a microphone."],
         }
 
@@ -411,7 +465,6 @@ def _real_probe(
                 "backend": "faster-whisper",
                 "model": "small",
                 "compute_type": "int8",
-                "gpu_used": None,  # determined after first inference
             }
 
             def stt_runner(audio_np):
@@ -424,13 +477,9 @@ def _real_probe(
 
         except ImportError:
             return {
+                **_early,
                 "ok": False,
                 "error": "faster_whisper_not_installed",
-                "mode": "real",
-                "measurement_valid": False,
-                "ts": ts,
-                "t0_to_first_text_ms": None,
-                "t0_to_first_audio_ms": None,
                 "warnings": ["Install: pip install faster-whisper"],
             }
     else:
@@ -438,7 +487,6 @@ def _real_probe(
             "backend": "injected",
             "model": "injected",
             "compute_type": "injected",
-            "gpu_used": None,
         }
 
     # Resolve audio recorder
@@ -456,67 +504,142 @@ def _real_probe(
 
         except ImportError:
             return {
+                **_early,
                 "ok": False,
                 "error": "sounddevice_not_installed",
-                "mode": "real",
-                "measurement_valid": False,
-                "ts": ts,
-                "t0_to_first_text_ms": None,
-                "t0_to_first_audio_ms": None,
                 "warnings": ["Install: pip install sounddevice numpy"],
             }
 
-    # Run probes
+    # Default ambient_sampler: uses audio_recorder with short window
+    if ambient_sampler is None:
+        _ar = audio_recorder
+        ambient_sampler = lambda: _ar(0.5)
+
+    # Collect J0 status once before the loop — for Unicode validation + j0_status_ms
     import time
+
+    _repo_root = Path(__file__).resolve().parents[1]
+    if str(_repo_root) not in sys.path:
+        sys.path.insert(0, str(_repo_root))
+
+    status_sample: str = _TURKISH_STATUS_SENTINEL  # guaranteed non-null fallback
+    j0_status_ms_global: float | None = None
+    warnings: list[str] = ["TTS ölçülmedi, his metriği eksik"]
+    status_warning: str | None = None
+
+    try:
+        from j0_live_status import (
+            collect_status as _cs,
+            _default_git_runner as _gr,
+            _default_roadmap_loader as _rl,
+        )
+        _t_j0 = time.perf_counter()
+        j0_status_obj = _cs(_gr, _rl)
+        j0_status_ms_global = (time.perf_counter() - _t_j0) * 1000
+        status_sample = j0_status_obj.text_summary()[:500]
+    except Exception as exc:
+        status_warning = (
+            f"j0_status_collection_failed: {type(exc).__name__} — "
+            f"Unicode validation using Turkish sentinel"
+        )
+        warnings.append(status_warning)
+        # status_sample stays as _TURKISH_STATUS_SENTINEL (set above)
+
+    # BLOCKER 2: gpu_used is not determined from backend string alone.
+    # Only runtime evidence (model.device inspection) may set it to True.
+    # For now, all real-probe paths leave gpu_used=None until proven.
+    gpu_used: bool | None = None
+    warnings.append(
+        "gpu_used=null — CUDA/GPU usage not yet proven; "
+        "check model.device after --real run to confirm"
+    )
+
+    # Run probes
     runs: list[dict[str, Any]] = []
 
     for i in range(n_runs):
         is_warmup = i == 0
         phrase = phrases[i % len(phrases)]
 
-        # Ambient sample (short pre-roll)
-        try:
-            ambient = audio_recorder(0.5)
-            import numpy as np
-            ambient_rms = float(np.sqrt(np.mean(ambient ** 2)))
-            ambient_peak = float(np.max(np.abs(ambient)))
-            ambient_ok = ambient_rms < 0.05
-        except Exception:
-            ambient_rms, ambient_peak, ambient_ok = 0.0, 0.0, True
+        # --- Ambient measurement ---
+        ambient_rms: float | None = None
+        ambient_peak: float | None = None
+        ambient_ok = False
+        ambient_exc: str | None = None
 
-        # Main recording
+        try:
+            ambient_arr = ambient_sampler()
+            import numpy as np
+
+            arr = np.array(ambient_arr, dtype=float)
+            ambient_rms = float(np.sqrt(np.mean(arr ** 2)))
+            ambient_peak = float(np.max(np.abs(arr)))
+            ambient_ok = ambient_rms < 0.05
+        except Exception as exc:
+            ambient_exc = type(exc).__name__
+
+        # BLOCKER 4: ambient exception must not create fake zeros + ambient_ok=True
+        if ambient_exc is not None:
+            runs.append({
+                "warmup": is_warmup,
+                "phrase_idx": i,
+                "ambient_rms": None,
+                "ambient_peak": None,
+                "ambient_ok": False,
+                "excluded_reason": "ambient_error",
+                "ambient_error_type": ambient_exc,
+                "t0_to_first_text_ms": None,
+                "t0_to_first_audio_ms": None,
+                "record_ms": None,
+                "stt_ms": None,
+            })
+            continue
+
+        # --- Main recording ---
         t0 = time.perf_counter()
         try:
             audio = audio_recorder(4.0)
         except Exception as exc:
-            return {"ok": False, "error": f"recording_failed: {type(exc).__name__}",
-                    "mode": "real", "measurement_valid": False, "ts": ts,
-                    "t0_to_first_text_ms": None, "t0_to_first_audio_ms": None}
+            return {
+                **_early,
+                "ok": False,
+                "error": f"recording_failed: {type(exc).__name__}",
+            }
 
         record_ms = (time.perf_counter() - t0) * 1000
         t_after_record = time.perf_counter()
 
-        # STT
+        # BLOCKER 3: STT exception must not produce fake recognized="" + stt_ms=0.0
+        recognized: str | None = None
+        stt_ms: float | None = None
+        stt_exc: str | None = None
+
         try:
             recognized, stt_ms = stt_runner(audio)
         except Exception as exc:
-            recognized, stt_ms = "", 0.0
+            stt_exc = type(exc).__name__
 
+        if stt_exc is not None:
+            runs.append({
+                "warmup": is_warmup,
+                "phrase_idx": i,
+                "ambient_rms": ambient_rms,
+                "ambient_peak": ambient_peak,
+                "ambient_ok": ambient_ok,
+                "record_ms": record_ms,
+                "excluded_reason": "stt_error",
+                "stt_error_type": stt_exc,
+                "t0_to_first_text_ms": None,
+                "t0_to_first_audio_ms": None,
+            })
+            continue
+
+        # Metrics — only reachable when STT succeeded
         t_text_ready = time.perf_counter()
         after_record_to_text_ms = (t_text_ready - t_after_record) * 1000
         t0_to_first_text_ms = record_ms + after_record_to_text_ms
 
-        wer_raw, wer_normalized = compute_wer(phrase, recognized)
-
-        # J0 status (optional, measure if available)
-        try:
-            sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-            from j0_live_status import collect_status, _default_git_runner, _default_roadmap_loader
-            t_j0 = time.perf_counter()
-            collect_status(_default_git_runner, _default_roadmap_loader)
-            j0_status_ms = (time.perf_counter() - t_j0) * 1000
-        except Exception:
-            j0_status_ms = None
+        wer_raw, wer_normalized = compute_wer(phrase, recognized or "")
 
         runs.append({
             "warmup": is_warmup,
@@ -529,31 +652,30 @@ def _real_probe(
             "after_record_to_text_ms": after_record_to_text_ms,
             "t0_to_first_text_ms": t0_to_first_text_ms,
             "t0_to_first_audio_ms": None,  # TTS not implemented yet
-            "j0_status_ms": j0_status_ms,
-            "total_command_to_response_ms": t0_to_first_text_ms + (j0_status_ms or 0.0),
+            "j0_status_ms": j0_status_ms_global,
+            "total_command_to_response_ms": t0_to_first_text_ms + (j0_status_ms_global or 0.0),
             "recognized_text": recognized,
             "expected_text": phrase,
             "wer_raw": wer_raw,
             "wer_normalized": wer_normalized,
             "status_route_matched": "nerede" in (recognized or "").lower(),
-            "status_summary_sample": None,
+            "status_summary_sample": status_sample,
         })
 
     agg = aggregate_runs(runs)
 
-    # Determine gpu_used from runtime evidence
-    gpu_used: bool | None = None
-    gpu_warnings: list[str] = []
-    if backend_info["backend"] not in ("injected", "faster-whisper"):
-        gpu_warnings.append("backend unknown — gpu_used cannot be determined")
-    # If faster-whisper: would check model.device attribute; left as None without real model
-    if gpu_used is None:
-        gpu_warnings.append(
-            "gpu_used=null — cannot prove CUDA/GPU from backend; "
-            "check faster-whisper model.device after --real run"
-        )
+    # BLOCKER 2: gpu_verdict derived from latency verdict + proven GPU evidence.
+    # gpu_used=None → "ölçülemedi" regardless of latency result.
+    gpu_verdict = derive_gpu_verdict(agg["verdict"], gpu_used, measurement_valid=True)
 
-    warnings = ["TTS ölçülmedi, his metriği eksik"] + gpu_warnings
+    # Pick last successful (non-excluded) run for representative scalars
+    _last = next(
+        (r for r in reversed(runs) if not r.get("excluded_reason")),
+        runs[-1] if runs else None,
+    )
+
+    def _last_field(key: str) -> Any:
+        return _last.get(key) if _last else None
 
     return {
         "ok": True,
@@ -566,31 +688,33 @@ def _real_probe(
         "model": backend_info["model"],
         "compute_type": backend_info["compute_type"],
         "gpu_used": gpu_used,
-        "ambient_rms": runs[-1]["ambient_rms"] if runs else None,
-        "ambient_peak": runs[-1]["ambient_peak"] if runs else None,
-        "ambient_ok": runs[-1]["ambient_ok"] if runs else None,
-        "record_ms": runs[-1]["record_ms"] if runs else None,
-        "stt_ms": runs[-1]["stt_ms"] if runs else None,
-        "after_record_to_text_ms": runs[-1]["after_record_to_text_ms"] if runs else None,
-        "t0_to_first_text_ms": runs[-1]["t0_to_first_text_ms"] if runs else None,
+        "ambient_rms": _last_field("ambient_rms"),
+        "ambient_peak": _last_field("ambient_peak"),
+        "ambient_ok": _last_field("ambient_ok"),
+        "record_ms": _last_field("record_ms"),
+        "stt_ms": _last_field("stt_ms"),
+        "after_record_to_text_ms": _last_field("after_record_to_text_ms"),
+        "t0_to_first_text_ms": _last_field("t0_to_first_text_ms"),
         "t0_to_first_audio_ms": None,
-        "j0_status_ms": runs[-1]["j0_status_ms"] if runs else None,
-        "total_command_to_response_ms": runs[-1]["total_command_to_response_ms"] if runs else None,
-        "recognized_text": runs[-1]["recognized_text"] if runs else None,
-        "expected_text": runs[-1]["expected_text"] if runs else None,
-        "wer_raw": runs[-1]["wer_raw"] if runs else None,
-        "wer_normalized": runs[-1]["wer_normalized"] if runs else None,
-        "status_route_matched": runs[-1]["status_route_matched"] if runs else None,
-        "status_summary_sample": None,
+        "j0_status_ms": j0_status_ms_global,
+        "total_command_to_response_ms": _last_field("total_command_to_response_ms"),
+        "recognized_text": _last_field("recognized_text"),
+        "expected_text": _last_field("expected_text"),
+        "wer_raw": _last_field("wer_raw"),
+        "wer_normalized": _last_field("wer_normalized"),
+        "status_route_matched": _last_field("status_route_matched"),
+        # BLOCKER 5: always populated (real text or sentinel); null only with explicit warning
+        "status_summary_sample": status_sample,
         "thresholds": THRESHOLDS,
         "metric_stats": agg["metric_stats"],
         "verdict": agg["verdict"],
-        "gpu_verdict": agg["gpu_verdict"],
+        "gpu_verdict": gpu_verdict,
         "warnings": warnings,
         "runs": agg["annotated_runs"],
         "n_usable": agg["n"],
         "warmup_excluded": agg["warmup_excluded"],
         "ambient_excluded": agg["ambient_excluded"],
+        "error_excluded": agg["error_excluded"],
     }
 
 

@@ -19,12 +19,15 @@ from j0_spike_b_latency_probe import (
     THRESHOLDS,
     _MOCK_RECORD_MS,
     _MOCK_STT_MS,
+    _TURKISH_STATUS_SENTINEL,
+    _VALID_T0_DEFINITIONS,
     _make_mock_run,
     _real_probe,
     aggregate_runs,
     classify_audio_latency,
     classify_wer,
     compute_wer,
+    derive_gpu_verdict,
     normalize_text,
     run_mock,
     validate_backend,
@@ -209,9 +212,11 @@ def test_n_lt_3_usable_gives_yetersiz_veri():
     assert agg["verdict"] == "yetersiz_veri", (
         f"Expected 'yetersiz_veri' for n=2, got {agg['verdict']!r}"
     )
-    assert agg["gpu_verdict"] == "ölçülemedi", (
-        f"Expected 'ölçülemedi' for n=2, got {agg['gpu_verdict']!r}"
-    )
+    # gpu_verdict is derived separately via derive_gpu_verdict, not returned by aggregate_runs
+    assert "gpu_verdict" not in agg, "aggregate_runs must not return gpu_verdict"
+    # derive_gpu_verdict with yetersiz_veri verdict → ölçülemedi (even with proven GPU)
+    assert derive_gpu_verdict("yetersiz_veri", True, True) == "ölçülemedi"
+    assert derive_gpu_verdict("yetersiz_veri", None, True) == "ölçülemedi"
     assert agg["n"] == 2
 
 
@@ -349,6 +354,10 @@ def test_no_input_device_returns_ok_false():
     assert result.get("t0_to_first_audio_ms") is None, (
         "t0_to_first_audio_ms should be None when no device"
     )
+    # BLOCKER 6: t0_definition must be present on all output paths
+    assert result.get("t0_definition") in _VALID_T0_DEFINITIONS, (
+        f"t0_definition missing or invalid on no_input_device path: {result.get('t0_definition')!r}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -469,3 +478,308 @@ def test_existing_j0_module_still_importable():
     assert callable(collect_status), "collect_status must be callable"
     assert LiveStatus is not None
     assert callable(_default_git_runner), "_default_git_runner must be callable"
+
+
+# ===========================================================================
+# BLOCKER 1 — Mock must never look like a real pass
+# ===========================================================================
+
+def test_mock_verdict_is_gecersiz_olcum():
+    """Mock verdict must not be 'yeterli' — it is explicitly invalid."""
+    result = run_mock()
+    assert result["verdict"] == "geçersiz_ölçüm", (
+        f"mock verdict should be 'geçersiz_ölçüm', got {result['verdict']!r}"
+    )
+
+
+def test_mock_gpu_verdict_is_olculemedi():
+    """Mock gpu_verdict must be 'ölçülemedi' — no GPU evidence in mock."""
+    result = run_mock()
+    assert result["gpu_verdict"] == "ölçülemedi", (
+        f"mock gpu_verdict should be 'ölçülemedi', got {result['gpu_verdict']!r}"
+    )
+
+
+def test_measurement_valid_false_never_produces_yeterli():
+    """derive_gpu_verdict must return 'ölçülemedi' when measurement_valid=False."""
+    # Even with gpu_used=True, measurement_valid=False → ölçülemedi
+    assert derive_gpu_verdict("yeterli", True, measurement_valid=False) == "ölçülemedi"
+    assert derive_gpu_verdict("sınırda", True, measurement_valid=False) == "ölçülemedi"
+    # And mock output must have measurement_valid=False
+    result = run_mock()
+    assert result["measurement_valid"] is False
+    # Cross-check: verdict and gpu_verdict are both invalid
+    assert result["verdict"] != "yeterli"
+    assert result["gpu_verdict"] != "yeterli"
+
+
+# ===========================================================================
+# BLOCKER 2 — gpu_verdict requires proven GPU runtime evidence
+# ===========================================================================
+
+def test_gpu_used_null_gives_olculemedi():
+    """gpu_used=None (unproven) must produce gpu_verdict='ölçülemedi'."""
+    # Regardless of latency verdict
+    assert derive_gpu_verdict("yeterli", None, True) == "ölçülemedi"
+    assert derive_gpu_verdict("sınırda", None, True) == "ölçülemedi"
+    assert derive_gpu_verdict("yetersiz", None, True) == "ölçülemedi"
+
+
+def test_cuda_unproven_cannot_give_yeterli_gpu():
+    """Without proven CUDA/GPU evidence gpu_verdict cannot be 'yeterli'."""
+    # gpu_used=None even if verdict is good
+    gv = derive_gpu_verdict("yeterli", None, measurement_valid=True)
+    assert gv != "yeterli", (
+        f"gpu_verdict='yeterli' without proven GPU: got {gv!r}"
+    )
+    # gpu_used=False also cannot give yeterli
+    gv2 = derive_gpu_verdict("yeterli", False, measurement_valid=True)
+    assert gv2 != "yeterli", (
+        f"gpu_verdict='yeterli' with gpu_used=False: got {gv2!r}"
+    )
+
+
+def test_gpu_used_false_gives_yetersiz_gpu():
+    """gpu_used=False means no GPU → gpu_verdict='yetersiz'."""
+    assert derive_gpu_verdict("yeterli", False, True) == "yetersiz"
+    assert derive_gpu_verdict("sınırda", False, True) == "yetersiz"
+
+
+def test_proven_gpu_maps_verdict():
+    """Only gpu_used=True maps latency verdict to gpu_verdict."""
+    assert derive_gpu_verdict("yeterli", True, True) == "yeterli"
+    assert derive_gpu_verdict("sınırda", True, True) == "sınırda"
+    assert derive_gpu_verdict("yetersiz", True, True) == "yetersiz"
+    assert derive_gpu_verdict("yetersiz_veri", True, True) == "ölçülemedi"
+
+
+# ===========================================================================
+# BLOCKER 3 — STT exceptions must not create fake zeros
+# ===========================================================================
+
+def _mock_device():
+    return [{"name": "mock_mic", "max_input_channels": 1}]
+
+
+def _mock_audio(seconds: float):
+    return [0.0] * max(1, int(seconds * 16000))
+
+
+def test_stt_exception_no_fake_zeros():
+    """STT failure must not produce recognized='' and stt_ms=0.0."""
+    def failing_stt(_audio):
+        raise RuntimeError("model_load_failed")
+
+    result = _real_probe(
+        phrases=["nerede kaldık"],
+        n_runs=2,
+        device_lister=_mock_device,
+        audio_recorder=_mock_audio,
+        ambient_sampler=lambda: [0.0] * 8000,
+        stt_runner=failing_stt,
+    )
+    runs = result.get("runs", [])
+    stt_error_runs = [r for r in runs if r.get("excluded_reason") == "stt_error"]
+    assert len(stt_error_runs) > 0, "Expected at least one stt_error excluded run"
+    for r in stt_error_runs:
+        # Must NOT have fake zero stt_ms
+        assert r.get("stt_ms") is None, (
+            f"stt_ms should be None on STT error, got {r.get('stt_ms')!r}"
+        )
+        # Must NOT have fake empty recognized_text
+        assert "recognized_text" not in r or r.get("recognized_text") is None, (
+            f"recognized_text should be absent/None on STT error"
+        )
+        # Must NOT have fake t0_to_first_text_ms
+        assert r.get("t0_to_first_text_ms") is None, (
+            "t0_to_first_text_ms should be None on STT error"
+        )
+
+
+def test_stt_exception_excluded_with_stt_error_reason():
+    """STT failure run must carry excluded_reason='stt_error' and be excluded from stats."""
+    call_n = [0]
+
+    def sometimes_failing_stt(_audio):
+        call_n[0] += 1
+        if call_n[0] == 1:  # warmup pass
+            return ("ok", 100.0)
+        raise RuntimeError("transcription_error")
+
+    result = _real_probe(
+        phrases=["nerede kaldık"],
+        n_runs=3,
+        device_lister=_mock_device,
+        audio_recorder=_mock_audio,
+        ambient_sampler=lambda: [0.0] * 8000,
+        stt_runner=sometimes_failing_stt,
+    )
+    runs = result.get("runs", [])
+    stt_error_runs = [r for r in runs if r.get("excluded_reason") == "stt_error"]
+    assert len(stt_error_runs) >= 1, "Expected stt_error excluded runs"
+
+    # Verdict must not be 'yeterli' when most/all non-warmup runs failed STT
+    assert result.get("verdict") != "yeterli", (
+        "verdict should not be 'yeterli' when STT errors dominate"
+    )
+
+
+# ===========================================================================
+# BLOCKER 4 — Ambient exceptions must not create fake zeros
+# ===========================================================================
+
+def test_ambient_exception_no_fake_zeros():
+    """Ambient sampler failure must not produce ambient_rms=0, ambient_peak=0, ambient_ok=True."""
+    def failing_ambient():
+        raise RuntimeError("device_error")
+
+    result = _real_probe(
+        phrases=["nerede kaldık"],
+        n_runs=2,
+        device_lister=_mock_device,
+        audio_recorder=_mock_audio,
+        ambient_sampler=failing_ambient,
+        stt_runner=lambda a: ("nerede kaldık", 100.0),
+    )
+    runs = result.get("runs", [])
+    ambient_error_runs = [r for r in runs if r.get("excluded_reason") == "ambient_error"]
+    assert len(ambient_error_runs) > 0, "Expected ambient_error excluded runs"
+    for r in ambient_error_runs:
+        assert r.get("ambient_rms") is None, (
+            f"ambient_rms must be None on ambient error, got {r.get('ambient_rms')!r}"
+        )
+        assert r.get("ambient_peak") is None, (
+            f"ambient_peak must be None on ambient error, got {r.get('ambient_peak')!r}"
+        )
+        # ambient_ok must NOT be True (fake clean room)
+        assert r.get("ambient_ok") is not True, (
+            "ambient_ok must not be True when ambient sampling failed"
+        )
+
+
+def test_ambient_exception_excluded_from_stats():
+    """Ambient error runs must be excluded from statistical aggregation."""
+    def failing_ambient():
+        raise RuntimeError("device_error")
+
+    result = _real_probe(
+        phrases=["nerede kaldık"],
+        n_runs=2,
+        device_lister=_mock_device,
+        audio_recorder=_mock_audio,
+        ambient_sampler=failing_ambient,
+        stt_runner=lambda a: ("nerede kaldık", 100.0),
+    )
+    # n_usable must exclude ambient_error runs
+    error_excluded = result.get("error_excluded", 0)
+    ambient_excluded = result.get("ambient_excluded", 0)
+    total_excluded = error_excluded + ambient_excluded + (1 if result.get("warmup_excluded") else 0)
+    n_usable = result.get("n_usable", 0)
+    # With 2 runs and ambient failing on both: n_usable < 3 → verdict='yetersiz_veri'
+    assert result.get("verdict") in ("yetersiz_veri", "ölçülemedi"), (
+        f"Expected low-data verdict when ambient fails, got {result.get('verdict')!r}"
+    )
+
+
+# ===========================================================================
+# BLOCKER 5 — status_summary_sample populated; sentinel has all Turkish chars
+# ===========================================================================
+
+def test_sentinel_has_all_required_turkish_chars():
+    """_TURKISH_STATUS_SENTINEL must contain all 7 required Turkish chars."""
+    required = [
+        ("ç", "ç c-cedilla"),
+        ("ğ", "ğ g-breve"),
+        ("ı", "ı dotless-i"),
+        ("İ", "İ I-with-dot"),
+        ("ö", "ö o-umlaut"),
+        ("ş", "ş s-cedilla"),
+        ("ü", "ü u-umlaut"),
+    ]
+    for char, name in required:
+        assert char in _TURKISH_STATUS_SENTINEL, (
+            f"Required Turkish char {name} ({char!r}) missing from sentinel"
+        )
+
+
+def test_mock_status_summary_sample_populated():
+    """Mock output must have a non-null status_summary_sample."""
+    result = run_mock()
+    sample = result.get("status_summary_sample")
+    assert sample is not None, "status_summary_sample must not be None in mock output"
+    assert isinstance(sample, str) and len(sample) > 0, (
+        "status_summary_sample must be a non-empty string"
+    )
+
+
+def test_mock_status_summary_sample_has_turkish_chars():
+    """status_summary_sample in mock output must contain all required Turkish chars."""
+    result = run_mock()
+    sample = result["status_summary_sample"]
+    required = ["ç", "ğ", "ı", "İ", "ö", "ş", "ü"]
+    for char in required:
+        assert char in sample, (
+            f"Required Turkish char {char!r} missing from status_summary_sample"
+        )
+
+
+def test_real_status_summary_sample_populated_or_warned():
+    """Real probe with injected STT must set status_summary_sample (real or sentinel + warning)."""
+    result = _real_probe(
+        phrases=["nerede kaldık"],
+        n_runs=2,
+        device_lister=_mock_device,
+        audio_recorder=_mock_audio,
+        ambient_sampler=lambda: [0.0] * 8000,
+        stt_runner=lambda a: ("nerede kaldık", 100.0),
+    )
+    sample = result.get("status_summary_sample")
+    # Either populated (real or sentinel) — never silently null
+    if sample is None:
+        warnings_text = " ".join(result.get("warnings", []))
+        assert "status" in warnings_text.lower() or "j0_status" in warnings_text.lower(), (
+            "status_summary_sample is None without an explicit status warning"
+        )
+    else:
+        assert isinstance(sample, str) and len(sample) > 0
+
+
+def test_unicode_null_sample_without_warning_would_fail():
+    """validate_unicode must reject mojibake; null sample cannot silently pass."""
+    # Null is not a string — validate_unicode requires text; callers must not pass null
+    # Check that a mojibake string fails
+    ok, issues = validate_unicode("Ã§alışma ağacı")
+    assert ok is False, "Mojibake string must fail validate_unicode"
+    # And that the sentinel passes (no mojibake)
+    ok2, issues2 = validate_unicode(_TURKISH_STATUS_SENTINEL)
+    assert ok2 is True, f"Sentinel must pass validate_unicode, got issues: {issues2}"
+
+
+# ===========================================================================
+# BLOCKER 6 — t0_definition on ALL early-return paths
+# ===========================================================================
+
+def test_missing_sounddevice_early_return_has_t0_definition():
+    """sounddevice_not_installed early return must include t0_definition."""
+    # Temporarily hide sounddevice to trigger the ImportError path
+    saved = sys.modules.pop("sounddevice", None)
+    try:
+        result = _real_probe(phrases=["nerede kaldık"], n_runs=1)
+        # Either sounddevice was already loaded (not None), or early-exit was triggered
+        if result.get("ok") is False and result.get("error") == "sounddevice_not_installed":
+            assert result.get("t0_definition") in _VALID_T0_DEFINITIONS, (
+                f"t0_definition missing on sounddevice_not_installed path: "
+                f"{result.get('t0_definition')!r}"
+            )
+    finally:
+        if saved is not None:
+            sys.modules["sounddevice"] = saved
+
+
+def test_all_injected_early_failures_have_t0_definition():
+    """All _real_probe early-failure paths via device_lister must include t0_definition."""
+    # no_input_device path (already strengthened in test 17, verify once more)
+    result = _real_probe(phrases=["nerede kaldık"], n_runs=1, device_lister=lambda: [])
+    assert result.get("t0_definition") in _VALID_T0_DEFINITIONS, (
+        f"t0_definition missing on no_input_device path: {result.get('t0_definition')!r}"
+    )
