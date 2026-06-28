@@ -13,6 +13,9 @@ from typing import Any
 
 import pytest
 
+import json as _json
+import subprocess
+
 from j0_spike_b_latency_probe import (
     STT_PHRASES,
     T0_DEFINITION,
@@ -28,6 +31,7 @@ from j0_spike_b_latency_probe import (
     classify_wer,
     compute_wer,
     derive_gpu_verdict,
+    emit_result,
     normalize_text,
     run_mock,
     validate_backend,
@@ -783,3 +787,89 @@ def test_all_injected_early_failures_have_t0_definition():
     assert result.get("t0_definition") in _VALID_T0_DEFINITIONS, (
         f"t0_definition missing on no_input_device path: {result.get('t0_definition')!r}"
     )
+
+
+# ===========================================================================
+# UTF-8 stdout encoding — subprocess byte tests (no PYTHONIOENCODING)
+# ===========================================================================
+
+def test_mock_cli_stdout_is_strict_utf8_bytes():
+    """Spike-B --mock must emit raw UTF-8 bytes without PYTHONIOENCODING override.
+
+    Forbidden: text=True, PYTHONIOENCODING in env, errors='ignore'/'replace',
+    CP1254 decode. Fail if strict UTF-8 decode raises UnicodeDecodeError.
+    """
+    script = Path(__file__).resolve().parents[1] / "scripts" / "j0_spike_b_latency_probe.py"
+    proc = subprocess.run(
+        [sys.executable, str(script), "--mock"],
+        capture_output=True,
+        text=False,  # raw bytes — never text=True
+        # No PYTHONIOENCODING in env (inherit parent, which may be CP1254)
+    )
+    assert proc.returncode == 0, (
+        f"Spike-B --mock exited {proc.returncode}\nstderr={proc.stderr[:200]!r}"
+    )
+
+    # Must decode strictly as UTF-8 — UnicodeDecodeError = CP1254 leaked through
+    text = proc.stdout.decode("utf-8", errors="strict")
+    parsed = _json.loads(text)
+
+    assert parsed["measurement_valid"] is False
+    assert parsed["verdict"] == "geçersiz_ölçüm", (
+        f"verdict={parsed['verdict']!r} — expected 'geçersiz_ölçüm'"
+    )
+    assert parsed["gpu_verdict"] == "ölçülemedi", (
+        f"gpu_verdict={parsed['gpu_verdict']!r} — expected 'ölçülemedi'"
+    )
+    summary = parsed.get("summary", "")
+    assert summary.startswith("GEÇERSİZ ÖLÇÜM (MOCK)"), (
+        f"summary does not start with 'GEÇERSİZ ÖLÇÜM (MOCK)': {summary[:60]!r}"
+    )
+    sample = parsed.get("status_summary_sample", "")
+    for char in ["ç", "ğ", "ı", "İ", "ö", "ş", "ü"]:
+        assert char in sample, (
+            f"Turkish char {char!r} missing from status_summary_sample in raw UTF-8 output"
+        )
+
+
+def test_real_mode_serialization_path_is_utf8():
+    """Real-mode emit_result() must produce UTF-8 JSON identical to mock path (no hardware).
+
+    Uses BytesIO+TextIOWrapper to capture bytes from the shared emit_result()
+    function, proving real-mode serialization uses the same UTF-8 writer as mock.
+    """
+    import io
+
+    payload = {
+        "ok": True,
+        "mode": "real",
+        "measurement_valid": False,
+        "ts": "2026-01-01T00:00:00+00:00",
+        "verdict": "yetersiz_veri",
+        "gpu_verdict": "ölçülemedi",
+        "recognized_text": "nerede kaldık, şğışçöü",
+        "status_summary_sample": (
+            "Çalışma ağacı: TEMİZ\n"
+            "henüz devrede değil\n"
+            "Telegram gönderme\n"
+            "nerede kaldık araçtır\n"
+            "Şu an devam eden: İ"
+        ),
+    }
+
+    buf = io.BytesIO()
+    wrapper = io.TextIOWrapper(buf, encoding="utf-8", errors="strict")
+    emit_result(payload, stream=wrapper)
+    wrapper.flush()
+
+    raw = buf.getvalue()
+    # Strict decode — proves the bytes written are valid UTF-8
+    decoded = raw.decode("utf-8", errors="strict")
+    parsed = _json.loads(decoded)
+
+    assert parsed["mode"] == "real"
+    assert parsed["recognized_text"] == "nerede kaldık, şğışçöü"
+    for char in ["ç", "ğ", "ı", "İ", "ö", "ş", "ü"]:
+        assert char in parsed["status_summary_sample"], (
+            f"Turkish char {char!r} missing from real-mode serialized status_summary_sample"
+        )

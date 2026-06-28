@@ -19,6 +19,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any, Dict, List
 from unittest.mock import patch
 
@@ -259,6 +260,45 @@ def test_default_git_runner_includes_safe_directory_flag():
     assert _REPO_ROOT.as_posix() in safe_val, (
         f"expected posix path {_REPO_ROOT.as_posix()!r} in {safe_val!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Raw UTF-8 byte test — NO PYTHONIOENCODING (proves script handles it internally)
+# ---------------------------------------------------------------------------
+
+def test_cli_stdout_bytes_strict_utf8_no_pythonioencoding():
+    """j0_live_status.py must emit UTF-8 bytes without PYTHONIOENCODING env override.
+
+    The script calls configure_utf8_stdio() (shared helper) which calls
+    sys.stdout.reconfigure(encoding='utf-8'). This test proves it works without
+    any env-var help from the caller.
+
+    Forbidden: text=True, PYTHONIOENCODING in env, errors='ignore'/'replace', CP1254 decode.
+    """
+    spath = Path(_REPO_ROOT) / "scripts" / "j0_live_status.py"
+    # Explicitly remove PYTHONIOENCODING so the script must self-configure
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONIOENCODING"}
+    result = subprocess.run(
+        [sys.executable, str(spath)],
+        capture_output=True,
+        text=False,  # raw bytes — never text=True
+        env=env,
+    )
+    assert result.returncode == 0, (
+        f"j0_live_status exited {result.returncode}\nstderr={result.stderr[:200]!r}"
+    )
+    # Strict decode — UnicodeDecodeError means CP1254/other encoding leaked
+    text = result.stdout.decode("utf-8", errors="strict")
+    # Turkish codepoints must survive raw stdout bytes
+    for char in ["ş", "ı", "ğ", "ç"]:
+        assert char in text, (
+            f"Turkish char {char!r} missing from raw stdout bytes (no PYTHONIOENCODING)"
+        )
+    # No mojibake markers
+    for bad in ["Ã", "Ä", "Å", "â€", "Ã§", "Ä±"]:
+        assert bad not in text, (
+            f"Mojibake {bad!r} found in raw stdout bytes (no PYTHONIOENCODING)"
+        )
 
 
 def test_default_git_runner_exit_128_propagates():

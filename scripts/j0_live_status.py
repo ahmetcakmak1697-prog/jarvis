@@ -167,8 +167,9 @@ def collect_status(
 
 
 def main() -> None:
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8", errors="strict")
+    from _utf8io import configure_utf8_stdio
+
+    configure_utf8_stdio()
     import traceback
     try:
         status = collect_status(

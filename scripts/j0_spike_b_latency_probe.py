@@ -27,8 +27,6 @@ Packages required for --real mode (Ahmet installs manually):
 from __future__ import annotations
 
 import argparse
-import ast
-import json
 import re
 import statistics
 import sys
@@ -723,6 +721,17 @@ def run_real(phrases: list[str] | None = None, n_runs: int = 5) -> dict[str, Any
     return _real_probe(phrases=phrases, n_runs=n_runs)
 
 
+def emit_result(payload: dict[str, Any], stream=None) -> None:
+    """Write JSON result to stream (default: sys.stdout) as UTF-8 JSON.
+
+    Shared by --mock and --real paths so both use the same serialization code.
+    Tests inject a BytesIO+TextIOWrapper to capture bytes without subprocess.
+    """
+    from _utf8io import dump_json
+
+    dump_json(payload, stream=stream)
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -741,6 +750,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from _utf8io import configure_utf8_stdio
+
+    configure_utf8_stdio()
+
     parser = _build_parser()
     try:
         args = parser.parse_args(argv if argv is not None else sys.argv[1:])
@@ -752,7 +765,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         result = run_real(n_runs=args.runs)
 
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    emit_result(result)
     return 0 if result.get("ok") else 1
 
 
