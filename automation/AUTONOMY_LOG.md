@@ -477,10 +477,12 @@ BRANCH: auto/opencode-deepseek
 MODEL: Sonnet
 TASK: J0 UTF-8 Codex CONCERN fix — harden subprocess env isolation + main() path test
 OUTCOME: DONE
-TESTS: 50 Spike-B + 43 j0_live_status + 69 E1 — all pass
+TESTS: 48/48 Spike-B + 43 j0_live_status + 101 combined J0 + 69 E1 proactive — all pass
 FILES CHANGED: 3 — tests/test_j0_spike_b_latency_probe.py (3 test fixes/additions), scripts/_utf8io.py (docstring scope fix), automation/AUTONOMY_LOG.md (this note)
 RISKS: none; no Telegram, no .env, no scheduler, no live send, no --real
 HUMAN_GATES_HIT: none
+REAL_MEASUREMENT: not run — Spike-B real measurement pending Ahmet; --real not authorized until Codex PASS
+AUTO_STARTED: none — AUTO-0Q/AUTO-1 not started; scheduler/live/proactive activation not touched
 NEXT STEP: non-J0 CLI UTF-8 migration (checkpoint_summary, escalation_policy, mutation_gate, daily_report) remains follow-up scope — explicit task required
-COMMIT: pending
+COMMIT: 294c3a091 fix(j0): harden UTF-8 CLI regression tests
 ---
