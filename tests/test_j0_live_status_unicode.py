@@ -236,8 +236,10 @@ def test_unit_todo_step_produces_sira_bekleyen():
 # ---------------------------------------------------------------------------
 
 def test_default_git_runner_includes_safe_directory_flag():
-    """_default_git_runner must pass -c safe.directory=<repo_root> to avoid git exit 128
-    when the repo is owned by a different user (Codex / CI / elevated shell).
+    """_default_git_runner must pass -c safe.directory=<posix_path> to avoid git exit 128.
+
+    POSIX (forward-slash) path is required: git on Windows rejects backslash safe.directory
+    values with exit 128. The old backslash form f"safe.directory={_REPO_ROOT}" was broken.
     """
     with patch("subprocess.check_output", return_value="abc1234 test\n") as mock_co:
         _default_git_runner(["log", "--oneline", "-1"])
@@ -245,10 +247,18 @@ def test_default_git_runner_includes_safe_directory_flag():
     assert cmd[0] == "git"
     assert "-c" in cmd, "git -c flag missing — safe.directory override not present"
     safe_idx = cmd.index("-c")
-    assert cmd[safe_idx + 1].startswith("safe.directory="), (
-        f"expected safe.directory=... after -c, got {cmd[safe_idx + 1]!r}"
+    safe_val = cmd[safe_idx + 1]
+    assert safe_val.startswith("safe.directory="), (
+        f"expected safe.directory=... after -c, got {safe_val!r}"
     )
-    assert str(_REPO_ROOT) in cmd[safe_idx + 1], "REPO_ROOT not in safe.directory value"
+    # Must be POSIX (forward-slash) path — backslash form causes git exit 128 on Windows
+    assert "\\" not in safe_val, (
+        f"backslash in safe.directory value — git will reject it: {safe_val!r}"
+    )
+    assert "/" in safe_val, f"no forward slash in safe.directory value: {safe_val!r}"
+    assert _REPO_ROOT.as_posix() in safe_val, (
+        f"expected posix path {_REPO_ROOT.as_posix()!r} in {safe_val!r}"
+    )
 
 
 def test_default_git_runner_exit_128_propagates():
