@@ -471,3 +471,16 @@ HUMAN_GATES_HIT: none
 NEXT STEP: next J0 or proactive task as directed by Ahmet
 COMMIT: 2c5a08ffe
 ---
+---
+DATE: 2026-06-28
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: J0 UTF-8 Codex CONCERN fix — harden subprocess env isolation + main() path test
+OUTCOME: DONE
+TESTS: 50 Spike-B + 43 j0_live_status + 69 E1 — all pass
+FILES CHANGED: 3 — tests/test_j0_spike_b_latency_probe.py (3 test fixes/additions), scripts/_utf8io.py (docstring scope fix), automation/AUTONOMY_LOG.md (this note)
+RISKS: none; no Telegram, no .env, no scheduler, no live send, no --real
+HUMAN_GATES_HIT: none
+NEXT STEP: non-J0 CLI UTF-8 migration (checkpoint_summary, escalation_policy, mutation_gate, daily_report) remains follow-up scope — explicit task required
+COMMIT: pending
+---

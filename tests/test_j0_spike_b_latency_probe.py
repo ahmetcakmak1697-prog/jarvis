@@ -7,6 +7,8 @@ Pure-function tests only — no microphone, no STT model, no hardware.
 from __future__ import annotations
 
 import ast
+import io
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -793,25 +795,39 @@ def test_all_injected_early_failures_have_t0_definition():
 # UTF-8 stdout encoding — subprocess byte tests (no PYTHONIOENCODING)
 # ===========================================================================
 
+_MOJIBAKE = ["Ã", "Ä", "Å", "�", "â€", "Ã§", "Ä±"]
+
+
 def test_mock_cli_stdout_is_strict_utf8_bytes():
-    """Spike-B --mock must emit raw UTF-8 bytes without PYTHONIOENCODING override.
+    """Spike-B --mock must emit raw UTF-8 bytes without PYTHONIOENCODING.
+
+    PYTHONIOENCODING is explicitly stripped from the subprocess env so the
+    script must self-configure via configure_utf8_stdio() — a parent env that
+    already sets UTF-8 cannot hide a missing call.
 
     Forbidden: text=True, PYTHONIOENCODING in env, errors='ignore'/'replace',
-    CP1254 decode. Fail if strict UTF-8 decode raises UnicodeDecodeError.
+    CP1254 decode. UnicodeDecodeError = configure_utf8_stdio() missing.
     """
     script = Path(__file__).resolve().parents[1] / "scripts" / "j0_spike_b_latency_probe.py"
+    # Explicitly strip PYTHONIOENCODING — parent env cannot mask a missing configure_utf8_stdio()
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONIOENCODING"}
     proc = subprocess.run(
         [sys.executable, str(script), "--mock"],
         capture_output=True,
         text=False,  # raw bytes — never text=True
-        # No PYTHONIOENCODING in env (inherit parent, which may be CP1254)
+        env=env,
     )
     assert proc.returncode == 0, (
         f"Spike-B --mock exited {proc.returncode}\nstderr={proc.stderr[:200]!r}"
     )
 
-    # Must decode strictly as UTF-8 — UnicodeDecodeError = CP1254 leaked through
+    # Strict decode — UnicodeDecodeError = CP1254 bytes leaked (configure_utf8_stdio missing)
     text = proc.stdout.decode("utf-8", errors="strict")
+
+    # CONCERN 2: mojibake must be absent from raw decoded text
+    for bad in _MOJIBAKE:
+        assert bad not in text, f"Mojibake {bad!r} found in raw stdout bytes"
+
     parsed = _json.loads(text)
 
     assert parsed["measurement_valid"] is False
@@ -830,6 +846,10 @@ def test_mock_cli_stdout_is_strict_utf8_bytes():
         assert char in sample, (
             f"Turkish char {char!r} missing from status_summary_sample in raw UTF-8 output"
         )
+    # Mojibake must also be absent from parsed JSON string fields
+    for bad in _MOJIBAKE:
+        assert bad not in sample, f"Mojibake {bad!r} in status_summary_sample"
+        assert bad not in summary, f"Mojibake {bad!r} in summary"
 
 
 def test_real_mode_serialization_path_is_utf8():
@@ -873,3 +893,54 @@ def test_real_mode_serialization_path_is_utf8():
         assert char in parsed["status_summary_sample"], (
             f"Turkish char {char!r} missing from real-mode serialized status_summary_sample"
         )
+
+
+def test_main_real_path_configure_utf8_stdio_and_emit(monkeypatch):
+    """main(["--real"]) must call configure_utf8_stdio() before emit_result().
+
+    Starts sys.stdout as a CP1254-encoded BytesIO wrapper (simulating a broken
+    Windows console). configure_utf8_stdio() must reconfigure it to UTF-8 before
+    emit_result() writes Turkish JSON. Test FAILS if configure_utf8_stdio() is
+    removed from main() — CP1254 bytes for ı (0xFD) are invalid UTF-8.
+
+    No microphone is opened — run_real is monkeypatched.
+    No PYTHONIOENCODING is set.
+    """
+    import j0_spike_b_latency_probe as _mod
+
+    turkish_payload = {
+        "ok": True,
+        "mode": "real",
+        "measurement_valid": False,
+        "verdict": "yetersiz_veri",
+        "gpu_verdict": "ölçülemedi",
+        "recognized_text": "nerede kaldık, şğışçöü",
+        "status_summary_sample": _TURKISH_STATUS_SENTINEL,
+    }
+    monkeypatch.setattr(_mod, "run_real", lambda phrases=None, n_runs=5: turkish_payload)
+
+    buf = io.BytesIO()
+    # CP1254 wrapper: Turkish chars encode as single bytes (e.g. ı→0xFD) — NOT valid UTF-8.
+    # configure_utf8_stdio() must reconfigure this wrapper to UTF-8 before any write.
+    cp1254_wrapper = io.TextIOWrapper(buf, encoding="cp1254", errors="replace")
+    monkeypatch.setattr(sys, "stdout", cp1254_wrapper)
+
+    rc = _mod.main(["--real"])
+    cp1254_wrapper.flush()
+
+    raw = buf.getvalue()
+    # Strict decode — UnicodeDecodeError = configure_utf8_stdio() was missing or too late
+    decoded = raw.decode("utf-8", errors="strict")
+    parsed = _json.loads(decoded)
+
+    assert rc == 0
+    assert parsed["mode"] == "real"
+    assert parsed["recognized_text"] == "nerede kaldık, şğışçöü", (
+        "recognized_text corrupted — configure_utf8_stdio() may be missing from main()"
+    )
+    for char in ["ç", "ğ", "ı", "İ", "ö", "ş", "ü"]:
+        assert char in parsed["status_summary_sample"], (
+            f"Turkish char {char!r} missing — configure_utf8_stdio() may be missing from main()"
+        )
+    for bad in _MOJIBAKE:
+        assert bad not in decoded, f"Mojibake {bad!r} in main(--real) output"

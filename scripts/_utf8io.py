@@ -2,14 +2,21 @@
 scripts/_utf8io.py — Shared UTF-8 I/O helpers for JARVIS CLI scripts.
 
 Windows defaults stdout/stderr to the system codepage (e.g. CP1254/CP1252).
-Any JARVIS CLI that prints Turkish text must call configure_utf8_stdio() before
-writing anything. This module is the single source of that logic.
+This module is the single source of configure_utf8_stdio() / dump_json() logic.
 
-Usage in every CLI entrypoint:
+Currently applied to J0 Turkish CLI entrypoints:
+  - scripts/j0_spike_b_latency_probe.py
+  - scripts/j0_live_status.py
+
+Other automation CLIs that also print Turkish output (checkpoint_summary,
+escalation_policy, mutation_gate, daily_report) are follow-up scope — not
+yet migrated. Migrate them in a dedicated task, not in J0 commits.
+
+Usage:
     from _utf8io import configure_utf8_stdio, dump_json_to_stdout
 
     def main():
-        configure_utf8_stdio()
+        configure_utf8_stdio()  # must be first — before any print/JSON
         ...
         dump_json_to_stdout(result)
 """
