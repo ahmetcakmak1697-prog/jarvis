@@ -20,10 +20,11 @@ import os
 import subprocess
 import sys
 from typing import Any, Dict, List
+from unittest.mock import patch
 
 import pytest
 
-from j0_live_status import collect_status
+from j0_live_status import _REPO_ROOT, _default_git_runner, collect_status
 
 
 # ---------------------------------------------------------------------------
@@ -228,3 +229,32 @@ def test_unit_todo_step_produces_sira_bekleyen():
     summary = status.text_summary()
     assert "Sıra bekleyen:" in summary, "Sıra bekleyen: missing when todo steps exist"
     assert "FAZ-X" in summary
+
+
+# ---------------------------------------------------------------------------
+# Safe.directory regression — git exit 128 fix
+# ---------------------------------------------------------------------------
+
+def test_default_git_runner_includes_safe_directory_flag():
+    """_default_git_runner must pass -c safe.directory=<repo_root> to avoid git exit 128
+    when the repo is owned by a different user (Codex / CI / elevated shell).
+    """
+    with patch("subprocess.check_output", return_value="abc1234 test\n") as mock_co:
+        _default_git_runner(["log", "--oneline", "-1"])
+    cmd = mock_co.call_args[0][0]
+    assert cmd[0] == "git"
+    assert "-c" in cmd, "git -c flag missing — safe.directory override not present"
+    safe_idx = cmd.index("-c")
+    assert cmd[safe_idx + 1].startswith("safe.directory="), (
+        f"expected safe.directory=... after -c, got {cmd[safe_idx + 1]!r}"
+    )
+    assert str(_REPO_ROOT) in cmd[safe_idx + 1], "REPO_ROOT not in safe.directory value"
+
+
+def test_default_git_runner_exit_128_propagates():
+    """Git exit 128 (permission/ownership) must propagate as CalledProcessError, not be silently lost."""
+    exc = subprocess.CalledProcessError(128, ["git", "log"], output="fatal: unsafe repository")
+    with patch("subprocess.check_output", side_effect=exc):
+        with pytest.raises(subprocess.CalledProcessError) as exc_info:
+            _default_git_runner(["log", "--oneline", "-1"])
+    assert exc_info.value.returncode == 128

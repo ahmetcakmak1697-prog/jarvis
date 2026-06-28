@@ -31,7 +31,9 @@ RoadmapLoader = Callable[[], Any]
 
 
 def _default_git_runner(args: List[str]) -> str:
-    cmd = ["git"] + args
+    # -c safe.directory per-command: avoids exit 128 when repo is owned by a different
+    # user (Codex / CI / elevated shell). Does not mutate global git config.
+    cmd = ["git", "-c", f"safe.directory={_REPO_ROOT}"] + args
     return subprocess.check_output(
         cmd, cwd=str(_REPO_ROOT), text=True, encoding="utf-8", stderr=subprocess.STDOUT
     )
