@@ -457,3 +457,17 @@ CODEX_STATUS_AT_EXECUTION: a39db4568 was Codex PASS (33 wiring tests + 157 regre
 NEXT STEP: Explicit approval required for each of: scheduler creation, JARVIS_PROACTIVE_ENABLED=1, --live wiring
 COMMIT: (see git log for docs commit)
 ---
+
+---
+DATE: 2026-06-28
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: J0 Unicode/mojibake fix — Turkish status output
+OUTCOME: DONE
+TESTS: 40 J0 tests passed (17 existing + 23 new in test_j0_live_status_unicode.py); 69 E1 tests unaffected
+FILES CHANGED: 3 — scripts/j0_live_status.py (encoding=utf-8 in git runner), tests/test_j0_live_status.py (fix broken assertion), tests/test_j0_live_status_unicode.py (new, 23 tests)
+RISKS: none; no Telegram, no .env, no scheduler, no live send; E1-S7A not started
+HUMAN_GATES_HIT: none
+NEXT STEP: next J0 or proactive task as directed by Ahmet
+COMMIT: 2c5a08ffe
+---

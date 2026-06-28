@@ -58,6 +58,14 @@ Evidence:
 - Exactly 1 message sent; no retry; no scheduler; no background loop
 - Codex PASS on a39db4568 before execution (33+157 tests)
 
+## J0 Unicode Fix
+DONE (2c5a08ffe)
+Root cause: test_cli_utf8_subprocess asserted "Sıra bekleyen:" which only appears when
+roadmap has TODO steps. The CLI output itself was already correct UTF-8.
+Fixes: encoding=utf-8 in _default_git_runner; broken test assertion replaced with
+always-present footer strings; 23-test test_j0_live_status_unicode.py added.
+E1 delivery/proactive side remains parked.
+
 ## Next Recommended Phase
 E1 proactive runtime and scheduler activation — each requires explicit human approval:
 - Scheduler creation: scripts/create_jarvis_task.ps1 -Apply (NOT yet run)
