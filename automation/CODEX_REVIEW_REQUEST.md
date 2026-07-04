@@ -36,7 +36,7 @@ Phone receipt confirmed. One message sent. Token/chat_id not exposed.
 **Commit 3:** c3d3ade28  docs(j0): add commit hashes to Codex review request
 **Blocker-fix commit 1:** 76206e92e  fix(j0): address J0A Codex blockers
 **Blocker-fix commit 2:** 93c3bc698  docs(j0): record blocker-fix commit hash in review request
-**Blocker-fix commit 3 (this round):** TBD — fix(j0): close remaining J0A review blockers
+**Blocker-fix commit 3:** 6ccb1d943  fix(j0): close remaining J0A review blockers
 
 ### Files Changed
 
