@@ -486,3 +486,28 @@ AUTO_STARTED: none — AUTO-0Q/AUTO-1 not started; scheduler/live/proactive acti
 NEXT STEP: non-J0 CLI UTF-8 migration (checkpoint_summary, escalation_policy, mutation_gate, daily_report) remains follow-up scope — explicit task required
 COMMIT: 294c3a091 fix(j0): harden UTF-8 CLI regression tests
 ---
+
+---
+DATE: 2026-07-04
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: SPRINT-J0A — repo audit, harvest map, backlog, default-off realtime voice adapter skeleton
+OUTCOME: DONE (pending Codex review)
+TESTS: 70 new (35 test_j0_voice_adapters.py + 35 test_j0_voice_loop.py); 170 existing PASS; total 240 PASS
+FILES CHANGED:
+  new code: scripts/j0_voice_adapters.py, scripts/j0_tts_adapters.py, scripts/j0_voice_loop.py,
+            requirements-voice.txt, tests/test_j0_voice_adapters.py, tests/test_j0_voice_loop.py
+  new docs: docs/JARVIS_REPO_AUDIT.md, docs/JARVIS_HARVEST_MAP.md, docs/JARVIS_BACKLOG.md,
+            docs/j0_realtime_adapter_plan.md, docs/THIRD_PARTY_VOICE.md
+  updated:  automation/SESSION_SUMMARY.md, automation/AUTONOMY_LOG.md, automation/CODEX_REVIEW_REQUEST.md
+RISKS:
+  - Turkish chars in _ROUTE_PHRASES/_FOLD_TABLE use literal UTF-8 chars (not \uXXXX escapes) — cosmetic style deviation;
+    functionally correct; Write tool writes UTF-8 directly; all tests pass.
+  - requirements-voice.txt: all versions TODO_VERIFY_VERSION; no install; Ahmet grounds before any pip.
+HUMAN_GATES_HIT: Codex PASS required before J0B
+AUTO_STARTED: none — no AUTO/orchestrator, no scheduler, no Telegram, no .env, no mic, no push
+INVARIANTS: JARVIS_J0_REALTIME_ENABLED=0 default; --real-mic flag required; no live audio path in tests;
+            roadmap_state.json untouched; proactive --live still exit 1
+NEXT STEP: Codex review of J0A commits; if PASS -> J0B (real Piper subprocess + Edge TTS fallback)
+COMMIT: [set after commits complete]
+---

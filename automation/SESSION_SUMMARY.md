@@ -8,108 +8,97 @@
 ---
 
 ## Session Date
-2026-06-27
+2026-07-04
 
 ## Current Branch
 auto/opencode-deepseek
 
+## Sprint
+SPRINT-J0A — supervised acceleration sprint
+
 ## Last Implementation Commit
-c8eee9a84 fix(proactive): harden dry-run runner CLI contract
+[set after commit 1 completes — see CODEX_REVIEW_REQUEST.md]
 
-## Last Reconciliation Commits
-4ab3ccd86 docs(automation): update logs after E1-S6A Codex fix
+## Last Reconciliation Commit
+[set after commit 2 completes]
 
-## Completed This Session
-- AUTO-1A through AUTO-1E: automation harness + doctrine — DONE (committed)
-- E1-S1: proactive delivery gap audit — DONE (df2ea4cfe)
-- E1-S2: deliver() + tests — DONE (f0a05486c)
-- E1-S3A: run_proactive_delivery() + tests — DONE (58b72431e)
-- E1-S3B: telegram adapter seam — DONE (a6052aaf8)
-- T1-S1: test_tr_quality.py skeleton — DONE (e4c9d8d50)
-- Codex concern fix: invalid plan guards — DONE (91c38c405)
-- fix(cli): Rich markup crash in local mode diagnostic — DONE (0b127e7cc)
-- fix(local-agent): grounding rule + SESSION_SUMMARY injection — DONE (926616582)
-- fix(local-agent): compact GUNCEL PROJE DURUMU block with git log — DONE (9bbdab0c4)
-- T1-S2: Ahmet live Turkish quality sign-off — DONE / PASS (2026-06-24)
-- E1-S5: scheduler architecture decision — DONE / APPROVED (Ahmet, 2026-06-24)
-- E1-S6A–E: decomposition written — SAFE_AUTONOMOUS tasks queued
-- E1-S6A: proactive_runner.py dry-run CLI — DONE (cc0072ac5)
-- E1-S6A FIX: Codex BLOCKER addressed — DONE (c8eee9a84) — Codex re-review PASS 2026-06-27
+## Completed This Session (J0A)
 
-- E1-S6B: DeliveryResult struct + logging — DONE / Codex PASS 2026-06-27 (a53001577 + fix 648b74455)
+### Phase 0 — Safety Preflight
+- Working tree: CLEAN at session start
+- roadmap_state.json: VALID JSON
+- Existing tests: 101 J0 + 69 proactive = 170 PASS, 0 FAIL
 
-- E1-S6C: Windows Task Scheduler docs + ps1 template — DONE / Codex PASS 2026-06-28 (3de2e1035 + fix 4f6a5b6e0)
+### Phase 1 — Repo Audit
+- docs/JARVIS_REPO_AUDIT.md created
+- Key finding: no existing voice route to j0_live_status; SemanticRouter.RESEARCH_KW falsely routes "nerede kaldık" → research. Voice loop adds its own route table.
+- UTF-8 gap: checkpoint_summary, escalation_policy, mutation_gate, daily_report lack configure_utf8_stdio. Listed, not fixed (outside J0 scope).
 
-- E1-S6D: live-mode guard regression tests — DONE / Codex PASS 2026-06-28 (b4670036b)
+### Phase 2 — Harvest Map
+- docs/JARVIS_HARVEST_MAP.md created
+- All harvest decisions from sprint prompt mapped to repo integration points.
+- No disagreements with harvest decisions found.
 
-- E1-S6E: throttle/cooldown guard — DONE / Codex PASS 2026-06-28 (c9c7d75b3 + fix 399587609)
+### Phase 3 — Backlog
+- docs/JARVIS_BACKLOG.md created
+- Sequenced J0B → J1 → J2/J5 → J4 → J6; J7 parked.
 
-## E1-S6A–E Status
-All five safety guards complete and Codex-approved.
+### Phase 4 — J0 Implementation
 
-## E1-S4 Status
-DONE — Ahmet confirmed live Telegram receipt 2026-06-27T22:51:38Z
+#### 4.0 Plan
+- docs/j0_realtime_adapter_plan.md created
 
-Evidence:
-- Command: py -3.11 -m agents.proactive_runner --e1-s4-smoke
-- sent=true, reason="sent", ts=2026-06-27T22:51:38.969829+00:00
-- Message: "JARVIS E1-S4 live Telegram smoke test. If you received this, live delivery path works."
-- Token/chat_id not exposed in output
-- Exactly 1 message sent; no retry; no scheduler; no background loop
-- Codex PASS on a39db4568 before execution (33+157 tests)
+#### 4.1–4.6 Code
+- scripts/j0_voice_adapters.py — STTAdapter protocol, RealtimeSTTAdapter (lazy import, config-only constructor), FakeSTTAdapter
+- scripts/j0_tts_adapters.py — TTSAdapter protocol, TTSResult dataclass (None+warning contract; ValueError on 0), FakeTTSAdapter, PiperSubprocessAdapter stub (NotImplementedError J0B), EdgeTTSAdapter stub, build_piper_cmd pure function
+- scripts/j0_voice_loop.py — _ascii_fold (fixes İ U+0130 dot-I problem), _matches_status_intent, route_and_respond (injectable status_provider), run_one_turn, main() default-off CLI
+- requirements-voice.txt — candidate deps, all TODO_VERIFY_VERSION
+- docs/THIRD_PARTY_VOICE.md — name, version [UNVERIFIED], license [UNVERIFIED], integration, fallback
 
-## J0 Unicode Fix
-DONE (2c5a08ffe)
-Root cause: test_cli_utf8_subprocess asserted "Sıra bekleyen:" which only appears when
-roadmap has TODO steps. The CLI output itself was already correct UTF-8.
-Fixes: encoding=utf-8 in _default_git_runner; broken test assertion replaced with
-always-present footer strings; 23-test test_j0_live_status_unicode.py added.
-E1 delivery/proactive side remains parked.
+### Phase 5 — Tests
+- tests/test_j0_voice_adapters.py — 35 tests PASS
+- tests/test_j0_voice_loop.py — 35 tests PASS
+- Existing J0 suites: 101 PASS (no regression)
+- Existing proactive suites: 69 PASS (no regression)
+- Total new: 70 tests; total passing: 240
 
-## Next Recommended Phase
-E1 proactive runtime and scheduler activation — each requires explicit human approval:
-- Scheduler creation: scripts/create_jarvis_task.ps1 -Apply (NOT yet run)
-- Live delivery activation: JARVIS_PROACTIVE_ENABLED=1 (NOT yet enabled)
-- --live wiring in run_once() (NOT yet implemented)
-These remain future work behind explicit safety gates.
+### Key Bug Found and Fixed
+- İ (U+0130, dotted-I) → str.lower() → "i̇" (i + combining dot U+0307), not "i".
+- Fix: replace("İ", "i") before .lower() in _ascii_fold.
+- Covered by test_ascii_fold_upper_turkish_chars.
 
-## E1-S6B Status
-DONE — Codex PASS 2026-06-27. Commits: a53001577 (initial) + 648b74455 (blocker fix).
-- DeliveryResult frozen dataclass: sent, dry_run, plan_status, reason, error, ts
-- deliver() and run_proactive_delivery() return DeliveryResult; reason codes documented
-- deliver() precedence: not_ready checked before noop_no_sender
-- run_once() serialises DeliveryResult into "delivery" key in JSON output
-- roadmap_state.json E1-S6B.status = "done"
+## JARVIS_J0_REALTIME_ENABLED Invariant
+- Default: "0" (disabled)
+- Real mic path requires env=1 AND --real-mic flag
+- Never triggered by tests
+
+## --live Still Exit 1
+- proactive_runner.py --live: RuntimeError, exit 1 (E1-S6D contract)
+- j0_voice_loop.py: no --live flag exists; real-mic path exits 0 with "disabled" if only env=1
 
 ## Pending — HUMAN_REQUIRED
-None. All E1-S4–E1-S6E human gates are satisfied.
+- Codex PASS required before any next phase (J0B)
+- Ahmet must manually pin requirements-voice.txt versions and run pip install
+- Ahmet must manually download Piper tr_TR voice model
+- Ahmet must run py -3.11 scripts/j0_voice_loop.py --real-mic (first run = warmup)
 
 ## Git State
 ```
 branch:       auto/opencode-deepseek
-working tree: clean (at time of last edit — verify with git status)
-tests:        51/51 PASS (test_e1_6a_proactive_runner + delivery + runtime)
+working tree: uncommitted (two commits pending — see Phase 6)
+tests:        35+35=70 new PASS; 101+69=170 existing PASS; total 240
 ```
 
-## E1-S6A Status
-DONE — Codex PASS 2026-06-27. Commits: cc0072ac5 (initial) + c8eee9a84 (blocker fix).
-- Supported invocation: py -3.11 -m agents.proactive_runner
-- --live always blocked (RuntimeError regardless of env)
-- run_once(dry_run=False) raises RuntimeError (gate inside every caller)
-- argparse: unknown args rejected, --dry-run+--live mutually exclusive
-- roadmap_state.json E1-S6A.status = "done"
-
-## FAZ-T1 Status
-DONE — T1-S2 signed off by Ahmet 2026-06-24. PASS with minor wording concerns.
-roadmap_state.json FAZ-T1.status = "done". See automation/T1_S2_SMOKE_RESULTS.md.
-
-## E1-S6B Context (next task)
-Replace bool return from deliver() and run_proactive_delivery() with DeliveryResult dataclass.
-Resolves silent-exception design debt.
-- New file: tests/test_e1_6b_delivery_result.py
-- Update: agents/proactive_delivery.py, agents/proactive_runtime.py
-- Update existing tests if needed (test_proactive_delivery.py, test_proactive_runtime.py)
-- Acceptance: py -3.11 -m pytest tests/test_e1_6b_delivery_result.py tests/test_proactive_delivery.py tests/test_proactive_runtime.py tests/test_e1_6a_proactive_runner.py -q --tb=short
+## Invariant Confirmations
+- No Telegram sent
+- No scheduler enabled
+- No AUTO/orchestrator touched
+- No .env read
+- No mic opened
+- No packages installed
+- No push
+- roadmap_state.json untouched
+- --live still exit 1 (proactive_runner)
 
 ---
-*Written by: Claude Code | Date: 2026-06-27*
+*Written by: Claude Code | Date: 2026-07-04 | Sprint: J0A*
