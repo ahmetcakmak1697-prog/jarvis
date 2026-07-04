@@ -1,0 +1,21 @@
+# candidate deps — versions unverified; Ahmet grounds + pins before install
+# Do NOT install these without verifying versions and checking for breaking changes.
+# Run: pip install -r requirements-voice.txt (only after Ahmet confirms versions)
+
+# STT adapter — wraps faster-whisper + Silero VAD + openWakeWord
+RealtimeSTT==TODO_VERIFY_VERSION
+
+# Underlying ASR engine (used by RealtimeSTT)
+faster-whisper==TODO_VERIFY_VERSION
+
+# Wake-word detection backend (used by RealtimeSTT via wake_word_backend="oww")
+openwakeword==TODO_VERIFY_VERSION
+
+# TTS — subprocess only (Piper), no pip install; download binary separately
+# piper-tts: install as binary, not pip package — see docs/THIRD_PARTY_VOICE.md
+
+# Audio I/O (required by RealtimeSTT for real microphone path)
+sounddevice==TODO_VERIFY_VERSION
+
+# VAD (bundled inside RealtimeSTT; listed for transparency)
+# silero-vad: distributed as torch model; loaded by RealtimeSTT automatically
