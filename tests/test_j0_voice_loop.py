@@ -387,3 +387,163 @@ def test_cli_stdout_no_cp1254_artifacts():
         assert marker not in text, (
             f"Mojibake marker {marker!r} (U+{ord(marker):04X}) found in output"
         )
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER-1 FIX: Missing RealtimeSTT must fail cleanly (no traceback)
+# ---------------------------------------------------------------------------
+
+
+def test_real_mic_missing_realtimestt_exits_cleanly_no_traceback():
+    """env=1 + --real-mic + RealtimeSTT absent => structured JSON error, no traceback."""
+    code = (
+        "import sys, importlib.util as _iu\n"
+        "sys.path.insert(0, r'" + str(_SCRIPTS_DIR) + "')\n"
+        "orig = _iu.find_spec\n"
+        "def _miss(name, *a, **kw):\n"
+        "    if name == 'RealtimeSTT': return None\n"
+        "    return orig(name, *a, **kw)\n"
+        "_iu.find_spec = _miss\n"
+        "import os; os.environ['JARVIS_J0_REALTIME_ENABLED'] = '1'\n"
+        "sys.argv = [sys.argv[0], '--real-mic']\n"
+        "from j0_voice_loop import main\n"
+        "main()\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+    )
+    stderr_text = result.stderr.decode("utf-8", errors="replace")
+    assert "Traceback" not in stderr_text, (
+        f"Unexpected Python traceback in stderr: {stderr_text[:500]}"
+    )
+    assert "ModuleNotFoundError" not in stderr_text, (
+        f"Uncaught ModuleNotFoundError in stderr: {stderr_text[:500]}"
+    )
+    stdout_bytes = result.stdout
+    stdout_text = stdout_bytes.decode("utf-8", errors="strict")
+    assert len(stdout_text) > 0, "Expected structured JSON output; got empty stdout"
+    assert "missing_dependency" in stdout_text or "error" in stdout_text, (
+        f"Expected missing_dependency error in stdout: {stdout_text!r}"
+    )
+    assert result.returncode == 1, (
+        f"Expected exit 1 for missing dep; got {result.returncode}"
+    )
+
+
+def test_real_mic_missing_realtimestt_stdout_is_valid_utf8():
+    """Error output for missing dep must be valid strict UTF-8."""
+    code = (
+        "import sys, importlib.util as _iu\n"
+        "sys.path.insert(0, r'" + str(_SCRIPTS_DIR) + "')\n"
+        "orig = _iu.find_spec\n"
+        "def _miss(name, *a, **kw):\n"
+        "    if name == 'RealtimeSTT': return None\n"
+        "    return orig(name, *a, **kw)\n"
+        "_iu.find_spec = _miss\n"
+        "import os; os.environ['JARVIS_J0_REALTIME_ENABLED'] = '1'\n"
+        "sys.argv = [sys.argv[0], '--real-mic']\n"
+        "from j0_voice_loop import main\n"
+        "main()\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+    )
+    raw = result.stdout
+    text = raw.decode("utf-8", errors="strict")  # strict: no invalid sequences
+    for marker in _MOJIBAKE_MARKERS:
+        assert marker not in text, f"Mojibake in error output: {marker!r}"
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER-3 FIX: Turkish raw UTF-8 bytes from voice loop path
+# ---------------------------------------------------------------------------
+
+
+def _run_turkish_route_subprocess(turkish_input: str, turkish_summary: str) -> bytes:
+    """Run route_and_respond with Turkish content in a subprocess; return raw stdout bytes.
+
+    Removes PYTHONIOENCODING so Python uses its default (or our reconfigured) encoding.
+    stdout.reconfigure(encoding='utf-8', errors='strict') is applied inside the subprocess.
+    """
+    code = (
+        "import sys\n"
+        "sys.path.insert(0, r'" + str(_SCRIPTS_DIR) + "')\n"
+        "sys.stdout.reconfigure(encoding='utf-8', errors='strict')\n"
+        "sys.stderr.reconfigure(encoding='utf-8', errors='replace')\n"
+        "from j0_voice_loop import route_and_respond\n"
+        "class S:\n"
+        "    def text_summary(self): return " + repr(turkish_summary) + "\n"
+        "resp = route_and_respond(" + repr(turkish_input) + ", status_provider=lambda: S())\n"
+        "sys.stdout.write(resp)\n"
+        "sys.stdout.flush()\n"
+    )
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONIOENCODING"}
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        env=env,
+    )
+    assert result.returncode == 0, (
+        f"Turkish route subprocess failed: {result.stderr.decode('utf-8', 'replace')}"
+    )
+    return result.stdout
+
+
+def test_turkish_route_output_is_strict_utf8():
+    """route_and_respond with Turkish status summary produces strict UTF-8 bytes."""
+    summary = (
+        "nerede kaldık - şu an devam eden: TEST_MARKER_TR"
+    )
+    raw = _run_turkish_route_subprocess("nerede kaldik", summary)
+    text = raw.decode("utf-8", errors="strict")
+    assert "TEST_MARKER_TR" in text
+
+
+def test_turkish_route_output_contains_turkish_codepoints():
+    """Turkish codepoints in status summary survive the subprocess encoding stack."""
+    # Summary contains: ı (U+0131), ş (U+015F), ğ (U+011F), ü (U+00FC), ç (U+00E7)
+    summary = (
+        "nerede kaldık - Şğışçöü - MARKER_CODEPOINTS"
+    )
+    raw = _run_turkish_route_subprocess("nerede kaldik", summary)
+    text = raw.decode("utf-8", errors="strict")
+
+    # Verify specific Turkish chars present
+    assert "ı" in text, "dotless-i (U+0131) missing from output"
+    assert "MARKER_CODEPOINTS" in text
+
+
+def test_turkish_route_output_no_mojibake():
+    """Turkish output from route path must not contain mojibake markers."""
+    summary = "nerede kaldık - MARKER_MOJIBAKE_CHECK - şçö"
+    raw = _run_turkish_route_subprocess("son commit neydi", summary)
+    text = raw.decode("utf-8", errors="strict")
+
+    extended_mojibake = ["Ã", "Ä", "Å", "â€", "Ã§", "Ä±", "�"]
+    for marker in extended_mojibake:
+        assert marker not in text, (
+            f"Mojibake marker {marker!r} found in Turkish route output: {text!r}"
+        )
+
+
+def test_ascii_fold_output_via_subprocess_bytes():
+    """_ascii_fold on Turkish input including U+0130 (dotted-I) produces correct ASCII bytes."""
+    # Test via subprocess to verify no encoding layer mangling
+    code = (
+        "import sys\n"
+        "sys.path.insert(0, r'" + str(_SCRIPTS_DIR) + "')\n"
+        "sys.stdout.reconfigure(encoding='utf-8', errors='strict')\n"
+        "from j0_voice_loop import _ascii_fold\n"
+        "result = _ascii_fold('İŞĞÜÖÇ')\n"  # I S G U O C
+        "sys.stdout.write(result)\n"
+        "sys.stdout.flush()\n"
+    )
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONIOENCODING"}
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, env=env)
+    assert result.returncode == 0
+    raw = result.stdout
+    text = raw.decode("utf-8", errors="strict")
+    # After folding: I(U+0130)->i, S(U+015E)->s, G(U+011E)->g, U(U+00DC)->u, O(U+00D6)->o, C(U+00C7)->c
+    assert text == "isguoc", f"Expected 'isguoc'; got {text!r}"

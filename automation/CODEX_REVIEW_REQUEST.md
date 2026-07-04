@@ -33,6 +33,8 @@ Phone receipt confirmed. One message sent. Token/chat_id not exposed.
 
 **Commit 1:** 591ded854  feat(j0): add default-off realtime voice adapter skeleton
 **Commit 2:** c619b2619  docs(j0): sprint audit, harvest map, backlog, adapter plan, third-party notes
+**Commit 3:** c3d3ade28  docs(j0): add commit hashes to Codex review request
+**Blocker-fix commit:** (hash set after commit — see git log)
 
 ### Files Changed
 

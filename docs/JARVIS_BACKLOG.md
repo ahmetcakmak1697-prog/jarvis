@@ -7,9 +7,36 @@
 
 ---
 
+## BLACKBOX-0 — Pre-J0B Checkpoint (mini-sprint)
+
+**Entry gate:** J0A Codex PASS.
+
+**Purpose:** Before enabling any real audio hardware, verify the adapter skeleton
+works end-to-end in a controlled offline environment:
+- Confirm import safety on the target machine (RealtimeSTT importable or missing_dependency clean)
+- Confirm `py -3.11 scripts/j0_voice_loop.py` disabled-mode exits 0 with correct JSON
+- Confirm all 240+ tests pass on target machine
+- Confirm `git diff --check` clean
+- Confirm no network calls in test run
+
+**What is NOT in BLACKBOX-0:**
+- No microphone open
+- No model download
+- No Piper subprocess
+- No live TTS
+- No scheduler/proactive activation
+
+**Human gate:** Ahmet runs the validation commands and confirms clean. Only then proceed to J0B.
+
+**Note:** Any real-mic command (e.g., `py -3.11 scripts/j0_voice_loop.py --real-mic`) is
+future/manual, after BLACKBOX-0 confirmation AND after J0B Piper integration.
+Do NOT run real-mic before BLACKBOX-0 decision.
+
+---
+
 ## J0B — Real TTS + Piper Subprocess
 
-**Entry gate:** J0A Codex PASS. `j0_voice_adapters.py` and `j0_tts_adapters.py` merged.
+**Entry gate:** BLACKBOX-0 complete (Ahmet confirmed). `j0_voice_adapters.py` and `j0_tts_adapters.py` from J0A merged and validated.
 
 **Dependencies:**
 - Piper binary + tr_TR voice model (download separately; not in repo)

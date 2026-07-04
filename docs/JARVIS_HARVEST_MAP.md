@@ -63,7 +63,7 @@ These modules are **not deleted**, not renamed, and not imported by the new adap
 
 | Adopted Library | Integration Method | Status |
 |---|---|---|
-| Piper tr_TR | Subprocess (GPL-safe via process boundary) | **J0B stub only.** `PiperSubprocessAdapter.speak()` raises `NotImplementedError("J0B")`. |
+| Piper tr_TR | Subprocess boundary reduces coupling and linking ambiguity; no legal conclusion is made; license and distribution/commercial-use must be verified before use. | **J0B stub only.** `PiperSubprocessAdapter.speak()` raises `NotImplementedError("J0B")`. |
 | Edge TTS | Default-off cloud fallback adapter | **J0B stub only.** `EdgeTTSAdapter.speak()` raises `NotImplementedError("J0B-edge")`. |
 
 ### `scripts/j0_voice_loop.py`

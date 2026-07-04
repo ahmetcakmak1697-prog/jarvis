@@ -156,7 +156,7 @@ All CLI output via `_utf8io.configure_utf8_stdio()` + `dump_json_to_stdout()`.
 |---|---|
 | RealtimeSTT not installed | `is_available()` returns False (no import error at module level). CLI stays default-off. |
 | Unknown voice intent | route_and_respond returns a short "not understood" message in Turkish. |
-| j0_live_status fails | Exception propagates; voice loop logs to stderr and returns error text. |
+| j0_live_status fails | Exception propagates in J0A. Callers handle or surface the exception. No silent swallow, no automatic retry. |
 | PiperSubprocessAdapter used | `NotImplementedError("J0B")` — explicit, loud. |
 | first_audio_hint_ms requested | Returns None + warning string. Never 0. |
 

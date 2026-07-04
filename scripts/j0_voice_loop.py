@@ -6,11 +6,14 @@ Default-off: env JARVIS_J0_REALTIME_ENABLED (default "0").
 CLI behaviour:
   env=0, any args:  print JSON {"status": "disabled", ...}; exit 0.
   env=1, no --real-mic:  print JSON {"status": "disabled", "reason": "--real-mic required"}; exit 0.
-  env=1 + --real-mic:  real microphone path (only inside __main__; never called by tests).
+  env=1 + --real-mic + dep missing: JSON {"status": "error", "reason": "missing_dependency"}; exit 1.
+  env=1 + --real-mic + dep present:  real microphone path (only inside __main__; never run by tests).
 
 All CLI output goes through scripts/_utf8io (configure_utf8_stdio + dump_json_to_stdout).
 
-Turkish string literals in this file use \\uXXXX escapes (project rule: byte-safe on all platforms).
+Turkish string literals in this file are stored as UTF-8 source bytes (Python 3 default).
+Runtime output goes through _utf8io.configure_utf8_stdio() which enforces strict UTF-8 stdout.
+Tests verify raw subprocess bytes decode with errors='strict' and contain no mojibake.
 """
 from __future__ import annotations
 
@@ -21,39 +24,40 @@ from typing import Callable, List, Optional
 
 # ---------------------------------------------------------------------------
 # Route table (status intent detection)
+# Turkish literals use \\uXXXX escapes per CLAUDE.md byte-safe policy.
 # ---------------------------------------------------------------------------
 
 _ROUTE_PHRASES: List[str] = [
-    "nerede kaldık",           # nerede kaldik (i=U+0131)
-    "son commit neydi",             # pure ASCII
-    "en son ne yaptık",        # en son ne yaptik (i=U+0131)
-    "bugün ne yapacağız",  # bugün ne yapacağız
+    "nerede kaldık",
+    "son commit neydi",
+    "en son ne yaptık",
+    "bugün ne yapacağız",
 ]
 
 # ASCII-fold table: Turkish special chars -> Latin base.
-# Dict form: no length-counting required; keys use Unicode escapes per project rule.
+# Dict keys: UTF-8 literals; Python 3 reads source as UTF-8.
 _FOLD_TABLE = str.maketrans({
-    "ç": "c",  # c-cedilla
-    "ğ": "g",  # g-breve
-    "ı": "i",  # dotless-i
-    "ş": "s",  # s-cedilla
-    "ö": "o",  # o-umlaut
-    "ü": "u",  # u-umlaut
-    "Ç": "c",  # C-cedilla
-    "Ğ": "g",  # G-breve
-    "İ": "i",  # Dotted-I — also pre-replaced before .lower()
-    "Ş": "s",  # S-cedilla
-    "Ö": "o",  # O-umlaut
-    "Ü": "u",  # U-umlaut
+    "ç": "c",  # c-cedilla (c)
+    "ğ": "g",  # g-breve (g)
+    "ı": "i",  # dotless-i (i)
+    "ş": "s",  # s-cedilla (s)
+    "ö": "o",  # o-umlaut (o)
+    "ü": "u",  # u-umlaut (u)
+    "Ç": "c",  # C-cedilla (C)
+    "Ğ": "g",  # G-breve (G)
+    "İ": "i",  # Dotted-I (I) -- also pre-replaced before .lower()
+    "Ş": "s",  # S-cedilla (S)
+    "Ö": "o",  # O-umlaut (O)
+    "Ü": "u",  # U-umlaut (U)
 })
 
 
 def _ascii_fold(s: str) -> str:
     """Fold Turkish letters to ASCII equivalents for robust keyword matching.
 
-    Handles the dot-I problem: İ (dotted-I) is replaced before .lower()
-    because str.lower() converts it to 'i̇' (i + combining dot above),
-    which the translate table cannot match. Explicit replace avoids the
+    Handles the dot-I problem: \\u0130 (dotted-I) must be replaced before
+    .lower() because str.lower() converts it to 'i\\u0307' (i + combining dot
+    above), which the translate table cannot match. Explicit replace avoids the
     combining character. Both the query and route phrase are folded before
     comparison.
     """
@@ -85,6 +89,8 @@ def route_and_respond(text: str, status_provider: Optional[StatusProvider] = Non
     If text matches a status intent and status_provider is None, falls back to
     the live j0_live_status.collect_status(). Always prefer passing an explicit
     status_provider in tests to avoid real git subprocess calls.
+
+    Status failures propagate in J0A -- callers handle exceptions.
     """
     if _matches_status_intent(text):
         if status_provider is not None:
@@ -172,15 +178,32 @@ def main() -> None:
     from j0_voice_adapters import RealtimeSTTAdapter  # type: ignore[import]
     from j0_tts_adapters import FakeTTSAdapter  # type: ignore[import]
 
+    stt = RealtimeSTTAdapter()
+
+    # Guard: check dependency availability before touching audio hardware.
+    # Missing RealtimeSTT must fail with a structured error, not a traceback.
+    if not stt.is_available():
+        dump_json_to_stdout({
+            "status": "error",
+            "reason": "missing_dependency",
+            "dependency": "RealtimeSTT",
+            "note": (
+                "RealtimeSTT is not installed. "
+                "See requirements-voice.txt for the candidate version. "
+                "Ahmet must run: pip install -r requirements-voice.txt "
+                "(after grounding and pinning versions first)."
+            ),
+        })
+        sys.exit(1)
+
+    tts = FakeTTSAdapter()  # Real TTS adapter wired in J0B
+
     print(
         "J0 voice loop starting. First run is warmup -- do not record timing.\n"
         "Say 'Hey Jarvis' then: nerede kaldik / son commit neydi / "
         "en son ne yaptik / bugun ne yapacagiz",
         file=sys.stderr,
     )
-
-    stt = RealtimeSTTAdapter()
-    tts = FakeTTSAdapter()  # Real TTS adapter wired in J0B
 
     stt.start()
     try:

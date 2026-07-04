@@ -183,14 +183,48 @@ def test_realtime_stt_listen_raises_if_not_started():
 # ---------------------------------------------------------------------------
 
 
-def test_realtime_stt_is_available_returns_bool():
+def test_realtime_stt_is_available_false_when_spec_missing():
+    """is_available() returns False when importlib.util.find_spec cannot locate RealtimeSTT."""
+    import importlib.util as _ilu
     from j0_voice_adapters import RealtimeSTTAdapter
 
-    result = RealtimeSTTAdapter().is_available()
-    assert isinstance(result, bool)
-    # Does not matter True or False — RealtimeSTT may not be installed.
-    # What matters: no exception raised, no import triggered.
-    assert "RealtimeSTT" not in sys.modules or True  # idempotent
+    original = _ilu.find_spec
+
+    def _missing(name, *args, **kwargs):
+        if name == "RealtimeSTT":
+            return None
+        return original(name, *args, **kwargs)
+
+    _ilu.find_spec = _missing
+    try:
+        result = RealtimeSTTAdapter().is_available()
+    finally:
+        _ilu.find_spec = original
+
+    assert result is False
+
+
+def test_realtime_stt_is_available_true_when_spec_found():
+    """is_available() returns True when importlib.util.find_spec locates the package."""
+    import importlib.util as _ilu
+    from types import SimpleNamespace
+    from j0_voice_adapters import RealtimeSTTAdapter
+
+    original = _ilu.find_spec
+    fake_spec = SimpleNamespace(name="RealtimeSTT")
+
+    def _present(name, *args, **kwargs):
+        if name == "RealtimeSTT":
+            return fake_spec
+        return original(name, *args, **kwargs)
+
+    _ilu.find_spec = _present
+    try:
+        result = RealtimeSTTAdapter().is_available()
+    finally:
+        _ilu.find_spec = original
+
+    assert result is True
 
 
 # ---------------------------------------------------------------------------
