@@ -31,10 +31,8 @@ Phone receipt confirmed. One message sent. Token/chat_id not exposed.
 
 ## SPRINT-J0A — OPEN (2026-07-04)
 
-**Commit 1:** feat(j0): add default-off realtime voice adapter skeleton
-**Commit 2:** docs(j0): sprint audit, harvest map, backlog, adapter plan, third-party notes
-
-(Commit hashes to be filled after `git log --oneline -2`)
+**Commit 1:** 591ded854  feat(j0): add default-off realtime voice adapter skeleton
+**Commit 2:** c619b2619  docs(j0): sprint audit, harvest map, backlog, adapter plan, third-party notes
 
 ### Files Changed
 
