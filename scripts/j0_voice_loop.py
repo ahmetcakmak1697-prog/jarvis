@@ -24,7 +24,8 @@ from typing import Callable, List, Optional
 
 # ---------------------------------------------------------------------------
 # Route table (status intent detection)
-# Turkish literals use \\uXXXX escapes per CLAUDE.md byte-safe policy.
+# Turkish string literals: UTF-8 source bytes (Python 3 default).
+# See module docstring for encoding policy and test evidence.
 # ---------------------------------------------------------------------------
 
 _ROUTE_PHRASES: List[str] = [

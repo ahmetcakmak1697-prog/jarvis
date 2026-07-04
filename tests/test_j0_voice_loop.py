@@ -94,7 +94,14 @@ def test_import_voice_loop_does_not_load_realtimestt(monkeypatch):
 
 
 def _run_voice_loop_subprocess(env_override: dict) -> subprocess.CompletedProcess:
-    env = {**os.environ, **env_override}
+    """Run j0_voice_loop.py as a subprocess (actual CLI path).
+
+    j0_voice_loop.py's own main() calls configure_utf8_stdio() before any output.
+    PYTHONIOENCODING is removed so the app's encoding setup is exercised, not
+    overridden by the caller. capture_output=True returns bytes (text=False).
+    """
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONIOENCODING"}
+    env.update(env_override)
     return subprocess.run(
         [sys.executable, str(_VOICE_LOOP_PATH)],
         capture_output=True,
@@ -462,16 +469,24 @@ def test_real_mic_missing_realtimestt_stdout_is_valid_utf8():
 
 
 def _run_turkish_route_subprocess(turkish_input: str, turkish_summary: str) -> bytes:
-    """Run route_and_respond with Turkish content in a subprocess; return raw stdout bytes.
+    """Writer-path test: route_and_respond with Turkish content via app encoding setup.
 
-    Removes PYTHONIOENCODING so Python uses its default (or our reconfigured) encoding.
-    stdout.reconfigure(encoding='utf-8', errors='strict') is applied inside the subprocess.
+    This is a WRITER PATH test, not a full CLI path test. It exercises:
+      route_and_respond() → text_summary() → sys.stdout.write() via configure_utf8_stdio().
+
+    configure_utf8_stdio() is called from the application module (_utf8io), NOT from
+    the test itself (no sys.stdout.reconfigure in test code). PYTHONIOENCODING is removed
+    so the app's own encoding setup is what determines the encoding, not the caller.
+    capture_output=True returns bytes (text=False). Decoding is done by the test caller.
+
+    For the CLI path proof (j0_voice_loop.py main() calling configure_utf8_stdio),
+    see _run_voice_loop_subprocess and the CLI tests.
     """
     code = (
         "import sys\n"
         "sys.path.insert(0, r'" + str(_SCRIPTS_DIR) + "')\n"
-        "sys.stdout.reconfigure(encoding='utf-8', errors='strict')\n"
-        "sys.stderr.reconfigure(encoding='utf-8', errors='replace')\n"
+        "from _utf8io import configure_utf8_stdio\n"
+        "configure_utf8_stdio()\n"
         "from j0_voice_loop import route_and_respond\n"
         "class S:\n"
         "    def text_summary(self): return " + repr(turkish_summary) + "\n"
@@ -502,17 +517,37 @@ def test_turkish_route_output_is_strict_utf8():
 
 
 def test_turkish_route_output_contains_turkish_codepoints():
-    """Turkish codepoints in status summary survive the subprocess encoding stack."""
-    # Summary contains: ı (U+0131), ş (U+015F), ğ (U+011F), ü (U+00FC), ç (U+00E7)
+    """All claimed Turkish codepoints in status summary survive the encoding stack.
+
+    Claims: ı (U+0131), ş (U+015F), ğ (U+011F), ü (U+00FC), ç (U+00E7), ö (U+00F6),
+    İ (U+0130 — included via the input phrase path).
+    Each is asserted individually so a failure names the missing codepoint.
+    Mojibake markers are also asserted absent.
+    """
+    # Summary contains all claimed codepoints.
+    # Also include İ (U+0130) to test that dotted-I survives the encoding stack.
     summary = (
-        "nerede kaldık - Şğışçöü - MARKER_CODEPOINTS"
+        "nerede kaldık - İŞğışçöü - MARKER_CODEPOINTS"
     )
     raw = _run_turkish_route_subprocess("nerede kaldik", summary)
     text = raw.decode("utf-8", errors="strict")
 
-    # Verify specific Turkish chars present
-    assert "ı" in text, "dotless-i (U+0131) missing from output"
     assert "MARKER_CODEPOINTS" in text
+
+    # Assert every claimed Turkish codepoint individually
+    assert "ı" in text, "dotless-i (U+0131) missing from output"
+    assert "ş" in text, "s-cedilla (U+015F) missing from output"
+    assert "ğ" in text, "g-breve (U+011F) missing from output"
+    assert "ü" in text, "u-umlaut (U+00FC) missing from output"
+    assert "ç" in text, "c-cedilla (U+00E7) missing from output"
+    assert "ö" in text, "o-umlaut (U+00F6) missing from output"
+    assert "İ" in text, "dotted-I (U+0130) missing from output"
+
+    # Assert mojibake markers absent
+    for marker in ["Ã", "Ä", "Å", "â€", "Ã§", "Ä±", "�"]:
+        assert marker not in text, (
+            f"Mojibake marker {marker!r} found in codepoint test output: {text!r}"
+        )
 
 
 def test_turkish_route_output_no_mojibake():
@@ -529,14 +564,18 @@ def test_turkish_route_output_no_mojibake():
 
 
 def test_ascii_fold_output_via_subprocess_bytes():
-    """_ascii_fold on Turkish input including U+0130 (dotted-I) produces correct ASCII bytes."""
-    # Test via subprocess to verify no encoding layer mangling
+    """_ascii_fold on Turkish input including U+0130 (dotted-I) produces correct ASCII bytes.
+
+    Uses application configure_utf8_stdio() (not direct sys.stdout.reconfigure) and
+    removes PYTHONIOENCODING so the app's encoding setup is what matters.
+    """
     code = (
         "import sys\n"
         "sys.path.insert(0, r'" + str(_SCRIPTS_DIR) + "')\n"
-        "sys.stdout.reconfigure(encoding='utf-8', errors='strict')\n"
+        "from _utf8io import configure_utf8_stdio\n"
+        "configure_utf8_stdio()\n"
         "from j0_voice_loop import _ascii_fold\n"
-        "result = _ascii_fold('İŞĞÜÖÇ')\n"  # I S G U O C
+        "result = _ascii_fold('İŞĞÜÖÇ')\n"
         "sys.stdout.write(result)\n"
         "sys.stdout.flush()\n"
     )
@@ -545,5 +584,5 @@ def test_ascii_fold_output_via_subprocess_bytes():
     assert result.returncode == 0
     raw = result.stdout
     text = raw.decode("utf-8", errors="strict")
-    # After folding: I(U+0130)->i, S(U+015E)->s, G(U+011E)->g, U(U+00DC)->u, O(U+00D6)->o, C(U+00C7)->c
+    # After folding: İ(U+0130)->i, Ş(U+015E)->s, Ğ(U+011E)->g, Ü(U+00DC)->u, Ö(U+00D6)->o, Ç(U+00C7)->c
     assert text == "isguoc", f"Expected 'isguoc'; got {text!r}"

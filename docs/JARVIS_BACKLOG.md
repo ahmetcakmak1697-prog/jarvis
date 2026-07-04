@@ -3,7 +3,7 @@
 > Phase 3 output. Doc only. No implementation.
 > Date: 2026-07-04. Sprint: J0A.
 > J7 (OpenHands) is parked — not sequenced below.
-> Active front after J0A: J0B (real Piper subprocess, real edge-TTS fallback wiring).
+> Active front after J0A: BLACKBOX-0 (offline validation, Ahmet confirms) → then J0B (real Piper subprocess, real edge-TTS fallback wiring).
 
 ---
 
@@ -55,7 +55,15 @@ Do NOT run real-mic before BLACKBOX-0 decision.
 - Wake-word model training — openWakeWord pretrained model is adopted.
 - STT model fine-tuning — faster-whisper pretrained "small" model used.
 
-**Human gate before J0B:** Ahmet manually runs `pip install -r requirements-voice.txt`, confirms model downloads, runs `py -3.11 scripts/j0_voice_loop.py --real-mic` warmup, and reports first-audio onset.
+**Human gate to enable real-mic (FUTURE MANUAL ONLY — after BLACKBOX-0 + J0B):**
+
+> **NOT part of J0A. Not authorized now. Runs only after BLACKBOX-0 is confirmed and J0B implementation is complete.**
+
+After BLACKBOX-0 confirmation AND after J0B Piper integration, Ahmet manually:
+1. Pins versions in requirements-voice.txt (reads `pip show <pkg>` after install)
+2. Runs `pip install -r requirements-voice.txt`
+3. Confirms model downloads
+4. Runs `py -3.11 scripts/j0_voice_loop.py --real-mic` warmup and reports first-audio onset
 
 ---
 
@@ -160,7 +168,7 @@ Do NOT run real-mic before BLACKBOX-0 decision.
 ## Sequencing Summary
 
 ```
-J0A (current) → Codex PASS → J0B (TTS + Piper real) → Codex PASS
+J0A → Codex PASS → BLACKBOX-0 (offline validation, Ahmet confirms) → J0B (TTS + Piper real) → Codex PASS
   → J1 (memory BGE-M3 + MemPalace) → Codex PASS
     → J2/J5 (HA box + Wyoming + ESP32) → partial milestone
       → J4 (Grafana + HUD) → metrics baseline
