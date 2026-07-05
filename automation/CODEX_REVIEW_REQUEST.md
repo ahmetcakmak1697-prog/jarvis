@@ -129,8 +129,8 @@ PASS / CONCERN / BLOCKER
 for supervised JARVIS sprints.
 
 **Commits:**
-- **Implementation commit:** TBD — feat(automation): add BLACKBOX-0 append-only sprint audit log
-- **Docs commit:** TBD — docs(automation): document BLACKBOX-0 runbook and review evidence
+- **Implementation commit:** 49c21abce  feat(automation): add BLACKBOX-0 append-only sprint audit log
+- **Docs commit:** 80398058a  docs(automation): document BLACKBOX-0 runbook and review evidence
 
 ### Files Changed
 
