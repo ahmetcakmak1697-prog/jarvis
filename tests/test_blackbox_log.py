@@ -1,0 +1,727 @@
+"""
+tests/test_blackbox_log.py — BLACKBOX-0 audit log tests.
+
+Coverage:
+  1.  append first event → sequence=1, previous_event_hash=null
+  2.  append second event → links to first event_hash
+  3.  validate clean log → ok=True
+  4.  tampering with first event → validation failure
+  5.  deleting a middle event → validation failure
+  6.  duplicate sequence → validation failure
+  7.  invalid JSON line → validation failure
+  8.  missing required field → validation failure
+  9.  append succeeds despite corrupt prior log → integrity_warnings
+  10. append succeeds despite broken hash chain → integrity_warnings
+  11. clean log matches its anchor
+  12. tampered log fails against old anchor
+  13. recomputing event hashes after tampering still fails old anchor digest
+  14. concurrency: two threads → no duplicate sequence
+  15. redaction removes obvious secrets
+  16. redaction does not destroy normal text
+  17. raw diff/log evidence is not stored verbatim
+  18. event_hash is deterministic
+  19. UTF-8 Turkish text survives round-trip
+  20. raw bytes decode strictly as UTF-8
+  21. no mojibake markers in output
+  22. commit_hash=null is valid (no self-referential requirement)
+  23. Codex verdict event records PASS/CONCERN/BLOCKER
+  24. safety_flags records sprint constraints
+  25. validate_log returns structured errors, not only bool
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import threading
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+# Ensure agents/ is on sys.path
+import sys
+_AGENTS_DIR = Path(__file__).resolve().parents[1] / "agents"
+if str(_AGENTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_AGENTS_DIR))
+
+from blackbox_log import (
+    AppendResult,
+    AnchorVerifyResult,
+    ValidationResult,
+    append_event,
+    compute_log_digest,
+    create_anchor_record,
+    validate_log,
+    verify_anchor,
+    _canonical_json,
+    _compute_event_hash,
+    _redact_dict,
+    _sanitize_evidence,
+    REQUIRED_FIELDS,
+)
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+_MOJIBAKE_MARKERS = ["Ã", "Ä", "Å", "â€", "Ã§", "Ä±", "�"]
+
+_MINIMAL_EVENT = {
+    "event_type": "sprint_started",
+    "sprint_id": "BB0-test",
+    "actor": "ClaudeCode",
+    "summary": "Test sprint started",
+}
+
+
+def _minimal(overrides: dict | None = None) -> dict:
+    e = dict(_MINIMAL_EVENT)
+    if overrides:
+        e.update(overrides)
+    return e
+
+
+# ---------------------------------------------------------------------------
+# 1. First event: sequence=1, previous_event_hash=null
+# ---------------------------------------------------------------------------
+
+
+def test_first_event_sequence_and_prev_hash(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    result = append_event(log, _minimal())
+
+    assert result.ok, f"Expected ok; got error={result.error}"
+    assert result.appended
+    assert result.sequence == 1
+    assert result.previous_event_hash is None
+
+    line = log.read_text(encoding="utf-8").strip()
+    event = json.loads(line)
+    assert event["sequence"] == 1
+    assert event["previous_event_hash"] is None
+
+
+# ---------------------------------------------------------------------------
+# 2. Second event links to first event_hash
+# ---------------------------------------------------------------------------
+
+
+def test_second_event_links_to_first(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    r1 = append_event(log, _minimal({"summary": "event 1"}))
+    r2 = append_event(log, _minimal({"summary": "event 2"}))
+
+    assert r1.ok and r2.ok
+    assert r2.sequence == 2
+    assert r2.previous_event_hash == r1.event_hash
+
+    lines = log.read_text(encoding="utf-8").strip().splitlines()
+    e2 = json.loads(lines[1])
+    assert e2["previous_event_hash"] == r1.event_hash
+
+
+# ---------------------------------------------------------------------------
+# 3. Validate clean log passes
+# ---------------------------------------------------------------------------
+
+
+def test_validate_clean_log_ok(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    for i in range(3):
+        append_event(log, _minimal({"summary": f"event {i}"}))
+
+    result = validate_log(log)
+    assert result.ok, f"Expected ok=True; errors={result.errors}"
+    assert result.event_count == 3
+    assert result.last_sequence == 3
+    assert len(result.errors) == 0
+
+
+# ---------------------------------------------------------------------------
+# 4. Tampering with first event causes validation failure
+# ---------------------------------------------------------------------------
+
+
+def test_tampered_first_event_fails_validation(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    append_event(log, _minimal({"summary": "original summary"}))
+    append_event(log, _minimal({"summary": "second event"}))
+
+    # Rewrite first line with modified summary
+    lines = log.read_text(encoding="utf-8").splitlines()
+    e1 = json.loads(lines[0])
+    e1["summary"] = "TAMPERED summary"
+    lines[0] = _canonical_json(e1)
+    log.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    result = validate_log(log)
+    assert not result.ok
+    assert any("event_hash" in err or "mismatch" in err.lower() for err in result.errors), (
+        f"Expected hash mismatch error; got: {result.errors}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 5. Deleting a middle event causes validation failure
+# ---------------------------------------------------------------------------
+
+
+def test_deleted_middle_event_fails_validation(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    for i in range(3):
+        append_event(log, _minimal({"summary": f"event {i}"}))
+
+    lines = log.read_text(encoding="utf-8").splitlines()
+    # Remove the middle event (index 1 = sequence 2)
+    lines.pop(1)
+    log.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    result = validate_log(log)
+    assert not result.ok
+    assert any("sequence" in err.lower() or "out-of-order" in err.lower()
+               or "previous_event_hash" in err for err in result.errors), (
+        f"Expected sequence/chain error; got: {result.errors}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 6. Duplicate sequence causes validation failure
+# ---------------------------------------------------------------------------
+
+
+def test_duplicate_sequence_fails_validation(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    append_event(log, _minimal({"summary": "event 1"}))
+    append_event(log, _minimal({"summary": "event 2"}))
+
+    # Manually craft a third line with duplicate sequence=2
+    lines = log.read_text(encoding="utf-8").splitlines()
+    e1 = json.loads(lines[0])
+    # Build a fake event with sequence=2 (duplicate)
+    fake = dict(e1)
+    fake["sequence"] = 2
+    fake["summary"] = "duplicate"
+    fake["event_hash"] = _compute_event_hash(fake)
+    lines.append(_canonical_json(fake))
+    log.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    result = validate_log(log)
+    assert not result.ok
+    assert any("duplicate" in err.lower() for err in result.errors), (
+        f"Expected duplicate sequence error; got: {result.errors}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 7. Invalid JSON line causes validation failure
+# ---------------------------------------------------------------------------
+
+
+def test_invalid_json_line_fails_validation(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    append_event(log, _minimal())
+
+    with log.open("ab") as f:
+        f.write(b"NOT_VALID_JSON\n")
+
+    result = validate_log(log)
+    assert not result.ok
+    assert any("invalid json" in err.lower() for err in result.errors), (
+        f"Expected invalid JSON error; got: {result.errors}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 8. Missing required field causes validation failure
+# ---------------------------------------------------------------------------
+
+
+def test_missing_required_field_fails_validation(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    append_event(log, _minimal())
+
+    lines = log.read_text(encoding="utf-8").splitlines()
+    e1 = json.loads(lines[0])
+    del e1["actor"]  # remove required field
+    # Don't recompute hash (also tests hash mismatch)
+    lines[0] = _canonical_json(e1)
+    log.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    result = validate_log(log)
+    assert not result.ok
+    found_field_error = any(
+        "actor" in err or "missing required" in err.lower()
+        for err in result.errors
+    )
+    assert found_field_error, f"Expected missing-field error; got: {result.errors}"
+
+
+# ---------------------------------------------------------------------------
+# 9. Append succeeds despite corrupt prior log (integrity_warnings)
+# ---------------------------------------------------------------------------
+
+
+def test_append_succeeds_despite_corrupt_log(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    append_event(log, _minimal())
+
+    # Corrupt the existing line
+    log.write_bytes(b"CORRUPT_LINE\n")
+
+    result = append_event(log, _minimal({"summary": "new event after corruption"}))
+
+    assert result.ok, f"append_event must succeed despite corrupt log; error={result.error}"
+    assert result.appended
+    assert len(result.integrity_warnings) > 0, (
+        "Expected integrity_warnings about the corrupt prior log"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 10. Append succeeds despite broken hash chain (integrity_warnings)
+# ---------------------------------------------------------------------------
+
+
+def test_append_succeeds_despite_broken_chain(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    append_event(log, _minimal({"summary": "event 1"}))
+    append_event(log, _minimal({"summary": "event 2"}))
+
+    # Tamper with first event hash field
+    lines = log.read_text(encoding="utf-8").splitlines()
+    e1 = json.loads(lines[0])
+    e1["event_hash"] = "a" * 64  # valid hex length but wrong value
+    lines[0] = _canonical_json(e1)
+    log.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    result = append_event(log, _minimal({"summary": "event 3 after chain break"}))
+
+    assert result.ok, f"append_event must succeed; error={result.error}"
+    assert result.appended
+    assert len(result.integrity_warnings) > 0, (
+        "Expected integrity_warnings about the broken chain"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 11. Clean log matches its anchor
+# ---------------------------------------------------------------------------
+
+
+def test_clean_log_matches_anchor(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    append_event(log, _minimal({"summary": "anchor test"}))
+
+    anchor = create_anchor_record(log, git_head="abc123", sprint_id="BB0-test")
+    result = verify_anchor(log, anchor)
+
+    assert result.ok
+    assert result.match, "Clean log must match its own anchor"
+    assert result.anchor_digest == result.current_digest
+
+
+# ---------------------------------------------------------------------------
+# 12. Tampered log fails against old anchor
+# ---------------------------------------------------------------------------
+
+
+def test_tampered_log_fails_anchor(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    append_event(log, _minimal({"summary": "pre-anchor event"}))
+
+    anchor = create_anchor_record(log, sprint_id="BB0-test")
+
+    # Tamper: append a new event after the anchor was created
+    append_event(log, _minimal({"summary": "new event after anchor"}))
+
+    result = verify_anchor(log, anchor)
+    assert result.ok
+    assert not result.match, "Modified log must NOT match old anchor"
+
+
+# ---------------------------------------------------------------------------
+# 13. Recomputing event hashes after tampering still fails old anchor digest
+# ---------------------------------------------------------------------------
+
+
+def test_recomputed_hashes_still_fail_old_anchor(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    for i in range(3):
+        append_event(log, _minimal({"summary": f"event {i}"}))
+
+    anchor = create_anchor_record(log, sprint_id="BB0-test")
+    old_digest = anchor["log_digest_sha256"]
+
+    # Tamper: rewrite event 1 and recompute its hash
+    lines = log.read_text(encoding="utf-8").splitlines()
+    e1 = json.loads(lines[0])
+    e1["summary"] = "TAMPERED"
+    e1["event_hash"] = _compute_event_hash(e1)  # recompute hash
+    lines[0] = _canonical_json(e1)
+    log.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    new_digest = compute_log_digest(log)
+    assert new_digest != old_digest, (
+        "Even after recomputing internal hashes, the file digest must differ from old anchor"
+    )
+
+    result = verify_anchor(log, anchor)
+    assert not result.match
+
+
+# ---------------------------------------------------------------------------
+# 14. Concurrency: two threads append without duplicate sequence
+# ---------------------------------------------------------------------------
+
+
+def test_concurrency_no_duplicate_sequence(tmp_path):
+    log = tmp_path / "concurrent.jsonl"
+    results: list[AppendResult] = []
+    lock = threading.Lock()
+
+    def do_append(i: int) -> None:
+        r = append_event(log, _minimal({"summary": f"concurrent event {i}"}))
+        with lock:
+            results.append(r)
+
+    threads = [threading.Thread(target=do_append, args=(i,)) for i in range(6)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    failed = [r for r in results if not r.ok]
+    assert not failed, f"Some appends failed: {[r.error for r in failed]}"
+
+    sequences = [r.sequence for r in results]
+    assert len(set(sequences)) == len(sequences), (
+        f"Duplicate sequences detected: {sorted(sequences)}"
+    )
+    assert sorted(sequences) == list(range(1, 7)), (
+        f"Expected sequences 1-6; got: {sorted(sequences)}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 15. Redaction removes obvious secrets
+# ---------------------------------------------------------------------------
+
+
+def test_redaction_removes_telegram_token(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    append_event(log, _minimal({
+        "details": {"telegram_bot_token": "bot1234567890:ABC-secret_token_here"},
+    }))
+
+    content = log.read_text(encoding="utf-8")
+    assert "bot1234567890" not in content, "Telegram token must be redacted"
+    assert "[REDACTED]" in content
+
+
+def test_redaction_removes_api_key(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    append_event(log, _minimal({
+        "details": {"api_key": "sk-abc123verylongapikey"},
+    }))
+
+    content = log.read_text(encoding="utf-8")
+    assert "sk-abc123verylongapikey" not in content
+    assert "[REDACTED]" in content
+
+
+def test_redaction_removes_bearer_token_in_string(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    append_event(log, _minimal({
+        "summary": "called API with Bearer ABCDEFGH12345678token",
+    }))
+
+    content = log.read_text(encoding="utf-8")
+    assert "ABCDEFGH12345678token" not in content
+    assert "[REDACTED" in content
+
+
+# ---------------------------------------------------------------------------
+# 16. Redaction does not destroy normal text
+# ---------------------------------------------------------------------------
+
+
+def test_redaction_preserves_normal_text(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    summary = "Sprint BB0 completed successfully with 247 tests passing."
+    append_event(log, _minimal({"summary": summary}))
+
+    content = log.read_text(encoding="utf-8")
+    assert "247 tests passing" in content, (
+        "Normal text must survive redaction"
+    )
+    assert "BB0 completed" in content
+
+
+# ---------------------------------------------------------------------------
+# 17. Raw diff/log evidence is not stored verbatim
+# ---------------------------------------------------------------------------
+
+
+def test_raw_diff_not_stored_verbatim(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    raw_diff_content = "diff --git a/foo.py b/foo.py\n+added line\n-removed line"
+    append_event(log, _minimal({
+        "evidence": {"raw_diff": raw_diff_content},
+    }))
+
+    content = log.read_text(encoding="utf-8")
+    assert raw_diff_content not in content, (
+        "raw_diff content must not be stored verbatim"
+    )
+    assert "[REDACTED:raw_blob_not_allowed]" in content
+
+
+def test_full_stdout_not_stored_verbatim(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    stdout_blob = "line1\nline2\nline3\n" * 100
+    append_event(log, _minimal({
+        "details": {"full_stdout": stdout_blob},
+    }))
+
+    content = log.read_text(encoding="utf-8")
+    assert stdout_blob not in content
+    assert "[REDACTED:raw_blob_not_allowed]" in content
+
+
+# ---------------------------------------------------------------------------
+# 18. event_hash is deterministic
+# ---------------------------------------------------------------------------
+
+
+def test_event_hash_is_deterministic():
+    body: dict[str, Any] = {
+        "schema_version": 1,
+        "sequence": 1,
+        "event_type": "sprint_started",
+        "sprint_id": "BB0",
+        "actor": "ClaudeCode",
+        "summary": "determinism test",
+        "previous_event_hash": None,
+    }
+    h1 = _compute_event_hash(body)
+    h2 = _compute_event_hash(body)
+    assert h1 == h2, "Same body must always produce same hash"
+    assert len(h1) == 64, "SHA-256 hex is 64 chars"
+
+
+# ---------------------------------------------------------------------------
+# 19. UTF-8 Turkish text survives round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_turkish_text_survives_round_trip(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    turkish = "Çalışma ağacı temiz, bugün kaldık, şüphe yok, İ doğru"
+    append_event(log, _minimal({"summary": turkish}))
+
+    raw = log.read_bytes()
+    text = raw.decode("utf-8", errors="strict")
+
+    event = json.loads(log.read_text(encoding="utf-8").strip())
+    assert event["summary"] == turkish, (
+        f"Turkish text must survive round-trip; got: {event['summary']!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 20. Raw bytes decode strictly as UTF-8
+# ---------------------------------------------------------------------------
+
+
+def test_log_bytes_are_strict_utf8(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    append_event(log, _minimal({"summary": "UTF-8 strict test"}))
+    append_event(log, _minimal({"summary": "second event"}))
+
+    raw = log.read_bytes()
+    # Must not raise
+    text = raw.decode("utf-8", errors="strict")
+    assert text
+
+
+# ---------------------------------------------------------------------------
+# 21. No mojibake markers in output
+# ---------------------------------------------------------------------------
+
+
+def test_no_mojibake_in_output(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    turkish_summary = (
+        "Çalışma temiz — "
+        "şüöçğı İ MARKER"
+    )
+    append_event(log, _minimal({"summary": turkish_summary}))
+
+    text = log.read_text(encoding="utf-8")
+    for marker in _MOJIBAKE_MARKERS:
+        assert marker not in text, (
+            f"Mojibake marker {marker!r} found in log output"
+        )
+
+
+# ---------------------------------------------------------------------------
+# 22. commit_hash=null is valid (no self-referential requirement)
+# ---------------------------------------------------------------------------
+
+
+def test_null_commit_hash_is_valid(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    result = append_event(log, _minimal({
+        "event_type": "sprint_started",
+        "commit_hash": None,
+        "summary": "Sprint started; commit hash not yet known",
+    }))
+
+    assert result.ok, "commit_hash=None must not prevent append"
+    assert result.appended
+
+    event = json.loads(log.read_text(encoding="utf-8").strip())
+    assert event["commit_hash"] is None
+
+
+def test_human_gate_null_commit_is_valid(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    result = append_event(log, {
+        "event_type": "human_gate",
+        "sprint_id": "BB0",
+        "actor": "Ahmet",
+        "summary": "Human gate: Ahmet approved BLACKBOX-0 scope",
+        "commit_hash": None,
+        "human_gate_required": True,
+    })
+
+    assert result.ok
+    event = json.loads(log.read_text(encoding="utf-8").strip())
+    assert event["commit_hash"] is None
+    assert event["human_gate_required"] is True
+
+
+# ---------------------------------------------------------------------------
+# 23. Codex verdict event records PASS/CONCERN/BLOCKER
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("status", ["PASS", "CONCERN", "BLOCKER"])
+def test_codex_verdict_event(tmp_path, status):
+    log = tmp_path / f"codex_{status}.jsonl"
+    result = append_event(log, {
+        "event_type": "codex_verdict",
+        "sprint_id": "BB0",
+        "actor": "Codex",
+        "summary": f"Codex returned {status} for BLACKBOX-0",
+        "codex_status": status,
+        "commit_hash": "abc123def456" + "0" * 52,
+    })
+
+    assert result.ok
+    event = json.loads(log.read_text(encoding="utf-8").strip())
+    assert event["codex_status"] == status
+    assert event["event_type"] == "codex_verdict"
+
+
+# ---------------------------------------------------------------------------
+# 24. safety_flags records sprint constraints
+# ---------------------------------------------------------------------------
+
+
+def test_safety_flags_recorded(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    flags = {
+        "no_install": True,
+        "no_real_mic": True,
+        "no_telegram": True,
+        "no_scheduler": True,
+        "no_auto": True,
+        "no_env": True,
+    }
+    append_event(log, _minimal({
+        "safety_flags": flags,
+        "summary": "sprint_started with all safety constraints",
+    }))
+
+    event = json.loads(log.read_text(encoding="utf-8").strip())
+    assert event["safety_flags"] == flags
+
+
+# ---------------------------------------------------------------------------
+# 25. validate_log returns structured errors (not just False/bool)
+# ---------------------------------------------------------------------------
+
+
+def test_validate_log_returns_structured_errors(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    log.write_bytes(b"TOTALLY_INVALID_JSON\n")
+
+    result = validate_log(log)
+    assert isinstance(result, ValidationResult)
+    assert not result.ok
+    assert isinstance(result.errors, list)
+    assert len(result.errors) > 0
+    # Must contain a message, not just True/False
+    assert any(len(e) > 5 for e in result.errors)
+
+
+def test_validate_log_nonexistent_returns_structured_error(tmp_path):
+    log = tmp_path / "does_not_exist.jsonl"
+    result = validate_log(log)
+
+    assert isinstance(result, ValidationResult)
+    assert not result.ok
+    assert len(result.errors) > 0
+    assert "does not exist" in result.errors[0].lower()
+
+
+# ---------------------------------------------------------------------------
+# Additional: anchor cross-checks
+# ---------------------------------------------------------------------------
+
+
+def test_anchor_record_has_required_fields(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    append_event(log, _minimal())
+
+    anchor = create_anchor_record(log, git_head="deadbeef", sprint_id="BB0")
+
+    assert anchor["anchor_type"] == "git_log_digest"
+    assert len(anchor["log_digest_sha256"]) == 64
+    assert anchor["last_sequence"] == 1
+    assert anchor["git_head_when_anchor_created"] == "deadbeef"
+    assert anchor["sprint_id"] == "BB0"
+
+
+def test_verify_anchor_missing_log(tmp_path):
+    anchor = {
+        "log_digest_sha256": "a" * 64,
+        "last_sequence": 1,
+    }
+    result = verify_anchor(tmp_path / "missing.jsonl", anchor)
+    assert not result.match
+    assert result.error is not None
+
+
+def test_append_result_is_structured_dataclass(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    result = append_event(log, _minimal())
+
+    assert isinstance(result, AppendResult)
+    assert result.ok
+    assert isinstance(result.integrity_warnings, list)
+    assert isinstance(result.redactions_applied, list)
+    assert isinstance(result.event_hash, str)
+    assert len(result.event_hash) == 64
+
+
+def test_validate_single_event_ok(tmp_path):
+    log = tmp_path / "bb.jsonl"
+    append_event(log, _minimal())
+
+    result = validate_log(log)
+    assert result.ok
+    assert result.event_count == 1
+    assert result.last_sequence == 1
+    assert result.last_event_hash is not None
