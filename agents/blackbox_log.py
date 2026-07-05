@@ -135,32 +135,26 @@ def _redact_string_value(value: str) -> tuple[str, bool]:
     return result, result != value
 
 
-def _redact_value(key: str, value: Any) -> tuple[Any, list[str]]:
-    """Redact a single key-value pair based on key name and string patterns."""
-    notes: list[str] = []
-    key_lower = key.lower()
-
-    if any(frag in key_lower for frag in _SENSITIVE_KEY_FRAGMENTS):
-        if isinstance(value, str) and value:
-            notes.append(f"key '{key}' matches sensitive-key pattern")
-            return "[REDACTED]", notes
-
-    if isinstance(value, str):
-        redacted, changed = _redact_string_value(value)
-        if changed:
-            notes.append(f"value of '{key}' contained bearer-like token")
-        return redacted, notes
-
-    return value, notes
-
-
 def _redact_dict(d: dict, _path: str = "") -> tuple[dict, list[str]]:
-    """Recursively redact a dict. Returns (redacted_copy, notes)."""
+    """Recursively redact a dict. Returns (redacted_copy, notes).
+
+    Key-sensitivity check happens FIRST, before any recursion, so sensitive
+    keys with dict/list values are redacted as a whole (not traversed).
+    This prevents nested tokens under sensitive keys from surviving.
+    """
     result: dict = {}
     all_notes: list[str] = []
 
     for k, v in d.items():
         full_key = f"{_path}.{k}" if _path else k
+        key_lower = k.lower()
+
+        # B6: check key sensitivity before type-based recursion
+        if any(frag in key_lower for frag in _SENSITIVE_KEY_FRAGMENTS) and v:
+            all_notes.append(f"key '{full_key}' matches sensitive-key pattern")
+            result[k] = "[REDACTED]"
+            continue
+
         if isinstance(v, dict):
             rv, notes = _redact_dict(v, full_key)
             result[k] = rv
@@ -180,10 +174,13 @@ def _redact_dict(d: dict, _path: str = "") -> tuple[dict, list[str]]:
                 else:
                     rv_list.append(item)
             result[k] = rv_list
+        elif isinstance(v, str):
+            redacted, changed = _redact_string_value(v)
+            if changed:
+                all_notes.append(f"value of '{full_key}' contained bearer-like token")
+            result[k] = redacted
         else:
-            rv2, notes = _redact_value(k, v)
-            result[k] = rv2
-            all_notes.extend(notes)
+            result[k] = v
 
     return result, all_notes
 
@@ -193,33 +190,54 @@ def _redact_dict(d: dict, _path: str = "") -> tuple[dict, list[str]]:
 # ---------------------------------------------------------------------------
 
 
+def _sanitize_forbidden_keys(d: dict, _path: str = "") -> tuple[dict, list[str]]:
+    """Recursively replace forbidden raw-blob keys at any nesting depth."""
+    result: dict = {}
+    warnings: list[str] = []
+    for k, v in d.items():
+        full_key = f"{_path}.{k}" if _path else k
+        if k.lower() in _FORBIDDEN_EVIDENCE_KEYS:
+            warnings.append(
+                f"Forbidden raw-blob key '{full_key}' replaced. "
+                "Store file paths, counts, hashes, or verdicts instead."
+            )
+            result[k] = "[REDACTED:raw_blob_not_allowed]"
+        elif isinstance(v, dict):
+            rv, w = _sanitize_forbidden_keys(v, full_key)
+            result[k] = rv
+            warnings.extend(w)
+        elif isinstance(v, list):
+            new_list = []
+            for i, item in enumerate(v):
+                if isinstance(item, dict):
+                    ri, w = _sanitize_forbidden_keys(item, f"{full_key}[{i}]")
+                    new_list.append(ri)
+                    warnings.extend(w)
+                else:
+                    new_list.append(item)
+            result[k] = new_list
+        else:
+            result[k] = v
+    return result, warnings
+
+
 def _sanitize_evidence(event: dict) -> tuple[dict, list[str]]:
-    """Replace forbidden raw-blob keys in details/evidence with placeholders.
+    """Replace forbidden raw-blob keys in details/evidence at any depth.
 
     Raw diff/stdout/stderr/secret blobs must not be embedded in the log.
     Store file paths, counts, hashes, verdicts, or references instead.
+    Scanning is recursive (B5 fix) so nested forbidden keys are caught.
     Returns (modified_event_copy, warning_list).
     """
     warnings: list[str] = []
-    modified = False
-
     new_event = dict(event)
     for top_key in ("details", "evidence"):
         sub = new_event.get(top_key)
         if not isinstance(sub, dict):
             continue
-        new_sub = dict(sub)
-        for k in list(new_sub.keys()):
-            if k.lower() in _FORBIDDEN_EVIDENCE_KEYS:
-                warnings.append(
-                    f"Forbidden raw-blob key '{k}' in '{top_key}' replaced with placeholder. "
-                    "Store file paths, counts, hashes, or verdicts instead of raw content."
-                )
-                new_sub[k] = "[REDACTED:raw_blob_not_allowed]"
-                modified = True
-        if modified:
-            new_event[top_key] = new_sub
-
+        new_sub, w = _sanitize_forbidden_keys(sub)
+        warnings.extend(w)
+        new_event[top_key] = new_sub
     return new_event, warnings
 
 
@@ -246,13 +264,18 @@ def _compute_event_hash(event: dict) -> str:
 def _acquire_lock(lock_path: Path, timeout: float = 5.0) -> int:
     """Acquire a lock file using O_CREAT | O_EXCL (atomic on POSIX and NTFS).
     Returns the file descriptor. Raises TimeoutError on timeout.
+
+    On Windows, PermissionError may be raised instead of FileExistsError when
+    another thread is in the process of creating or releasing the lock file
+    (e.g., between os.close and unlink). Both are treated as transient
+    lock-contention and retried within the timeout.
     """
     deadline = time.monotonic() + timeout
     while True:
         try:
             fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
             return fd
-        except FileExistsError:
+        except (FileExistsError, PermissionError):
             if time.monotonic() >= deadline:
                 raise TimeoutError(
                     f"Could not acquire lock {lock_path} within {timeout}s"
@@ -304,6 +327,12 @@ def _read_log_state(path: Path) -> tuple[int, Optional[str], list[str]]:
             event = json.loads(line)
         except json.JSONDecodeError as e:
             warnings.append(f"Line {lineno}: invalid JSON: {e}")
+            continue
+
+        if not isinstance(event, dict):
+            warnings.append(
+                f"Line {lineno}: JSON value is not an object (got {type(event).__name__})"
+            )
             continue
 
         seq = event.get("sequence")
@@ -418,8 +447,17 @@ def append_event(path: "Path | str", event: dict) -> AppendResult:
 
         line_bytes = (_canonical_json(body) + "\n").encode("utf-8")
 
+        # B4: if existing file does not end with '\n', write delimiter first so
+        # the new event does not get glued onto a corrupt final line.
+        prefix = b""
+        if path.exists() and path.stat().st_size > 0:
+            with path.open("rb") as f:
+                f.seek(-1, 2)
+                if f.read(1) != b"\n":
+                    prefix = b"\n"
+
         with path.open("ab") as f:
-            f.write(line_bytes)
+            f.write(prefix + line_bytes)
 
         return AppendResult(
             ok=True,
@@ -494,6 +532,12 @@ def validate_log(path: "Path | str") -> ValidationResult:
             event = json.loads(stripped)
         except json.JSONDecodeError as e:
             errors.append(f"Line {lineno}: invalid JSON: {e}")
+            continue
+
+        if not isinstance(event, dict):
+            errors.append(
+                f"Line {lineno}: JSON value is not an object (got {type(event).__name__})"
+            )
             continue
 
         event_count += 1

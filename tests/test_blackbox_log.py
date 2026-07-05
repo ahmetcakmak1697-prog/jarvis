@@ -34,7 +34,7 @@ import hashlib
 import json
 import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import pytest
 
@@ -57,6 +57,7 @@ from blackbox_log import (
     _compute_event_hash,
     _redact_dict,
     _sanitize_evidence,
+    _sanitize_forbidden_keys,
     REQUIRED_FIELDS,
 )
 
@@ -345,6 +346,13 @@ def test_tampered_log_fails_anchor(tmp_path):
 
 
 def test_recomputed_hashes_still_fail_old_anchor(tmp_path):
+    """Fully recomputing the entire hash chain after tampering still fails old anchor.
+
+    This proves the Git-anchored file digest catches a tamper that a fully
+    internally-consistent chain (where ALL hashes are recomputed) would not.
+    After the recompute, validate_log must pass (chain is consistent) but
+    verify_anchor must still fail (file bytes differ from anchor).
+    """
     log = tmp_path / "bb.jsonl"
     for i in range(3):
         append_event(log, _minimal({"summary": f"event {i}"}))
@@ -352,21 +360,42 @@ def test_recomputed_hashes_still_fail_old_anchor(tmp_path):
     anchor = create_anchor_record(log, sprint_id="BB0-test")
     old_digest = anchor["log_digest_sha256"]
 
-    # Tamper: rewrite event 1 and recompute its hash
+    # Tamper event 1 and fully rebuild the entire hash chain from scratch
     lines = log.read_text(encoding="utf-8").splitlines()
-    e1 = json.loads(lines[0])
-    e1["summary"] = "TAMPERED"
-    e1["event_hash"] = _compute_event_hash(e1)  # recompute hash
-    lines[0] = _canonical_json(e1)
-    log.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    events = [json.loads(line) for line in lines if line.strip()]
 
+    # Modify first event content
+    events[0]["summary"] = "FULLY_RECOMPUTED_TAMPERED_SUMMARY"
+
+    # Rebuild every event's previous_event_hash and event_hash in order
+    prev_hash: Optional[str] = None
+    rebuilt = []
+    for ev in events:
+        ev["previous_event_hash"] = prev_hash
+        ev.pop("event_hash", None)
+        new_hash = _compute_event_hash(ev)
+        ev["event_hash"] = new_hash
+        rebuilt.append(_canonical_json(ev))
+        prev_hash = new_hash
+
+    log.write_text("\n".join(rebuilt) + "\n", encoding="utf-8")
+
+    # Internal chain is now consistent — validate_log should report ok
+    vr = validate_log(log)
+    assert vr.ok, (
+        f"Fully recomputed chain must be internally consistent; errors={vr.errors}"
+    )
+
+    # But file bytes changed — old anchor digest must NOT match
     new_digest = compute_log_digest(log)
     assert new_digest != old_digest, (
-        "Even after recomputing internal hashes, the file digest must differ from old anchor"
+        "File digest must differ from old anchor after full chain recompute"
     )
 
     result = verify_anchor(log, anchor)
-    assert not result.match
+    assert not result.match, (
+        "Fully recomputed internal chain must still fail the old Git anchor digest"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -725,3 +754,211 @@ def test_validate_single_event_ok(tmp_path):
     assert result.event_count == 1
     assert result.last_sequence == 1
     assert result.last_event_hash is not None
+
+
+# ---------------------------------------------------------------------------
+# B2: validate_log must not crash on valid JSON non-object values
+# ---------------------------------------------------------------------------
+
+
+def test_validate_log_array_json_no_crash(tmp_path):
+    """validate_log must return structured error, not crash, for [] on a line."""
+    log = tmp_path / "bb.jsonl"
+    append_event(log, _minimal({"summary": "valid event first"}))
+    with log.open("ab") as f:
+        f.write(b"[]\n")
+
+    result = validate_log(log)
+    assert isinstance(result, ValidationResult)
+    assert not result.ok
+    assert any("not an object" in err.lower() or "array" in err.lower()
+               or "list" in err.lower()
+               for err in result.errors), (
+        f"Expected non-object error; got: {result.errors}"
+    )
+
+
+def test_validate_log_string_json_no_crash(tmp_path):
+    """validate_log must return structured error, not crash, for JSON string on a line."""
+    log = tmp_path / "bb.jsonl"
+    with log.open("ab") as f:
+        f.write(b'"just a string"\n')
+
+    result = validate_log(log)
+    assert isinstance(result, ValidationResult)
+    assert not result.ok
+    assert any("not an object" in err.lower() or "str" in err.lower()
+               for err in result.errors), (
+        f"Expected non-object error; got: {result.errors}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# B3: append_event must still succeed after non-object JSON corruption
+# ---------------------------------------------------------------------------
+
+
+def test_append_after_array_json_corruption(tmp_path):
+    """append_event must keep recording even when prior log has [] on a line."""
+    log = tmp_path / "bb.jsonl"
+    # Write a corrupt non-object line
+    log.write_bytes(b"[]\n")
+
+    result = append_event(log, _minimal({"summary": "event after [] corruption"}))
+
+    assert result.ok, f"append_event must succeed after [] corruption; error={result.error}"
+    assert result.appended
+    assert len(result.integrity_warnings) > 0, (
+        "Expected integrity_warnings about the non-object prior line"
+    )
+
+    # The file must now have two lines: the original [] and the new valid event
+    lines = [l for l in log.read_text(encoding="utf-8").splitlines() if l.strip()]
+    assert len(lines) == 2, f"Expected 2 lines; got {len(lines)}: {lines}"
+    # Second line must be valid JSON object
+    e = json.loads(lines[1])
+    assert isinstance(e, dict)
+    assert e["summary"] == "event after [] corruption"
+
+
+# ---------------------------------------------------------------------------
+# B4: corrupt final line without newline must not absorb appended event
+# ---------------------------------------------------------------------------
+
+
+def test_corrupt_final_line_no_newline_separator(tmp_path):
+    """If log ends without newline, new event must land on its own line."""
+    log = tmp_path / "bb.jsonl"
+    # Write corrupt bytes without trailing newline
+    log.write_bytes(b"{bad_json_no_newline")
+
+    result = append_event(log, _minimal({"summary": "event after corrupt no-newline line"}))
+
+    assert result.ok, f"Expected ok; error={result.error}"
+    assert result.appended
+
+    # Read raw bytes and split on newlines
+    raw = log.read_bytes()
+    lines = [l for l in raw.split(b"\n") if l.strip()]
+    assert len(lines) == 2, f"Expected 2 lines; got {len(lines)}"
+
+    # Second line must be valid JSON
+    second_line = lines[1]
+    e = json.loads(second_line.decode("utf-8"))
+    assert isinstance(e, dict)
+    assert e["summary"] == "event after corrupt no-newline line"
+
+
+def test_valid_event_then_corrupt_no_newline_then_new_event(tmp_path):
+    """append_event after a valid event + corrupt tail still produces separate lines."""
+    log = tmp_path / "bb.jsonl"
+    r1 = append_event(log, _minimal({"summary": "first valid"}))
+    assert r1.ok
+
+    # Manually append corrupt bytes without newline
+    with log.open("ab") as f:
+        f.write(b"{incomplete_corrupt")
+
+    r2 = append_event(log, _minimal({"summary": "third event"}))
+    assert r2.ok, f"Expected ok; error={r2.error}"
+
+    raw = log.read_bytes()
+    lines = [l for l in raw.split(b"\n") if l.strip()]
+    # Must have: first event, corrupt fragment, third event — on separate lines
+    assert len(lines) >= 2
+
+    # Last line must be valid JSON
+    last = json.loads(lines[-1].decode("utf-8"))
+    assert last["summary"] == "third event"
+
+
+# ---------------------------------------------------------------------------
+# B5: Nested raw-blob evidence keys must be caught recursively
+# ---------------------------------------------------------------------------
+
+
+def test_nested_raw_diff_not_stored_verbatim(tmp_path):
+    """Nested raw_diff inside details must be replaced, not stored verbatim."""
+    log = tmp_path / "bb.jsonl"
+    secret_diff = "diff --git a/secret.py\n+SECRET_CONTENT_NESTED"
+    append_event(log, _minimal({
+        "details": {"outer": {"raw_diff": secret_diff}},
+    }))
+
+    content = log.read_text(encoding="utf-8")
+    assert secret_diff not in content, (
+        "Nested raw_diff must not be stored verbatim"
+    )
+    assert "[REDACTED:raw_blob_not_allowed]" in content
+
+
+def test_sanitize_forbidden_keys_is_recursive():
+    """_sanitize_forbidden_keys catches keys at any depth."""
+    data = {
+        "top_level": "ok",
+        "nested": {
+            "also_ok": "value",
+            "deep": {
+                "full_stdout": "SECRET OUTPUT",
+                "full_stderr": "SECRET ERRORS",
+            },
+        },
+        "diff_text": "TOP LEVEL ALSO CAUGHT",
+    }
+    result, warnings = _sanitize_forbidden_keys(data)
+
+    assert result["diff_text"] == "[REDACTED:raw_blob_not_allowed]"
+    assert result["nested"]["deep"]["full_stdout"] == "[REDACTED:raw_blob_not_allowed]"
+    assert result["nested"]["deep"]["full_stderr"] == "[REDACTED:raw_blob_not_allowed]"
+    assert result["nested"]["also_ok"] == "value"
+    assert result["top_level"] == "ok"
+    assert len(warnings) == 3  # diff_text + full_stdout + full_stderr
+
+
+# ---------------------------------------------------------------------------
+# B6: Sensitive keys with dict/list values must be fully redacted
+# ---------------------------------------------------------------------------
+
+
+def test_nested_dict_under_sensitive_key_redacted(tmp_path):
+    """A dict value under a sensitive key (token) must be fully redacted."""
+    log = tmp_path / "bb.jsonl"
+    append_event(log, _minimal({
+        "details": {
+            "token": {"nested_key": "SHOULD_BE_REDACTED", "another": "ALSO_GONE"},
+        },
+    }))
+
+    content = log.read_text(encoding="utf-8")
+    assert "SHOULD_BE_REDACTED" not in content, "Nested value under 'token' key must be redacted"
+    assert "ALSO_GONE" not in content
+    assert "[REDACTED]" in content
+
+
+def test_list_under_sensitive_key_redacted(tmp_path):
+    """A list value under a sensitive key (secret) must be fully redacted."""
+    log = tmp_path / "bb.jsonl"
+    append_event(log, _minimal({
+        "details": {
+            "secret": ["SECRET_ITEM_1", "SECRET_ITEM_2"],
+        },
+    }))
+
+    content = log.read_text(encoding="utf-8")
+    assert "SECRET_ITEM_1" not in content
+    assert "SECRET_ITEM_2" not in content
+    assert "[REDACTED]" in content
+
+
+def test_redact_dict_sensitive_key_before_recurse():
+    """_redact_dict must redact sensitive key before recursing into nested dict."""
+    d = {
+        "safe_key": "safe_value",
+        "api_key": {"nested": "REAL_SECRET_TOKEN_VALUE"},
+    }
+    result, notes = _redact_dict(d)
+
+    assert result["safe_key"] == "safe_value"
+    assert result["api_key"] == "[REDACTED]"
+    assert "REAL_SECRET_TOKEN_VALUE" not in str(result)
+    assert any("api_key" in n for n in notes)

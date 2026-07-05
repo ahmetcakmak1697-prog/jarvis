@@ -374,34 +374,49 @@ append_event("automation/BLACKBOX.jsonl", {
 ```
 
 ### Anchor created
+
+**CRITICAL ORDER:** Append the `anchor_created` log event FIRST, then compute
+the digest, then save the external anchor. Never compute the digest and then
+append to the same log — doing so invalidates the anchor immediately because
+the file bytes change after the digest is captured.
+
 ```python
 from agents.blackbox_log import create_anchor_record, append_event
 import json, subprocess
 
 head = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
-anchor = create_anchor_record("automation/BLACKBOX.jsonl", git_head=head, sprint_id="J0B")
 
-# Save anchor record
-with open("automation/BLACKBOX_ANCHORS.jsonl", "a", encoding="utf-8") as f:
-    f.write(json.dumps(anchor, sort_keys=True, ensure_ascii=False) + "\n")
-
-# Record anchor event in the log itself
+# Step 1: Append anchor_created event FIRST (before computing digest)
 append_event("automation/BLACKBOX.jsonl", {
     "event_type": "anchor_created",
     "sprint_id": "J0B",
     "actor": "ClaudeCode",
     "summary": "Log digest anchored at Codex PASS commit",
     "details": {
-        "anchor_digest_prefix": anchor["log_digest_sha256"][:16],
-        "last_sequence": anchor["last_sequence"],
         "git_head": head,
         "anchor_file": "automation/BLACKBOX_ANCHORS.jsonl",
     },
     "commit_hash": head,
 })
-# Then: git add automation/BLACKBOX_ANCHORS.jsonl automation/BLACKBOX.jsonl
-# Then: git commit -m "docs(automation): anchor J0B log digest at Codex PASS"
+
+# Step 2: NOW compute digest (log is final — no more appends after this)
+anchor = create_anchor_record("automation/BLACKBOX.jsonl", git_head=head, sprint_id="J0B")
+
+# Step 3: Save anchor to EXTERNAL file only (never back into BLACKBOX.jsonl)
+with open("automation/BLACKBOX_ANCHORS.jsonl", "a", encoding="utf-8") as f:
+    f.write(json.dumps(anchor, sort_keys=True, ensure_ascii=False) + "\n")
+
+# Step 4: Commit both files
+# git add automation/BLACKBOX_ANCHORS.jsonl automation/BLACKBOX.jsonl
+# git commit -m "docs(automation): anchor J0B log digest at Codex PASS"
 ```
+
+**Why this order matters:** `create_anchor_record` computes SHA-256 over the
+raw file bytes at the moment it is called. Any subsequent write to that file
+(including appending the `anchor_created` event itself) changes the file bytes
+and immediately invalidates the anchor. The anchor must be computed AFTER the
+log is finished, and saved ONLY to an external file — never appended back into
+the log it anchors.
 
 ---
 

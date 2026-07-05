@@ -131,6 +131,13 @@ for supervised JARVIS sprints.
 **Commits:**
 - **Implementation commit:** 49c21abce  feat(automation): add BLACKBOX-0 append-only sprint audit log
 - **Docs commit:** 80398058a  docs(automation): document BLACKBOX-0 runbook and review evidence
+- **Blocker-fix commit:** 5872ed455  fix(automation): harden BLACKBOX-0 integrity and anchoring
+
+**Metadata note (non-recursive rule):** Implementation commits are listed above.
+Hash-recording and metadata commits (such as the docs commit that adds this
+review section, or a future anchor commit that records the log digest) may be
+verified via `git log` but do not need to list their own hash in this document.
+A commit cannot know its own SHA-256 before it is created.
 
 ### Files Changed
 
