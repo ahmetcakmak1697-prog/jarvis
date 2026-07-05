@@ -58,6 +58,7 @@ from blackbox_log import (
     _redact_dict,
     _sanitize_evidence,
     _sanitize_forbidden_keys,
+    _sanitize_value,
     REQUIRED_FIELDS,
 )
 
@@ -962,3 +963,200 @@ def test_redact_dict_sensitive_key_before_recurse():
     assert result["api_key"] == "[REDACTED]"
     assert "REAL_SECRET_TOKEN_VALUE" not in str(result)
     assert any("api_key" in n for n in notes)
+
+
+# ---------------------------------------------------------------------------
+# B1 (re-review): list-in-list and non-dict evidence sanitization
+# ---------------------------------------------------------------------------
+
+
+def test_list_in_list_raw_diff_sanitized(tmp_path):
+    """evidence=[[{"raw_diff": "DEEP_LIST_DIFF_LEAK"}]] must not store the leak."""
+    log = tmp_path / "bb.jsonl"
+    leak = "DEEP_LIST_DIFF_LEAK"
+    append_event(log, _minimal({
+        "evidence": [[{"raw_diff": leak}]],
+    }))
+
+    content = log.read_text(encoding="utf-8")
+    assert leak not in content, (
+        "raw_diff nested inside list-in-list must be sanitized"
+    )
+    assert "[REDACTED:raw_blob_not_allowed]" in content
+
+
+def test_non_dict_evidence_list_raw_diff_sanitized(tmp_path):
+    """evidence=[{"raw_diff": "LEAK"}] (list at top level) must not store the leak."""
+    log = tmp_path / "bb.jsonl"
+    leak = "NON_DICT_EVIDENCE_LEAK"
+    append_event(log, _minimal({
+        "evidence": [{"raw_diff": leak}],
+    }))
+
+    content = log.read_text(encoding="utf-8")
+    assert leak not in content, (
+        "raw_diff inside non-dict (list) evidence must be sanitized"
+    )
+    assert "[REDACTED:raw_blob_not_allowed]" in content
+
+
+def test_sanitize_value_list_in_list():
+    """_sanitize_value must recurse into lists nested inside lists."""
+    v = [["safe_item", {"raw_diff": "INNER_DIFF"}], {"diff_text": "ANOTHER"}]
+    result, warnings = _sanitize_value(v, "evidence")
+
+    # outer list[0] is a list
+    inner = result[0]
+    assert inner[0] == "safe_item"
+    assert isinstance(inner[1], dict)
+    assert inner[1]["raw_diff"] == "[REDACTED:raw_blob_not_allowed]"
+
+    # outer list[1] is a dict
+    assert result[1]["diff_text"] == "[REDACTED:raw_blob_not_allowed]"
+
+    assert len(warnings) == 2
+
+
+def test_sanitize_warns_for_non_dict_evidence(tmp_path):
+    """integrity_warnings must be populated when non-dict evidence contains raw blobs."""
+    log = tmp_path / "bb.jsonl"
+    result = append_event(log, _minimal({
+        "evidence": [{"raw_diff": "WARN_ME"}],
+    }))
+
+    assert result.ok
+    assert any("raw_diff" in w.lower() or "forbidden" in w.lower()
+               for w in result.integrity_warnings), (
+        f"Expected sanitization warning; got: {result.integrity_warnings}"
+    )
+
+
+def test_safe_list_evidence_survives(tmp_path):
+    """Safe structured list evidence must pass through sanitization unchanged."""
+    log = tmp_path / "bb.jsonl"
+    safe_evidence = [{"file": "tests/foo.py", "passed": 5}, "extra_string"]
+    append_event(log, _minimal({
+        "evidence": safe_evidence,
+    }))
+
+    content = log.read_text(encoding="utf-8")
+    assert "tests/foo.py" in content, "Safe evidence must survive sanitization"
+    assert "extra_string" in content
+    assert "[REDACTED:raw_blob_not_allowed]" not in content
+
+
+# ---------------------------------------------------------------------------
+# B2 (re-review): validate_log must not crash on malformed field types
+# ---------------------------------------------------------------------------
+
+
+def _write_raw_event(path: "Path", event: dict) -> None:
+    """Write a raw JSON event line (bypasses append_event validation)."""
+    with path.open("ab") as f:
+        f.write((json.dumps(event) + "\n").encode("utf-8"))
+
+
+def test_validate_log_event_hash_integer_no_crash(tmp_path):
+    """validate_log must return structured error when event_hash is an integer."""
+    log = tmp_path / "bb.jsonl"
+    bad = {
+        "schema_version": 1,
+        "ts_utc": "2026-01-01T00:00:00+00:00",
+        "sequence": 1,
+        "previous_event_hash": None,
+        "event_hash": 123,
+        "event_type": "sprint_started",
+        "sprint_id": "BB0-test",
+        "actor": "ClaudeCode",
+        "summary": "bad event_hash type",
+    }
+    _write_raw_event(log, bad)
+
+    result = validate_log(log)
+
+    assert isinstance(result, ValidationResult), "Must return ValidationResult, not raise"
+    assert not result.ok
+    assert any("event_hash" in err for err in result.errors), (
+        f"Expected event_hash type error; got: {result.errors}"
+    )
+
+
+def test_validate_log_previous_event_hash_integer_structured_error(tmp_path):
+    """validate_log must return structured error when previous_event_hash is an integer."""
+    log = tmp_path / "bb.jsonl"
+    bad = {
+        "schema_version": 1,
+        "ts_utc": "2026-01-01T00:00:00+00:00",
+        "sequence": 1,
+        "previous_event_hash": 999,
+        "event_hash": "a" * 64,
+        "event_type": "sprint_started",
+        "sprint_id": "BB0-test",
+        "actor": "ClaudeCode",
+        "summary": "bad previous_event_hash type",
+    }
+    _write_raw_event(log, bad)
+
+    result = validate_log(log)
+
+    assert isinstance(result, ValidationResult)
+    assert not result.ok
+    assert any("previous_event_hash" in err for err in result.errors), (
+        f"Expected previous_event_hash type error; got: {result.errors}"
+    )
+
+
+def test_validate_log_sequence_string_structured_error(tmp_path):
+    """validate_log must return structured error when sequence is a string."""
+    log = tmp_path / "bb.jsonl"
+    bad = {
+        "schema_version": 1,
+        "ts_utc": "2026-01-01T00:00:00+00:00",
+        "sequence": "1",
+        "previous_event_hash": None,
+        "event_hash": "a" * 64,
+        "event_type": "sprint_started",
+        "sprint_id": "BB0-test",
+        "actor": "ClaudeCode",
+        "summary": "bad sequence type",
+    }
+    _write_raw_event(log, bad)
+
+    result = validate_log(log)
+
+    assert isinstance(result, ValidationResult)
+    assert not result.ok
+    assert any("sequence" in err for err in result.errors), (
+        f"Expected sequence type error; got: {result.errors}"
+    )
+
+
+def test_append_after_malformed_event_hash_still_appends(tmp_path):
+    """append_event must still succeed and warn when prior log has event_hash=123."""
+    log = tmp_path / "bb.jsonl"
+    bad = {
+        "schema_version": 1,
+        "ts_utc": "2026-01-01T00:00:00+00:00",
+        "sequence": 1,
+        "previous_event_hash": None,
+        "event_hash": 123,
+        "event_type": "sprint_started",
+        "sprint_id": "BB0-test",
+        "actor": "ClaudeCode",
+        "summary": "bad event_hash type",
+    }
+    _write_raw_event(log, bad)
+
+    result = append_event(log, _minimal({"summary": "after malformed hash event"}))
+
+    assert result.ok, f"append_event must succeed; error={result.error}"
+    assert result.appended
+    assert len(result.integrity_warnings) > 0, (
+        "Expected integrity_warnings about malformed event_hash in prior log"
+    )
+
+    # Verify the new valid event is present
+    lines = [l for l in log.read_text(encoding="utf-8").splitlines() if l.strip()]
+    assert len(lines) == 2
+    last = json.loads(lines[-1])
+    assert last["summary"] == "after malformed hash event"

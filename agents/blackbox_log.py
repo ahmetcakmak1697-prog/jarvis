@@ -190,6 +190,26 @@ def _redact_dict(d: dict, _path: str = "") -> tuple[dict, list[str]]:
 # ---------------------------------------------------------------------------
 
 
+def _sanitize_value(v: Any, path: str = "") -> tuple[Any, list[str]]:
+    """Recursively sanitize any value for forbidden raw-blob keys.
+
+    - dict: scans keys via _sanitize_forbidden_keys
+    - list: recurses into every item (handles list-in-list)
+    - scalar: passed through unchanged
+    """
+    if isinstance(v, dict):
+        return _sanitize_forbidden_keys(v, path)
+    if isinstance(v, list):
+        warnings: list[str] = []
+        new_list: list = []
+        for i, item in enumerate(v):
+            ri, w = _sanitize_value(item, f"{path}[{i}]")
+            new_list.append(ri)
+            warnings.extend(w)
+        return new_list, warnings
+    return v, []
+
+
 def _sanitize_forbidden_keys(d: dict, _path: str = "") -> tuple[dict, list[str]]:
     """Recursively replace forbidden raw-blob keys at any nesting depth."""
     result: dict = {}
@@ -202,22 +222,10 @@ def _sanitize_forbidden_keys(d: dict, _path: str = "") -> tuple[dict, list[str]]
                 "Store file paths, counts, hashes, or verdicts instead."
             )
             result[k] = "[REDACTED:raw_blob_not_allowed]"
-        elif isinstance(v, dict):
-            rv, w = _sanitize_forbidden_keys(v, full_key)
-            result[k] = rv
-            warnings.extend(w)
-        elif isinstance(v, list):
-            new_list = []
-            for i, item in enumerate(v):
-                if isinstance(item, dict):
-                    ri, w = _sanitize_forbidden_keys(item, f"{full_key}[{i}]")
-                    new_list.append(ri)
-                    warnings.extend(w)
-                else:
-                    new_list.append(item)
-            result[k] = new_list
         else:
-            result[k] = v
+            new_v, w = _sanitize_value(v, full_key)
+            result[k] = new_v
+            warnings.extend(w)
     return result, warnings
 
 
@@ -226,16 +234,16 @@ def _sanitize_evidence(event: dict) -> tuple[dict, list[str]]:
 
     Raw diff/stdout/stderr/secret blobs must not be embedded in the log.
     Store file paths, counts, hashes, verdicts, or references instead.
-    Scanning is recursive (B5 fix) so nested forbidden keys are caught.
+    Both dict and non-dict top-level values (list, scalar) are sanitized.
     Returns (modified_event_copy, warning_list).
     """
     warnings: list[str] = []
     new_event = dict(event)
     for top_key in ("details", "evidence"):
         sub = new_event.get(top_key)
-        if not isinstance(sub, dict):
+        if sub is None:
             continue
-        new_sub, w = _sanitize_forbidden_keys(sub)
+        new_sub, w = _sanitize_value(sub, top_key)
         warnings.extend(w)
         new_event[top_key] = new_sub
     return new_event, warnings
@@ -353,12 +361,18 @@ def _read_log_state(path: Path) -> tuple[int, Optional[str], list[str]]:
             )
 
         if evt_hash:
-            computed = _compute_event_hash(event)
-            if computed != evt_hash:
+            if not isinstance(evt_hash, str):
                 warnings.append(
-                    f"Line {lineno}: event_hash mismatch "
-                    f"(stored={evt_hash[:12]}..., computed={computed[:12]}...)"
+                    f"Line {lineno}: 'event_hash' must be a string "
+                    f"(got {type(evt_hash).__name__}: {evt_hash!r})"
                 )
+            else:
+                computed = _compute_event_hash(event)
+                if computed != evt_hash:
+                    warnings.append(
+                        f"Line {lineno}: event_hash mismatch "
+                        f"(stored={evt_hash[:12]}..., computed={computed[:12]}...)"
+                    )
 
         last_sequence = seq if isinstance(seq, int) else last_sequence
         last_hash = evt_hash
@@ -563,14 +577,22 @@ def validate_log(path: "Path | str") -> ValidationResult:
                     f"Line {lineno}: out-of-order sequence {seq} (expected {expected_seq})"
                 )
 
-        if prev != prev_hash:
+        if prev is not None and not isinstance(prev, str):
+            errors.append(
+                f"Line {lineno}: 'previous_event_hash' must be a string or null "
+                f"(got {type(prev).__name__}: {prev!r})"
+            )
+        elif prev != prev_hash:
             errors.append(
                 f"Line {lineno}: previous_event_hash mismatch "
                 f"(expected {prev_hash!r}, got {prev!r})"
             )
 
-        if not evt_hash:
-            errors.append(f"Line {lineno}: missing or empty 'event_hash'")
+        if not isinstance(evt_hash, str) or not evt_hash:
+            errors.append(
+                f"Line {lineno}: 'event_hash' must be a non-empty string "
+                f"(got {type(evt_hash).__name__}: {evt_hash!r})"
+            )
         else:
             computed = _compute_event_hash(event)
             if computed != evt_hash:

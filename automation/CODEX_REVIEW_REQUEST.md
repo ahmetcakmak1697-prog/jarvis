@@ -130,33 +130,36 @@ for supervised JARVIS sprints.
 
 **Commits:**
 - **Implementation commit:** 49c21abce  feat(automation): add BLACKBOX-0 append-only sprint audit log
-- **Docs commit:** 80398058a  docs(automation): document BLACKBOX-0 runbook and review evidence
-- **Blocker-fix commit:** 5872ed455  fix(automation): harden BLACKBOX-0 integrity and anchoring
+- **Docs/runbook commit:** 80398058a  docs(automation): document BLACKBOX-0 runbook and review evidence
+- **Metadata/review commit:** 5872ed455  docs(automation): record BLACKBOX-0 commit hashes in review request
+- **Blocker-fix commit 1:** c662cb3b7  fix(automation): harden BLACKBOX-0 integrity and anchoring
+- **Blocker-fix commit 2:** declared in final Codex report (non-recursive metadata rule applies)
 
 **Metadata note (non-recursive rule):** Implementation commits are listed above.
 Hash-recording and metadata commits (such as the docs commit that adds this
 review section, or a future anchor commit that records the log digest) may be
-verified via `git log` but do not need to list their own hash in this document.
-A commit cannot know its own SHA-256 before it is created.
+verified via `git log` but do not need to list their own Git commit hash in
+this document. A commit cannot know its own hash before it is created.
 
 ### Files Changed
 
-- `agents/blackbox_log.py` — new: audit log module (pure functions, no network, no subprocess)
-- `tests/test_blackbox_log.py` — new: 36 tests
-- `automation/BLACKBOX_RUNBOOK.md` — new: runbook and usage guide
-- `automation/CODEX_REVIEW_REQUEST.md` — updated: added this section
+- `agents/blackbox_log.py` — new + updated (blocker fixes)
+- `tests/test_blackbox_log.py` — new + updated (blocker tests added)
+- `automation/BLACKBOX_RUNBOOK.md` — new + anchor ordering corrected
+- `automation/CODEX_REVIEW_REQUEST.md` — updated: commit labels corrected, test counts updated
 
 ### Test Counts
 
 ```
-tests/test_blackbox_log.py  -> 36 passed, 0 failed
+tests/test_blackbox_log.py  -> 55 passed, 0 failed
+  (original 36 + 10 blocker-fix round 1 + 9 blocker-fix round 2)
 
 Regression (no change):
   test_j0_voice_adapters + test_j0_voice_loop  -> 77 passed
   J0 existing suites                           -> 101 passed
   Proactive suites                             -> 69 passed
 
-Grand total: 283 passed, 0 failed
+Grand total: 302 passed, 0 failed
 ```
 
 ### Explicit Claims for Codex to Verify
@@ -169,11 +172,11 @@ Grand total: 283 passed, 0 failed
 6. **NO SUBPROCESS**: no subprocess.run or subprocess.Popen in blackbox_log.py.
 7. **NO .ENV**: no .env read, no os.environ access to secrets in blackbox_log.py.
 8. **NO AUTO-COMMIT**: create_anchor_record returns a dict; module never calls git commit.
-9. **EVIDENCE GUARDRAILS**: raw_diff, diff_text, full_stdout, full_stderr, secret_dump, env_dump keys in details/evidence are replaced with [REDACTED:raw_blob_not_allowed]; not stored verbatim.
+9. **EVIDENCE GUARDRAILS**: raw_diff, diff_text, full_stdout, full_stderr, secret_dump, env_dump keys replaced with [REDACTED:raw_blob_not_allowed] at any nesting depth — including dict-in-dict, dict-in-list, list-in-list. Non-dict top-level evidence (list or scalar) is also sanitized. Warnings emitted.
 10. **REDACTION**: keys containing token/api_key/secret/password/bearer/webhook redacted; Bearer tokens in string values redacted.
 11. **UTF-8**: all writes use UTF-8; canonical JSON uses ensure_ascii=False; Turkish text survives round-trip.
 12. **NULL COMMIT HASH**: commit_hash=None is valid; no self-referential commit-hash requirement.
-13. **STRUCTURED ERRORS**: validate_log returns ValidationResult dataclass with errors list; not just bool.
+13. **STRUCTURED ERRORS**: validate_log returns ValidationResult dataclass with errors list; not just bool. Malformed field types (event_hash=int, previous_event_hash=int, sequence=str) return structured errors, not AttributeError/TypeError.
 14. **ANCHOR VERIFY**: verify_anchor detects changed log bytes against old anchor digest.
 15. **NO SCHEDULER / NO AUTONOMOUS**: no loop, no scheduler, no cron, no AUTO in blackbox_log.py.
 
