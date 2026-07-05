@@ -120,3 +120,67 @@ PASS / CONCERN / BLOCKER
 ---
 
 *Prepared by: Claude Code | Date: 2026-07-04 | Sprint: J0A*
+
+---
+
+## SPRINT-BLACKBOX-0 — OPEN (2026-07-05)
+
+**Purpose:** Offline, deterministic, human-gated append-only audit log foundation
+for supervised JARVIS sprints.
+
+**Commits:**
+- **Implementation commit:** TBD — feat(automation): add BLACKBOX-0 append-only sprint audit log
+- **Docs commit:** TBD — docs(automation): document BLACKBOX-0 runbook and review evidence
+
+### Files Changed
+
+- `agents/blackbox_log.py` — new: audit log module (pure functions, no network, no subprocess)
+- `tests/test_blackbox_log.py` — new: 36 tests
+- `automation/BLACKBOX_RUNBOOK.md` — new: runbook and usage guide
+- `automation/CODEX_REVIEW_REQUEST.md` — updated: added this section
+
+### Test Counts
+
+```
+tests/test_blackbox_log.py  -> 36 passed, 0 failed
+
+Regression (no change):
+  test_j0_voice_adapters + test_j0_voice_loop  -> 77 passed
+  J0 existing suites                           -> 101 passed
+  Proactive suites                             -> 69 passed
+
+Grand total: 283 passed, 0 failed
+```
+
+### Explicit Claims for Codex to Verify
+
+1. **APPEND-ONLY**: append_event never rewrites old events. Opens file in "ab" mode.
+2. **ATOMIC APPEND**: lock file using O_CREAT|O_EXCL acquired before read-then-write.
+3. **HASH CHAIN**: each event_hash covers all fields except event_hash itself (canonical JSON, sort_keys, SHA-256).
+4. **CONTINUES ON CORRUPTION**: append_event returns integrity_warnings and still appends when prior log is corrupt.
+5. **NO NETWORK**: no requests, no Telegram, no sendMessage, no network import in blackbox_log.py.
+6. **NO SUBPROCESS**: no subprocess.run or subprocess.Popen in blackbox_log.py.
+7. **NO .ENV**: no .env read, no os.environ access to secrets in blackbox_log.py.
+8. **NO AUTO-COMMIT**: create_anchor_record returns a dict; module never calls git commit.
+9. **EVIDENCE GUARDRAILS**: raw_diff, diff_text, full_stdout, full_stderr, secret_dump, env_dump keys in details/evidence are replaced with [REDACTED:raw_blob_not_allowed]; not stored verbatim.
+10. **REDACTION**: keys containing token/api_key/secret/password/bearer/webhook redacted; Bearer tokens in string values redacted.
+11. **UTF-8**: all writes use UTF-8; canonical JSON uses ensure_ascii=False; Turkish text survives round-trip.
+12. **NULL COMMIT HASH**: commit_hash=None is valid; no self-referential commit-hash requirement.
+13. **STRUCTURED ERRORS**: validate_log returns ValidationResult dataclass with errors list; not just bool.
+14. **ANCHOR VERIFY**: verify_anchor detects changed log bytes against old anchor digest.
+15. **NO SCHEDULER / NO AUTONOMOUS**: no loop, no scheduler, no cron, no AUTO in blackbox_log.py.
+
+### Honest Limitations (stated clearly, not claimed fixed)
+
+- Hash chain alone is not tamper-proof. Rewriting events and recomputing hashes produces an internally valid chain. Real tamper evidence requires Git-anchored digest comparison.
+- Lock file protects same-machine concurrent writers using this module. Does not protect OS-level file replacement.
+- Redaction is a safety net, not full DLP.
+- Local Git history can be rewritten by an actor with repo control; reflog and external anchors are the defence.
+- Stronger options (signed commits, remote mirror) are out of BLACKBOX-0 scope and documented as future.
+
+### Review Verdict Expected
+PASS / CONCERN / BLOCKER
+
+---
+
+*Prepared by: Claude Code | Date: 2026-07-05 | Sprint: BLACKBOX-0*
