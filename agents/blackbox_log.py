@@ -360,23 +360,34 @@ def _read_log_state(path: Path) -> tuple[int, Optional[str], list[str]]:
                 f"(expected {prev_hash!r}, got {prev!r})"
             )
 
-        if evt_hash:
-            if not isinstance(evt_hash, str):
+        # A usable event_hash must be a non-empty string. Any other value
+        # (missing, None, 0, False, [], {}, "", int, ...) is malformed and
+        # must never be propagated as a future event's previous_event_hash —
+        # doing so would write a structurally invalid new event. Falsey
+        # malformed values (0, False, [], {}, "") must warn just like any
+        # other malformed value, so this check no longer short-circuits on
+        # truthiness.
+        usable_hash: Optional[str] = None
+        if "event_hash" not in event or evt_hash is None:
+            warnings.append(f"Line {lineno}: missing 'event_hash'")
+        elif not isinstance(evt_hash, str) or evt_hash == "":
+            warnings.append(
+                f"Line {lineno}: 'event_hash' must be a non-empty string "
+                f"(got {type(evt_hash).__name__}: {evt_hash!r}); "
+                "not usable as a previous_event_hash for future events"
+            )
+        else:
+            computed = _compute_event_hash(event)
+            if computed != evt_hash:
                 warnings.append(
-                    f"Line {lineno}: 'event_hash' must be a string "
-                    f"(got {type(evt_hash).__name__}: {evt_hash!r})"
+                    f"Line {lineno}: event_hash mismatch "
+                    f"(stored={evt_hash[:12]}..., computed={computed[:12]}...)"
                 )
-            else:
-                computed = _compute_event_hash(event)
-                if computed != evt_hash:
-                    warnings.append(
-                        f"Line {lineno}: event_hash mismatch "
-                        f"(stored={evt_hash[:12]}..., computed={computed[:12]}...)"
-                    )
+            usable_hash = evt_hash
 
         last_sequence = seq if isinstance(seq, int) else last_sequence
-        last_hash = evt_hash
-        prev_hash = evt_hash
+        last_hash = usable_hash
+        prev_hash = usable_hash
         expected_seq = (last_sequence or 0) + 1
 
     return last_sequence, last_hash, warnings

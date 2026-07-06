@@ -1131,21 +1131,26 @@ def test_validate_log_sequence_string_structured_error(tmp_path):
     )
 
 
-def test_append_after_malformed_event_hash_still_appends(tmp_path):
-    """append_event must still succeed and warn when prior log has event_hash=123."""
-    log = tmp_path / "bb.jsonl"
-    bad = {
+def _bad_event_hash_line(event_hash: Any) -> dict:
+    return {
         "schema_version": 1,
         "ts_utc": "2026-01-01T00:00:00+00:00",
         "sequence": 1,
         "previous_event_hash": None,
-        "event_hash": 123,
+        "event_hash": event_hash,
         "event_type": "sprint_started",
         "sprint_id": "BB0-test",
         "actor": "ClaudeCode",
         "summary": "bad event_hash type",
     }
-    _write_raw_event(log, bad)
+
+
+def test_append_after_malformed_event_hash_still_appends(tmp_path):
+    """append_event must still succeed, warn, and never copy event_hash=123
+    into the new event's previous_event_hash (structural check, not just
+    summary text)."""
+    log = tmp_path / "bb.jsonl"
+    _write_raw_event(log, _bad_event_hash_line(123))
 
     result = append_event(log, _minimal({"summary": "after malformed hash event"}))
 
@@ -1154,9 +1159,91 @@ def test_append_after_malformed_event_hash_still_appends(tmp_path):
     assert len(result.integrity_warnings) > 0, (
         "Expected integrity_warnings about malformed event_hash in prior log"
     )
+    assert result.previous_event_hash != 123
+    assert result.previous_event_hash is None or isinstance(result.previous_event_hash, str)
 
-    # Verify the new valid event is present
+    # Verify the new valid event is present and structurally sound
     lines = [l for l in log.read_text(encoding="utf-8").splitlines() if l.strip()]
     assert len(lines) == 2
     last = json.loads(lines[-1])
     assert last["summary"] == "after malformed hash event"
+    assert last["previous_event_hash"] != 123
+    assert last["previous_event_hash"] is None or isinstance(last["previous_event_hash"], str)
+    assert isinstance(last["event_hash"], str) and last["event_hash"], (
+        "New event must carry a valid non-empty string event_hash"
+    )
+
+
+# ---------------------------------------------------------------------------
+# BLACKBOX-0 re-review: malformed old event_hash must never contaminate the
+# newly appended event's previous_event_hash. Falsey malformed values (0,
+# False, [], {}, "") must also warn and must not be silently accepted.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "bad_event_hash", [123, 0, False, [], {}, ""],
+    ids=["int_123", "int_0", "bool_False", "empty_list", "empty_dict", "empty_string"],
+)
+def test_append_after_malformed_event_hash_never_contaminates_new_event(tmp_path, bad_event_hash):
+    """For every malformed old event_hash shape, the newly appended event's
+    previous_event_hash must be string|None and must never equal the
+    malformed value, and append must still record an integrity warning."""
+    log = tmp_path / "bb.jsonl"
+    _write_raw_event(log, _bad_event_hash_line(bad_event_hash))
+
+    result = append_event(log, _minimal({"summary": f"after malformed hash {bad_event_hash!r}"}))
+
+    assert result.ok, f"append_event must succeed; error={result.error}"
+    assert result.appended
+    assert len(result.integrity_warnings) > 0, (
+        f"Expected integrity_warnings for malformed event_hash={bad_event_hash!r}"
+    )
+    assert any("event_hash" in w for w in result.integrity_warnings), (
+        f"Expected an event_hash-related warning; got: {result.integrity_warnings}"
+    )
+
+    assert result.previous_event_hash is None or isinstance(result.previous_event_hash, str)
+    assert result.previous_event_hash != bad_event_hash
+
+    lines = [l for l in log.read_text(encoding="utf-8").splitlines() if l.strip()]
+    assert len(lines) == 2
+    new_event = json.loads(lines[-1])
+    prev = new_event["previous_event_hash"]
+    assert prev is None or isinstance(prev, str), (
+        f"previous_event_hash must be string or null; got {type(prev).__name__}: {prev!r}"
+    )
+    assert prev != bad_event_hash
+    assert not isinstance(prev, (int, bool, list, dict))
+
+
+def test_validate_log_still_fails_on_old_corrupt_line_but_new_line_is_structurally_valid(tmp_path):
+    """validate_log may fail overall due to a corrupt old line, but that
+    failure must be attributable to the OLD line — the newly appended line's
+    previous_event_hash must not itself be reported as malformed."""
+    log = tmp_path / "bb.jsonl"
+    _write_raw_event(log, _bad_event_hash_line(123))
+
+    append_result = append_event(log, _minimal({"summary": "new valid event"}))
+    assert append_result.ok
+    assert append_result.appended
+
+    result = validate_log(log)
+    assert not result.ok, "Overall log must still fail validation due to the old corrupt line"
+
+    # Every error naming previous_event_hash-as-malformed-type must be about
+    # line 1 (the pre-existing corrupt line), never line 2 (the new event).
+    prev_hash_type_errors = [
+        e for e in result.errors
+        if "previous_event_hash" in e and "must be a string or null" in e
+    ]
+    for err in prev_hash_type_errors:
+        assert err.startswith("Line 1:"), (
+            f"New appended line must not be flagged for malformed previous_event_hash; got: {err}"
+        )
+
+    # The new event itself must be well-formed JSON with a valid previous_event_hash.
+    lines = [l for l in log.read_text(encoding="utf-8").splitlines() if l.strip()]
+    new_event = json.loads(lines[-1])
+    prev = new_event["previous_event_hash"]
+    assert prev is None or isinstance(prev, str)
