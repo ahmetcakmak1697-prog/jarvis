@@ -526,3 +526,20 @@ AUTO_STARTED: none — no autonomous runtime enabled; no scheduler, Telegram, mi
 NEXT STEP: LOOP-0A capability/machine-gate probe (not J0B directly)
 COMMIT: 9bfb0f900
 ---
+
+---
+DATE: 2026-07-08
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: LOOP-0S — machine-gate specification (docs only)
+OUTCOME: DONE
+TESTS: none (docs-only task, no executable code or tests changed)
+FILES CHANGED: 2 — automation/LOOP0_MACHINE_GATE_SPEC.md (new), automation/AUTONOMY_LOG.md
+RISKS: none; specification only, no runner/orchestrator implemented
+HUMAN_GATES_HIT: none
+AUTO_STARTED: none — no LOOP-0/LOOP-0B, no J0B/Piper, no scheduler/Telegram/mic/audio
+INVARIANTS: auto-fix retry remains NOT approved; Claude --dangerously-skip-permissions and
+            Codex --dangerously-bypass-approvals-and-sandbox are permanently forbidden in the spec
+NEXT STEP: Ahmet reviews LOOP-0S; LOOP-0B stub only after explicit approval
+COMMIT: (see git log)
+---
