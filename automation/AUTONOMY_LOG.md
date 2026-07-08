@@ -511,3 +511,18 @@ INVARIANTS: JARVIS_J0_REALTIME_ENABLED=0 default; --real-mic flag required; no l
 NEXT STEP: Codex review of J0A commits; if PASS -> J0B (real Piper subprocess + Edge TTS fallback)
 COMMIT: [set after commits complete]
 ---
+
+---
+DATE: 2026-07-08
+BRANCH: auto/opencode-deepseek
+MODEL: Sonnet
+TASK: BLACKBOX-0 FEATURE-FROZEN — validator chain-state blocker resolved, Codex PASS
+OUTCOME: DONE
+TESTS: 76 (test_blackbox_log.py) + 153 (+ voice adapters/loop) + 101 (J0 spike/live-status/latency) + 69 (E1-S4/proactive) — all passed
+FILES CHANGED: docs only — automation/BLACKBOX_RUNBOOK.md, automation/AUTONOMY_LOG.md
+RISKS: none; code/tests complete and frozen; no behavior change in this entry
+HUMAN_GATES_HIT: none
+AUTO_STARTED: none — no autonomous runtime enabled; no scheduler, Telegram, mic/audio/J0B/Piper, or .env behavior added
+NEXT STEP: LOOP-0A capability/machine-gate probe (not J0B directly)
+COMMIT: 9bfb0f900
+---

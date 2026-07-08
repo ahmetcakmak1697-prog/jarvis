@@ -1,7 +1,33 @@
 # BLACKBOX_RUNBOOK.md — BLACKBOX-0 Sprint Audit Log
 
-> Sprint: BLACKBOX-0 | Date: 2026-07-05 | Status: IMPLEMENTED
+> Sprint: BLACKBOX-0 | Date: 2026-07-05 | Status: FEATURE-FROZEN
 > Module: agents/blackbox_log.py | Tests: tests/test_blackbox_log.py
+
+---
+
+## Feature-freeze closeout (2026-07-08)
+
+- **Final fix commit:** `9bfb0f900` — fix(automation): finalize BLACKBOX-0 validator chain state
+- **Codex final verdict:** PASS
+- **Meaning:** The BLACKBOX-0 validator-state blocker (canonical-but-structurally-unusable
+  event_hash values contaminating `_read_log_state`/`validate_log` chain state) is resolved.
+  `_read_log_state` and `validate_log` now agree on structural chain usability.
+- **Scope:** Offline validation/logging only. No behavior outside
+  `agents/blackbox_log.py` and its tests was changed.
+- **Explicitly restated (unchanged from BLACKBOX-0 inception):**
+  - No autonomous execution enabled.
+  - No scheduler enabled.
+  - No Telegram enabled.
+  - No mic/audio/J0B/Piper enabled.
+  - No .env/secret behavior added.
+- **Manual validation evidence:**
+  - `py -3.11 -m pytest tests/test_blackbox_log.py -q --tb=short` -> 76 passed
+  - `py -3.11 -m pytest tests/test_blackbox_log.py tests/test_j0_voice_adapters.py tests/test_j0_voice_loop.py -q --tb=short` -> 153 passed
+  - `py -3.11 -m pytest tests/test_j0_spike_b_latency_probe.py tests/test_j0_live_status_unicode.py tests/test_j0_live_status.py tests/test_j0_voice_latency_probe.py -q --tb=short` -> 101 passed
+  - `py -3.11 -m pytest tests/test_e1_s4_live_smoke_wiring.py tests/test_proactive_delivery.py tests/test_proactive_runtime.py -q --tb=short` -> 69 passed
+  - `py -3.11 -m json.tool roadmap_state.json` -> valid JSON
+  - `git diff --check` -> clean except benign CRLF/LF warnings
+- **Next step after freeze:** LOOP-0A capability/machine-gate probe (not J0B directly).
 
 ---
 
