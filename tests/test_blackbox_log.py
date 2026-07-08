@@ -1247,3 +1247,362 @@ def test_validate_log_still_fails_on_old_corrupt_line_but_new_line_is_structural
     new_event = json.loads(lines[-1])
     prev = new_event["previous_event_hash"]
     assert prev is None or isinstance(prev, str)
+
+
+# ---------------------------------------------------------------------------
+# BLACKBOX-0 final validator-state bugfix: validate_log's internal chain
+# state (prev_hash/last_hash) must never be set to a raw stored event_hash
+# that is malformed or wrong — only a hash that is a non-empty string AND
+# equals the computed canonical hash may become the expected previous hash
+# for the next line. Otherwise chain state must reset to None so the next
+# clean line is judged on its own merits, not blamed for a mismatch against
+# a value that was never trustworthy in the first place.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "bad_event_hash", [123, 0, False, [], {}, ""],
+    ids=["int_123", "int_0", "bool_False", "empty_list", "empty_dict", "empty_string"],
+)
+def test_validate_log_malformed_old_hash_does_not_contaminate_chain_state(tmp_path, bad_event_hash):
+    """validate_log must blame the OLD corrupt line for its malformed
+    event_hash, but must reset chain state to None afterward so a
+    following clean event (previous_event_hash=None) is not falsely
+    blamed for a previous_event_hash mismatch."""
+    log = tmp_path / "bb.jsonl"
+    _write_raw_event(log, _bad_event_hash_line(bad_event_hash))
+
+    append_result = append_event(log, _minimal({"summary": "clean event after malformed hash"}))
+    assert append_result.ok
+    assert append_result.previous_event_hash is None
+
+    result = validate_log(log)
+    assert not result.ok, "Old line's malformed event_hash must still fail overall validation"
+
+    hash_type_errors = [
+        e for e in result.errors if "'event_hash' must be a non-empty string" in e
+    ]
+    assert hash_type_errors, f"Expected an event_hash type error; got: {result.errors}"
+    for err in hash_type_errors:
+        assert err.startswith("Line 1:"), f"Malformed hash must be blamed on line 1; got: {err}"
+
+    mismatch_errors_on_line2 = [
+        e for e in result.errors
+        if e.startswith("Line 2:") and "previous_event_hash mismatch" in e
+    ]
+    assert not mismatch_errors_on_line2, (
+        f"Line 2 (clean appended event) must not be falsely blamed for a "
+        f"previous_event_hash mismatch caused by the old malformed hash; "
+        f"got: {result.errors}"
+    )
+
+
+def test_append_after_wrong_string_event_hash_never_contaminates_new_event(tmp_path):
+    """A syntactically valid but WRONG (non-empty string) old event_hash
+    must warn on append, but must never be propagated as the new event's
+    previous_event_hash — only a hash that matches its computed canonical
+    value is usable chain state."""
+    log = tmp_path / "bb.jsonl"
+    wrong_hash = "f" * 64
+    _write_raw_event(log, _bad_event_hash_line(wrong_hash))
+
+    result = append_event(log, _minimal({"summary": "after wrong hash event"}))
+
+    assert result.ok
+    assert result.appended
+    assert any("event_hash" in w for w in result.integrity_warnings), (
+        f"Expected an event_hash mismatch warning; got: {result.integrity_warnings}"
+    )
+    assert result.previous_event_hash is None, (
+        "A wrong (mismatched) old event_hash must never become the new "
+        "event's previous_event_hash"
+    )
+
+    lines = [l for l in log.read_text(encoding="utf-8").splitlines() if l.strip()]
+    new_event = json.loads(lines[-1])
+    assert new_event["previous_event_hash"] is None
+    assert new_event["previous_event_hash"] != wrong_hash
+
+
+def test_validate_log_wrong_string_old_hash_does_not_contaminate_chain_state(tmp_path):
+    """A syntactically valid but WRONG (non-empty string) event_hash on an
+    old line must be reported as a hash mismatch on that line, but must not
+    be trusted as the expected previous_event_hash for the next event."""
+    log = tmp_path / "bb.jsonl"
+    _write_raw_event(log, _bad_event_hash_line("f" * 64))
+
+    append_result = append_event(log, _minimal({"summary": "clean event after wrong hash"}))
+    assert append_result.ok
+    assert append_result.previous_event_hash is None
+
+    result = validate_log(log)
+    assert not result.ok
+
+    mismatch_errors_on_line1 = [
+        e for e in result.errors
+        if e.startswith("Line 1:") and "event_hash mismatch" in e
+    ]
+    assert mismatch_errors_on_line1, f"Expected event_hash mismatch on line 1; got: {result.errors}"
+
+    mismatch_errors_on_line2 = [
+        e for e in result.errors
+        if e.startswith("Line 2:") and "previous_event_hash mismatch" in e
+    ]
+    assert not mismatch_errors_on_line2, (
+        f"Line 2 must not be falsely blamed for trusting the wrong old hash; "
+        f"got: {result.errors}"
+    )
+
+
+def test_validate_log_corrupt_line_then_two_clean_appends_not_blamed(tmp_path):
+    """After a corrupt old line, two subsequent clean appends (A then B,
+    with B linking to A's real event_hash) must both validate their own
+    chain links correctly and must not be blamed due to the old corrupt
+    line's unusable hash."""
+    log = tmp_path / "bb.jsonl"
+    _write_raw_event(log, _bad_event_hash_line(123))
+
+    a = append_event(log, _minimal({"summary": "event A"}))
+    assert a.ok
+    assert a.previous_event_hash is None
+
+    b = append_event(log, _minimal({"summary": "event B"}))
+    assert b.ok
+    assert b.previous_event_hash == a.event_hash
+
+    result = validate_log(log)
+    assert not result.ok, "Old corrupt line must still fail overall validation"
+
+    for lineno in (2, 3):
+        blamed = [
+            e for e in result.errors
+            if e.startswith(f"Line {lineno}:")
+            and ("previous_event_hash mismatch" in e or "event_hash mismatch" in e)
+        ]
+        assert not blamed, f"Line {lineno} (clean event) falsely blamed: {blamed}"
+
+    for err in result.errors:
+        if "'event_hash' must be a non-empty string" in err:
+            assert err.startswith("Line 1:"), (
+                f"Only the old corrupt line may carry this error; got: {err}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# BLACKBOX-0 final invariant: a CANONICAL event_hash (matches the computed
+# hash) must still never become validator chain state when the line itself
+# is structurally unusable for the chain (malformed/mismatched
+# previous_event_hash, invalid/non-int sequence, etc). Canonical-but-broken
+# lines must be blamed for their own structural problem, but must not
+# contaminate the chain state used to judge later, genuinely clean events.
+# ---------------------------------------------------------------------------
+
+
+def _canonical_structurally_broken_line(overrides: dict) -> dict:
+    """Build a raw JSONL event whose event_hash IS canonical (self-
+    consistent, matches _compute_event_hash) but whose chain-structural
+    fields (sequence / previous_event_hash) are deliberately wrong relative
+    to what the validator chain expects. Proves that a canonical hash alone
+    must never become validator chain state."""
+    body: dict[str, Any] = {
+        "schema_version": 1,
+        "ts_utc": "2026-01-01T00:00:00+00:00",
+        "sequence": 1,
+        "previous_event_hash": None,
+        "event_type": "sprint_started",
+        "sprint_id": "BB0-test",
+        "actor": "ClaudeCode",
+        "summary": "structurally broken but canonical-hash line",
+    }
+    body.update(overrides)
+    body["event_hash"] = _compute_event_hash(body)
+    return body
+
+
+def test_validate_log_malformed_previous_hash_type_canonical_hash_not_contaminating(tmp_path):
+    """An old line whose previous_event_hash is a malformed type (int, not
+    str/None) but whose event_hash IS canonical must be blamed for the
+    structural problem — but its canonical hash must not become chain
+    state, so following clean events (A with previous_event_hash=None, B
+    linking to A's real hash) must not be falsely blamed."""
+    log = tmp_path / "bb.jsonl"
+    _write_raw_event(log, _canonical_structurally_broken_line({"previous_event_hash": 12345}))
+
+    a = append_event(log, _minimal({"summary": "event A"}))
+    assert a.ok
+    assert a.previous_event_hash is None, (
+        "append_event must not chain to a canonical-but-structurally-broken "
+        "old line's event_hash"
+    )
+
+    b = append_event(log, _minimal({"summary": "event B"}))
+    assert b.ok
+    assert b.previous_event_hash == a.event_hash
+
+    result = validate_log(log)
+    assert not result.ok, "Old line's malformed previous_event_hash must still fail overall"
+
+    line1_errors = [e for e in result.errors if e.startswith("Line 1:")]
+    assert any(
+        "previous_event_hash" in e and "must be a string or null" in e
+        for e in line1_errors
+    ), f"Expected malformed previous_event_hash type error on line 1; got: {result.errors}"
+
+    for lineno in (2, 3):
+        blamed = [
+            e for e in result.errors
+            if e.startswith(f"Line {lineno}:")
+            and ("previous_event_hash mismatch" in e or "event_hash mismatch" in e)
+        ]
+        assert not blamed, f"Line {lineno} (clean event) falsely blamed: {blamed}"
+
+
+def test_append_after_canonical_hash_but_wrong_sequence_does_not_chain_to_it(tmp_path):
+    """An old line with a canonical (self-consistent) event_hash but a wrong
+    sequence number is structurally unusable for the chain — append_event
+    must not adopt its event_hash as the new event's previous_event_hash."""
+    log = tmp_path / "bb.jsonl"
+    _write_raw_event(log, _canonical_structurally_broken_line({"sequence": 5}))
+
+    result = append_event(log, _minimal({"summary": "after wrong-sequence canonical line"}))
+
+    assert result.ok
+    assert result.appended
+    assert len(result.integrity_warnings) > 0, (
+        "Expected integrity_warnings about the wrong-sequence old line"
+    )
+    assert result.previous_event_hash is None, (
+        "A canonical-but-wrong-sequence old event_hash must not become the "
+        "new event's previous_event_hash"
+    )
+
+    lines = [l for l in log.read_text(encoding="utf-8").splitlines() if l.strip()]
+    new_event = json.loads(lines[-1])
+    assert new_event["previous_event_hash"] is None
+
+
+def test_validate_log_previous_hash_value_mismatch_canonical_hash_not_contaminating(tmp_path):
+    """An old line whose previous_event_hash is a well-typed STRING that
+    simply doesn't match the expected chain value (a mismatch, not a
+    malformed type), but whose event_hash IS canonical, must be blamed for
+    the mismatch — but its canonical hash must not become chain state for
+    later clean events."""
+    log = tmp_path / "bb.jsonl"
+    wrong_prev = "d" * 64
+    _write_raw_event(log, _canonical_structurally_broken_line({"previous_event_hash": wrong_prev}))
+
+    a = append_event(log, _minimal({"summary": "event A"}))
+    assert a.ok
+    assert a.previous_event_hash is None
+
+    b = append_event(log, _minimal({"summary": "event B"}))
+    assert b.ok
+    assert b.previous_event_hash == a.event_hash
+
+    result = validate_log(log)
+    assert not result.ok
+
+    line1_errors = [e for e in result.errors if e.startswith("Line 1:")]
+    assert any("previous_event_hash mismatch" in e for e in line1_errors), (
+        f"Expected previous_event_hash mismatch on line 1; got: {result.errors}"
+    )
+
+    for lineno in (2, 3):
+        blamed = [
+            e for e in result.errors
+            if e.startswith(f"Line {lineno}:")
+            and ("previous_event_hash mismatch" in e or "event_hash mismatch" in e)
+        ]
+        assert not blamed, f"Line {lineno} falsely blamed: {blamed}"
+
+
+def test_append_and_validate_agree_on_missing_required_field_line_usability(tmp_path):
+    """Regression for BLOCKER #2: an old line with a CANONICAL event_hash,
+    otherwise-valid chain fields (matching sequence, matching
+    previous_event_hash), but missing a required field (actor) must be
+    treated identically as chain-unusable by both append_event
+    (_read_log_state) and validate_log.
+
+    Previously _read_log_state ignored missing required fields and
+    promoted the canonical hash as chain state, while validate_log
+    correctly reset chain state to None for the same line — so
+    append_event chained a new event to the old (untrustworthy) hash, and
+    validate_log then falsely reported a previous_event_hash mismatch for
+    that otherwise-clean new event.
+    """
+    log = tmp_path / "bb.jsonl"
+
+    body: dict[str, Any] = {
+        "schema_version": 1,
+        "ts_utc": "2026-01-01T00:00:00+00:00",
+        "sequence": 1,
+        "previous_event_hash": None,
+        "event_type": "sprint_started",
+        "sprint_id": "BB0-test",
+        "summary": "missing required field but canonical hash",
+        # 'actor' intentionally omitted: missing required field.
+    }
+    body["event_hash"] = _compute_event_hash(body)
+    _write_raw_event(log, body)
+
+    a = append_event(log, _minimal({"summary": "event A"}))
+    assert a.ok
+    assert a.previous_event_hash is None, (
+        "append_event must not chain to the canonical-but-missing-required-"
+        "field old line's event_hash"
+    )
+
+    b = append_event(log, _minimal({"summary": "event B"}))
+    assert b.ok
+    assert b.previous_event_hash == a.event_hash
+
+    result = validate_log(log)
+    assert not result.ok, "Old line's missing required field must still fail overall"
+
+    line1_errors = [e for e in result.errors if e.startswith("Line 1:")]
+    assert any("missing required fields" in e for e in line1_errors), (
+        f"Expected missing-required-fields error on line 1; got: {result.errors}"
+    )
+
+    for lineno in (2, 3):
+        blamed = [
+            e for e in result.errors
+            if e.startswith(f"Line {lineno}:")
+            and ("previous_event_hash mismatch" in e or "event_hash mismatch" in e)
+        ]
+        assert not blamed, (
+            f"Line {lineno} (clean event) must not be falsely blamed due to "
+            f"the old missing-required-field line; got: {blamed}"
+        )
+
+
+def test_validate_log_non_int_sequence_canonical_hash_not_contaminating(tmp_path):
+    """An old line with a non-integer sequence but a canonical event_hash
+    must be blamed for the bad sequence type — but its canonical hash must
+    not become chain state for later clean events."""
+    log = tmp_path / "bb.jsonl"
+    _write_raw_event(log, _canonical_structurally_broken_line({"sequence": "1"}))
+
+    a = append_event(log, _minimal({"summary": "event A"}))
+    assert a.ok
+    assert a.previous_event_hash is None
+
+    b = append_event(log, _minimal({"summary": "event B"}))
+    assert b.ok
+    assert b.previous_event_hash == a.event_hash
+
+    result = validate_log(log)
+    assert not result.ok
+
+    line1_errors = [e for e in result.errors if e.startswith("Line 1:")]
+    assert any("not an integer" in e for e in line1_errors), (
+        f"Expected non-integer sequence error on line 1; got: {result.errors}"
+    )
+
+    for lineno in (2, 3):
+        blamed = [
+            e for e in result.errors
+            if e.startswith(f"Line {lineno}:")
+            and ("previous_event_hash mismatch" in e or "event_hash mismatch" in e)
+        ]
+        assert not blamed, f"Line {lineno} falsely blamed: {blamed}"

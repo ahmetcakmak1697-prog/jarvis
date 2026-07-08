@@ -347,18 +347,40 @@ def _read_log_state(path: Path) -> tuple[int, Optional[str], list[str]]:
         evt_hash = event.get("event_hash")
         prev = event.get("previous_event_hash")
 
+        # A canonical event_hash is necessary but not sufficient to become
+        # chain state: the line itself must also be structurally usable for
+        # the chain (all required fields present, correct sequence, correct
+        # previous_event_hash link). line_chain_usable tracks that; a
+        # canonical hash on a structurally broken line must still be
+        # reported as broken, but must never be trusted as the next
+        # expected previous hash. This must mirror validate_log's notion of
+        # structural usability exactly, or append_event and validate_log
+        # disagree on chain state and validate_log ends up falsely blaming
+        # a clean event that append_event legitimately chained to None.
+        line_chain_usable = True
+
+        missing = REQUIRED_FIELDS - set(event.keys())
+        if missing:
+            warnings.append(
+                f"Line {lineno}: missing required fields: {sorted(missing)}"
+            )
+            line_chain_usable = False
+
         if not isinstance(seq, int):
             warnings.append(f"Line {lineno}: sequence not an integer: {seq!r}")
+            line_chain_usable = False
         elif seq != expected_seq:
             warnings.append(
                 f"Line {lineno}: sequence {seq} (expected {expected_seq})"
             )
+            line_chain_usable = False
 
         if prev != prev_hash:
             warnings.append(
                 f"Line {lineno}: previous_event_hash mismatch "
                 f"(expected {prev_hash!r}, got {prev!r})"
             )
+            line_chain_usable = False
 
         # A usable event_hash must be a non-empty string. Any other value
         # (missing, None, 0, False, [], {}, "", int, ...) is malformed and
@@ -381,9 +403,17 @@ def _read_log_state(path: Path) -> tuple[int, Optional[str], list[str]]:
             if computed != evt_hash:
                 warnings.append(
                     f"Line {lineno}: event_hash mismatch "
-                    f"(stored={evt_hash[:12]}..., computed={computed[:12]}...)"
+                    f"(stored={evt_hash[:12]}..., computed={computed[:12]}...); "
+                    "not usable as a previous_event_hash for future events"
                 )
-            usable_hash = evt_hash
+            elif line_chain_usable:
+                usable_hash = evt_hash
+            else:
+                warnings.append(
+                    f"Line {lineno}: event_hash is canonical but the line is "
+                    "structurally unusable for the chain; "
+                    "not usable as a previous_event_hash for future events"
+                )
 
         last_sequence = seq if isinstance(seq, int) else last_sequence
         last_hash = usable_hash
@@ -567,11 +597,21 @@ def validate_log(path: "Path | str") -> ValidationResult:
 
         event_count += 1
 
+        # A canonical event_hash is necessary but not sufficient to become
+        # chain state: the line itself must also be structurally usable for
+        # the chain (all required fields present, correct/non-duplicate
+        # sequence, correct previous_event_hash link). line_chain_usable
+        # tracks that; a canonical hash on a structurally broken line must
+        # still be reported as broken, but must never be trusted as the
+        # next expected previous hash.
+        line_chain_usable = True
+
         missing = REQUIRED_FIELDS - set(event.keys())
         if missing:
             errors.append(
                 f"Line {lineno}: missing required fields: {sorted(missing)}"
             )
+            line_chain_usable = False
 
         seq = event.get("sequence")
         evt_hash = event.get("event_hash")
@@ -579,26 +619,42 @@ def validate_log(path: "Path | str") -> ValidationResult:
 
         if not isinstance(seq, int):
             errors.append(f"Line {lineno}: 'sequence' not an integer: {seq!r}")
+            line_chain_usable = False
         else:
             if seq in seen_seqs:
                 errors.append(f"Line {lineno}: duplicate sequence {seq}")
+                line_chain_usable = False
             seen_seqs.add(seq)
             if seq != expected_seq:
                 errors.append(
                     f"Line {lineno}: out-of-order sequence {seq} (expected {expected_seq})"
                 )
+                line_chain_usable = False
 
         if prev is not None and not isinstance(prev, str):
             errors.append(
                 f"Line {lineno}: 'previous_event_hash' must be a string or null "
                 f"(got {type(prev).__name__}: {prev!r})"
             )
+            line_chain_usable = False
         elif prev != prev_hash:
             errors.append(
                 f"Line {lineno}: previous_event_hash mismatch "
                 f"(expected {prev_hash!r}, got {prev!r})"
             )
+            line_chain_usable = False
 
+        # A raw stored event_hash must never become validator chain state by
+        # itself. Only a hash that is a non-empty string AND matches the
+        # computed canonical hash for this event AND belongs to a
+        # structurally usable line is "usable" and may become the expected
+        # previous hash for the next event. Any other case (missing, wrong
+        # type, empty, wrong non-empty string, or canonical-but-structurally
+        # -broken) is reported here as an error on THIS line, and chain
+        # state resets to None so the next line is judged on its own merits
+        # instead of being falsely blamed for a mismatch against a
+        # malformed/wrong/untrustworthy value.
+        usable_hash: Optional[str] = None
         if not isinstance(evt_hash, str) or not evt_hash:
             errors.append(
                 f"Line {lineno}: 'event_hash' must be a non-empty string "
@@ -611,10 +667,18 @@ def validate_log(path: "Path | str") -> ValidationResult:
                     f"Line {lineno}: event_hash mismatch "
                     f"(stored={evt_hash[:12]}..., computed={computed[:12]}...)"
                 )
+            elif line_chain_usable:
+                usable_hash = evt_hash
+            else:
+                errors.append(
+                    f"Line {lineno}: event_hash is canonical but the line is "
+                    "structurally unusable for the chain; "
+                    "not usable as a previous_event_hash for future events"
+                )
 
         last_sequence = seq if isinstance(seq, int) else last_sequence
-        last_hash = evt_hash
-        prev_hash = evt_hash
+        last_hash = usable_hash
+        prev_hash = usable_hash
         expected_seq = (last_sequence or 0) + 1
 
     return ValidationResult(
