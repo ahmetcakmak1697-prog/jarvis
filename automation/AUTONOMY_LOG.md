@@ -581,3 +581,19 @@ NEXT STEP: Ahmet reviews plan; if approved, next card is actual LOOP-0C readines
            Ahmet explicitly requests it
 COMMIT: (see git log)
 ---
+
+---
+DATE: 2026-07-08
+TASK: LOOP-0C actual readiness inventory implementation
+OUTCOME: report prepared
+FILES CHANGED: automation/LOOP0C_J0B_PIPER_READINESS_INVENTORY.md, automation/AUTONOMY_LOG.md, automation/BLACKBOX.jsonl
+PRIOR AUDIT: docs/JARVIS_REPO_AUDIT.md found and read (SPRINT-J0A, 2026-07-04, head ae3708f8e)
+STRATEGIC INPUT: OSS adopt-vs-build evidence inspected from repo files only; no web research;
+                 found existing repo evidence for HA/Wyoming/Piper/Whisper/Ollama and Letta/Mem0/
+                 Graphiti adopt-vs-build framing, plus an unresolved Letta reject-vs-adopt conflict
+                 between docs/JARVIS_HARVEST_MAP.md and docs/strategy/JARVIS_v5_REALITY_OS_ROADMAP.md;
+                 Frigate/Double Take not found in repo
+BOUNDARY: read-only repo inspection, no runtime, no mic/audio/Piper/Telegram/scheduler, no source/test changes
+NEXT STEP: Ahmet reviews readiness inventory before any J0B/Piper runtime decision
+COMMIT: (see git log)
+---
