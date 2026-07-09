@@ -1606,3 +1606,252 @@ def test_validate_log_non_int_sequence_canonical_hash_not_contaminating(tmp_path
             and ("previous_event_hash mismatch" in e or "event_hash mismatch" in e)
         ]
         assert not blamed, f"Line {lineno} falsely blamed: {blamed}"
+
+
+# ---------------------------------------------------------------------------
+# Redaction type-safety regression (safety_flags boolean/number/null must
+# survive under sensitive-looking key names; only str/dict/list payloads
+# are redactable)
+# ---------------------------------------------------------------------------
+
+
+def test_redaction_preserves_true_safety_flag_under_sensitive_key(tmp_path):
+    """safety_flags.no_secret_env_access=True must remain True, not
+    "[REDACTED]", even though the key name contains 'secret' and 'env'."""
+    log = tmp_path / "bb.jsonl"
+    result = append_event(log, _minimal({
+        "safety_flags": {"no_secret_env_access": True},
+    }))
+    assert result.ok, f"Expected ok; got error={result.error}"
+
+    event = json.loads(log.read_text(encoding="utf-8").strip())
+    assert event["safety_flags"]["no_secret_env_access"] is True
+
+
+def test_redaction_preserves_false_safety_flag_under_sensitive_key(tmp_path):
+    """safety_flags.no_secret_env_access=False must remain False."""
+    log = tmp_path / "bb.jsonl"
+    result = append_event(log, _minimal({
+        "safety_flags": {"no_secret_env_access": False},
+    }))
+    assert result.ok
+
+    event = json.loads(log.read_text(encoding="utf-8").strip())
+    assert event["safety_flags"]["no_secret_env_access"] is False
+
+
+def test_redaction_preserves_future_boolean_safety_flag(tmp_path):
+    """A hypothetical future flag secrets_exposed=False must remain False,
+    proving the fix is not a one-off key-name exception."""
+    log = tmp_path / "bb.jsonl"
+    result = append_event(log, _minimal({
+        "safety_flags": {"secrets_exposed": False},
+    }))
+    assert result.ok
+
+    event = json.loads(log.read_text(encoding="utf-8").strip())
+    assert event["safety_flags"]["secrets_exposed"] is False
+
+
+def test_redaction_still_redacts_sensitive_string_value(tmp_path):
+    """A genuine sensitive string value under a sensitive-looking key must
+    still be redacted — the fix must not weaken existing string redaction."""
+    log = tmp_path / "bb.jsonl"
+    result = append_event(log, _minimal({
+        "details": {"api_secret": "abc123"},
+    }))
+    assert result.ok
+
+    event = json.loads(log.read_text(encoding="utf-8").strip())
+    assert event["details"]["api_secret"] == "[REDACTED]"
+    assert any(
+        "api_secret" in note and "sensitive-key pattern" in note
+        for note in event["redactions_applied"]
+    )
+
+
+def test_redaction_type_safety_validate_log_still_ok(tmp_path):
+    """validate_log must remain ok for a log containing the type-preserved
+    boolean/number/null safety-flag values alongside a redacted string."""
+    log = tmp_path / "bb.jsonl"
+    r1 = append_event(log, _minimal({
+        "safety_flags": {"no_secret_env_access": True},
+    }))
+    r2 = append_event(log, _minimal({
+        "summary": "event 2",
+        "details": {"api_secret": "abc123"},
+    }))
+    assert r1.ok and r2.ok
+
+    result = validate_log(log)
+    assert result.ok, f"Expected clean validate_log; got errors={result.errors}"
+    assert result.event_count == 2
+
+
+def test_redaction_preserves_nested_bool_int_none_and_redacts_nested_string(tmp_path):
+    """Nested dict/list safety values must be preserved by type (True, 0,
+    None) while sensitive string values nested inside the same structure
+    are still redacted — proving the type-aware check is recursive."""
+    log = tmp_path / "bb.jsonl"
+    result = append_event(log, _minimal({
+        "details": {
+            "nested": {
+                "no_env_secret_flag": True,
+                "secret_count": 0,
+                "secret_null": None,
+                "nested_secret_token": "leaked-value",
+            },
+        },
+    }))
+    assert result.ok, f"Expected ok; got error={result.error}"
+
+    event = json.loads(log.read_text(encoding="utf-8").strip())
+    nested = event["details"]["nested"]
+    assert nested["no_env_secret_flag"] is True
+    assert nested["secret_count"] == 0
+    assert nested["secret_null"] is None
+    assert nested["nested_secret_token"] == "[REDACTED]"
+
+
+def test_redact_dict_unit_type_aware_sensitive_key(tmp_path):
+    """Unit-level check directly on _redact_dict (not just via append_event)
+    for the same type-aware invariant."""
+    redacted, notes = _redact_dict({
+        "no_secret_env_access": True,
+        "secrets_exposed": False,
+        "secret_count": 0,
+        "secret_null": None,
+        "api_secret": "abc123",
+    })
+    assert redacted["no_secret_env_access"] is True
+    assert redacted["secrets_exposed"] is False
+    assert redacted["secret_count"] == 0
+    assert redacted["secret_null"] is None
+    assert redacted["api_secret"] == "[REDACTED]"
+    assert any("api_secret" in n for n in notes)
+
+
+def test_redaction_redacts_sensitive_string_nested_under_generic_parent(tmp_path):
+    """A sensitive key nested one level down (under a non-sensitive parent
+    key) must still be redacted — proving recursion reaches sensitive
+    leaves regardless of nesting depth."""
+    log = tmp_path / "bb.jsonl"
+    result = append_event(log, _minimal({
+        "details": {"nested": {"api_secret": "abc123"}},
+    }))
+    assert result.ok
+
+    event = json.loads(log.read_text(encoding="utf-8").strip())
+    assert event["details"]["nested"]["api_secret"] == "[REDACTED]"
+
+
+def test_redaction_redacts_numeric_secret_under_sensitive_key(tmp_path):
+    """Numeric secrets under sensitive-looking keys (password, token) must
+    be redacted by default — this closes the Codex CONCERN that the first
+    fix exempted all numeric values regardless of key intent."""
+    log = tmp_path / "bb.jsonl"
+    result = append_event(log, _minimal({
+        "details": {"password": 123456, "token": 987654321},
+    }))
+    assert result.ok
+
+    event = json.loads(log.read_text(encoding="utf-8").strip())
+    assert event["details"]["password"] == "[REDACTED]"
+    assert event["details"]["token"] == "[REDACTED]"
+    assert "123456" not in json.dumps(event)
+    assert "987654321" not in json.dumps(event)
+
+
+def test_redaction_preserves_zero_and_nonzero_audit_count_under_sensitive_key(tmp_path):
+    """Numeric values under a key that is both sensitive-looking AND a
+    clear audit/count field (e.g. secret_count) must be preserved — both
+    zero (previously passed only via falsy-bypass) and non-zero (proving
+    the audit-suffix carve-out actually engages, not just falsy bypass)."""
+    log = tmp_path / "bb.jsonl"
+    r1 = append_event(log, _minimal({"details": {"secret_count": 0}}))
+    r2 = append_event(log, _minimal({
+        "summary": "event 2",
+        "details": {"secret_count": 7},
+    }))
+    assert r1.ok and r2.ok
+
+    lines = log.read_text(encoding="utf-8").strip().splitlines()
+    e1 = json.loads(lines[0])
+    e2 = json.loads(lines[1])
+    assert e1["details"]["secret_count"] == 0
+    assert e2["details"]["secret_count"] == 7
+
+
+def test_redaction_sensitive_parent_hides_nested_generic_payload(tmp_path):
+    """If the parent key itself is sensitive, its nested dict must be
+    redacted wholesale — generic child key names like 'value'/'numeric'
+    must not let the payload survive."""
+    log = tmp_path / "bb.jsonl"
+    result = append_event(log, _minimal({
+        "details": {"api_secret": {"value": "abc123", "numeric": 123456}},
+    }))
+    assert result.ok
+
+    event = json.loads(log.read_text(encoding="utf-8").strip())
+    assert event["details"]["api_secret"] == "[REDACTED]"
+    dumped = json.dumps(event)
+    assert "abc123" not in dumped
+    assert "123456" not in dumped
+
+
+def test_redact_dict_unit_numeric_secret_vs_audit_count(tmp_path):
+    """Unit-level check: numeric secrets are redacted by default, but
+    audit/count-suffixed keys are preserved, even in the same call."""
+    redacted, notes = _redact_dict({
+        "password": 123456,
+        "token": 987654321,
+        "secret_count": 0,
+        "junit_failures": 0,
+        "pytest_exit_code": 1,
+    })
+    assert redacted["password"] == "[REDACTED]"
+    assert redacted["token"] == "[REDACTED]"
+    assert redacted["secret_count"] == 0
+    assert redacted["junit_failures"] == 0
+    assert redacted["pytest_exit_code"] == 1
+    assert any("password" in n for n in notes)
+    assert any("token" in n for n in notes)
+
+
+def test_redact_dict_unit_tuple_payload_under_sensitive_key_redacted(tmp_path):
+    """Closes Codex P1: an unknown truthy payload type (tuple) under a
+    sensitive key must be redacted by default, not fall through unredacted.
+    Uses the internal _redact_dict helper directly since a raw tuple is not
+    itself the shape append_event's JSONL writer is exercised with."""
+    redacted, notes = _redact_dict({"token": ("SECRET",)})
+    assert redacted["token"] == "[REDACTED]"
+    assert "SECRET" not in str(redacted)
+    assert any("token" in n for n in notes)
+
+
+def test_redact_dict_unit_set_payload_under_sensitive_key_redacted(tmp_path):
+    """Closes Codex P1 for set payloads: a set is not JSON-serializable, so
+    this is exercised only via the internal _redact_dict unit path (not
+    append_event/json.dumps), proving the fail-safe default redacts it
+    before it would ever reach serialization."""
+    redacted, notes = _redact_dict({"api_secret": {"SECRET"}})
+    assert redacted["api_secret"] == "[REDACTED]"
+    assert "SECRET" not in str(redacted)
+    assert any("api_secret" in n for n in notes)
+
+
+def test_redact_dict_unit_custom_object_payload_under_sensitive_key_redacted(tmp_path):
+    """Closes Codex P1 for arbitrary unknown object types: a plain custom
+    object (truthy by default, not bool/int/float/None/str/dict/list) under
+    a sensitive key must still be redacted by the fail-safe default rather
+    than falling through by omission. Unit-only, since such an object is
+    not JSON-serializable either."""
+
+    class _Opaque:
+        def __repr__(self):
+            return "OPAQUE_SECRET_MARKER"
+
+    redacted, notes = _redact_dict({"secret": _Opaque()})
+    assert redacted["secret"] == "[REDACTED]"
+    assert "OPAQUE_SECRET_MARKER" not in str(redacted)
+    assert any("secret" in n for n in notes)

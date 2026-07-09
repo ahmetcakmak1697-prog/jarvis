@@ -126,7 +126,25 @@ _SENSITIVE_KEY_FRAGMENTS = frozenset({
     "bearer", "webhook",
 })
 
+# Suffixes that mark a key as an audit/stat metric rather than a secret
+# payload, even when the key also contains a sensitive fragment (e.g.
+# "secret_count", "junit_tests"). Numeric values under these keys are
+# preserved instead of redacted.
+_AUDIT_NUMERIC_KEY_SUFFIXES = (
+    "_count", "_tests", "_failures", "_errors", "_exit_code", "_sequence",
+)
+
 _BEARER_RE = re.compile(r'Bearer\s+\S{8,}', re.IGNORECASE)
+
+
+def _is_sensitive_key(key: str) -> bool:
+    key_lower = key.lower()
+    return any(frag in key_lower for frag in _SENSITIVE_KEY_FRAGMENTS)
+
+
+def _is_audit_numeric_key(key: str) -> bool:
+    key_lower = key.lower()
+    return key_lower.endswith(_AUDIT_NUMERIC_KEY_SUFFIXES)
 
 
 def _redact_string_value(value: str) -> tuple[str, bool]:
@@ -147,13 +165,38 @@ def _redact_dict(d: dict, _path: str = "") -> tuple[dict, list[str]]:
 
     for k, v in d.items():
         full_key = f"{_path}.{k}" if _path else k
-        key_lower = k.lower()
 
-        # B6: check key sensitivity before type-based recursion
-        if any(frag in key_lower for frag in _SENSITIVE_KEY_FRAGMENTS) and v:
-            all_notes.append(f"key '{full_key}' matches sensitive-key pattern")
-            result[k] = "[REDACTED]"
-            continue
+        if _is_sensitive_key(k):
+            # Booleans and None are audit facts (e.g. safety-flag values),
+            # never secrets — preserve regardless of key name.
+            if isinstance(v, bool) or v is None:
+                result[k] = v
+                continue
+
+            # Numeric values under a sensitive-looking key are redacted by
+            # default (numeric PINs/tokens are real secrets), unless the
+            # key is clearly an audit/stat/count field.
+            if isinstance(v, (int, float)):
+                if _is_audit_numeric_key(k):
+                    result[k] = v
+                else:
+                    all_notes.append(f"key '{full_key}' matches sensitive-key pattern")
+                    result[k] = "[REDACTED]"
+                continue
+
+            # Fail-safe default: redact any other truthy payload — str,
+            # dict, list, tuple, set, or any other object. This is a
+            # known-safe "preserve" list (bool / None / audit-numeric)
+            # rather than a known-sensitive "redact" list, so an
+            # unrecognized payload type under a sensitive key (e.g. a
+            # tuple or set) cannot leak by omission the way it would if
+            # only specific types were listed for redaction.
+            if v:
+                all_notes.append(f"key '{full_key}' matches sensitive-key pattern")
+                result[k] = "[REDACTED]"
+                continue
+            # Falsy values ("" / {} / [] / () / set()) fall through to the
+            # normal type dispatch below, matching pre-existing behavior.
 
         if isinstance(v, dict):
             rv, notes = _redact_dict(v, full_key)
