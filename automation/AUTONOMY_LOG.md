@@ -597,3 +597,14 @@ BOUNDARY: read-only repo inspection, no runtime, no mic/audio/Piper/Telegram/sch
 NEXT STEP: Ahmet reviews readiness inventory before any J0B/Piper runtime decision
 COMMIT: (see git log)
 ---
+
+---
+DATE: 2026-07-10
+TASK: LOOP-0D/J0B safety contract before runtime
+OUTCOME: docs-only safety contract prepared
+FILES CHANGED: automation/LOOP0D_J0B_SAFETY_CONTRACT.md, automation/AUTONOMY_LOG.md
+BOUNDARY: no runtime, no mic/audio/Piper/Edge TTS/Telegram/scheduler, no BLACKBOX event
+LETTA: conflict documented; runtime not approved; pattern/reference allowed only pending explicit decision
+NEXT STEP: Ahmet reviews contract before any fake/non-mic runtime spike card
+COMMIT: (see git log)
+---
