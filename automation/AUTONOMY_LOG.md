@@ -608,3 +608,63 @@ LETTA: conflict documented; runtime not approved; pattern/reference allowed only
 NEXT STEP: Ahmet reviews contract before any fake/non-mic runtime spike card
 COMMIT: (see git log)
 ---
+
+---
+DATE: 2026-07-12
+TASK: LOOP-0E/J0B narrow Piper smoke Phase A
+OUTCOME: CONCERN — dry-run command-plan builder prepared and machine-gate PASS,
+         but Codex review-only pass flagged validate_piper_timeout() accepting
+         float('nan') as a false positive-bounded value; no auto-fix applied
+         per task rules; stopped at Ahmet human gate
+FILES CHANGED: scripts/j0_tts_adapters.py, tests/test_j0_voice_adapters.py,
+               automation/AUTONOMY_LOG.md, automation/BLACKBOX.jsonl (sequence=5,
+               via append_event only)
+BOUNDARY: Phase A only; no Piper subprocess, mic, Edge TTS, playback, install,
+          or download; PiperSubprocessAdapter/EdgeTTSAdapter NotImplementedError
+          stubs untouched; new build_piper_dry_run_plan() never calls
+          subprocess.run/Popen/os.system, never opens a socket, never reads
+          os.environ
+CODEX: CONCERN — validate_piper_timeout() should reject NaN explicitly
+                 (currently NaN passes both bound comparisons as False);
+                 output-path allowed-root check is lexical only (no symlink
+                 guard); shell=True static test is narrow (no such usage in
+                 this diff)
+PHASE B: manual-only; Ahmet must manually run the real command after explicit
+         approval AND after the NaN-timeout CONCERN is resolved
+FIRST OUTPUT: .wav file only; no automatic playback
+NEXT STEP: Ahmet reviews Phase A diff + Codex CONCERN and decides whether to
+           (a) request a follow-up fix for the NaN-timeout gap before Phase B,
+           and (b) manually verify Piper executable/model paths and run Phase B
+COMMIT: (see git log; not committed by this task)
+---
+
+---
+DATE: 2026-07-12
+TASK: LOOP-0E Phase A manual correction after Codex CONCERN
+OUTCOME: PASS
+CORRECTIONS: finite timeout validation and Phase B argument-mapping correction
+  1) validate_piper_timeout() now uses math.isfinite() to explicitly reject
+     float('nan')/float('inf')/float('-inf'), closing the NaN false-positive
+     gap Codex flagged; bool-before-numeric-check ordering and the existing
+     positive/bounded checks are unchanged. 11 new regression tests added.
+  2) Phase B manual command handoff template's off-by-one argument mapping
+     (argv=sys.argv[1:5] + text=sys.argv[5], a 6-argument invocation that
+     never placed the output path in argv) corrected to an explicit
+     4-argument mapping (piper_exe, model_onnx, out_file, text =
+     sys.argv[1:5]); text is sent via stdin only, never appended to argv.
+     4 new non-executing regression tests pin this mapping against
+     build_piper_dry_run_plan()'s existing argv shape.
+FILES CHANGED: scripts/j0_tts_adapters.py, tests/test_j0_voice_adapters.py,
+               automation/AUTONOMY_LOG.md, automation/BLACKBOX.jsonl
+               (sequence=6, via append_event only)
+HISTORY: BLACKBOX sequence=5 retained as historical CONCERN, unchanged
+         (event_hash verified identical before/after); correction appended
+         separately as sequence=6 (codex_status=PASS)
+BOUNDARY: no real Piper, no Phase B execution, no playback, no
+          install/download/network; PiperSubprocessAdapter/EdgeTTSAdapter
+          NotImplementedError stubs untouched
+NEXT STEP: Ahmet reviews correction/Codex PASS result, manually verifies
+           Piper executable/model paths, and separately decides whether to
+           approve Phase B
+COMMIT: (see git log; not committed by this task)
+---

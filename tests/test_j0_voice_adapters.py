@@ -421,3 +421,569 @@ def test_static_no_forbidden_import(source_file: Path, token: str):
             assert token not in module, (
                 f"{source_file.name} has 'from {module} import ...' containing '{token}'"
             )
+
+
+# ---------------------------------------------------------------------------
+# 11. LOOP-0E PHASE A — Piper dry-run command planning (no subprocess ever)
+# ---------------------------------------------------------------------------
+
+
+def _make_fake_piper_files(tmp_path):
+    exe = tmp_path / "piper.exe"
+    exe.write_bytes(b"fake-exe")
+    model = tmp_path / "tr_TR.onnx"
+    model.write_bytes(b"fake-model")
+    return str(exe), str(model)
+
+
+def test_build_piper_dry_run_plan_argv_is_list_not_shell_string(tmp_path):
+    """Req 1: command builder returns a list of individual arguments."""
+    from j0_tts_adapters import build_piper_dry_run_plan
+
+    exe, model = _make_fake_piper_files(tmp_path)
+    root = tmp_path / "manual_piper_smoke"
+    out = str(root / "jarvis_loop0e_first_voice.wav")
+
+    plan = build_piper_dry_run_plan(
+        executable=exe, model=model, output_path=out,
+        text="Merhaba Ahmet. JARVIS ses hattı güvenli testtedir.",
+        timeout_seconds=10, allowed_output_root=str(root),
+    )
+
+    assert plan.ok is True
+    assert isinstance(plan.argv, list)
+    assert all(isinstance(a, str) for a in plan.argv)
+    assert not isinstance(plan.argv, str)
+
+
+def test_j0_tts_adapters_source_never_uses_shell_true():
+    """Req 2: shell=True must never appear in the Phase A source file."""
+    source = (_SCRIPTS_DIR / "j0_tts_adapters.py").read_text(encoding="utf-8")
+    assert "shell=True" not in source
+
+
+def test_validate_piper_paths_executable_not_absolute(tmp_path):
+    """Req 3: executable path must be absolute."""
+    from j0_tts_adapters import validate_piper_paths
+
+    _, model = _make_fake_piper_files(tmp_path)
+    result = validate_piper_paths("piper.exe", model)
+    assert result.ok is False
+    assert result.reason == "executable_not_absolute"
+
+
+def test_validate_piper_paths_model_not_absolute(tmp_path):
+    """Req 4: model path must be absolute."""
+    from j0_tts_adapters import validate_piper_paths
+
+    exe, _ = _make_fake_piper_files(tmp_path)
+    result = validate_piper_paths(exe, "tr_TR.onnx")
+    assert result.ok is False
+    assert result.reason == "model_not_absolute"
+
+
+def test_validate_piper_output_path_rejects_non_wav(tmp_path):
+    """Req 5: output path must end with .wav."""
+    from j0_tts_adapters import validate_piper_output_path
+
+    root = tmp_path / "manual_piper_smoke"
+    result = validate_piper_output_path(str(root / "out.mp3"), allowed_root=str(root))
+    assert result.ok is False
+    assert result.reason == "output_not_wav"
+
+
+def test_validate_piper_output_path_accepts_wav_inside_root(tmp_path):
+    from j0_tts_adapters import validate_piper_output_path
+
+    root = tmp_path / "manual_piper_smoke"
+    result = validate_piper_output_path(str(root / "out.wav"), allowed_root=str(root))
+    assert result.ok is True
+
+
+def test_validate_piper_output_path_rejects_outside_allowed_root(tmp_path):
+    """Req 6: output path restricted to the allowed local output root."""
+    from j0_tts_adapters import validate_piper_output_path
+
+    root = tmp_path / "manual_piper_smoke"
+    other = tmp_path / "elsewhere" / "out.wav"
+    result = validate_piper_output_path(str(other), allowed_root=str(root))
+    assert result.ok is False
+    assert result.reason == "output_outside_allowed_root"
+
+
+def test_validate_piper_output_path_rejects_traversal(tmp_path):
+    """Req 7: path traversal outside the allowed root is rejected."""
+    from j0_tts_adapters import validate_piper_output_path
+
+    root = tmp_path / "manual_piper_smoke"
+    traversal = str(root / ".." / "evil.wav")
+    result = validate_piper_output_path(traversal, allowed_root=str(root))
+    assert result.ok is False
+    assert result.reason == "output_outside_allowed_root"
+
+
+@pytest.mark.parametrize("bad_timeout", [0, -1, 61, 1000, "10", None, True])
+def test_validate_piper_timeout_rejects_invalid_values(bad_timeout):
+    """Req 8: timeout must be explicit, positive and bounded."""
+    from j0_tts_adapters import validate_piper_timeout
+
+    result = validate_piper_timeout(bad_timeout)
+    assert result.ok is False
+    assert result.reason == "invalid_timeout"
+
+
+def test_validate_piper_timeout_accepts_valid_value():
+    from j0_tts_adapters import validate_piper_timeout
+
+    result = validate_piper_timeout(10)
+    assert result.ok is True
+
+
+# ---------------------------------------------------------------------------
+# ISSUE 1 (manual follow-up) — finite timeout regression
+# ---------------------------------------------------------------------------
+#
+# validate_piper_timeout() previously accepted float("nan") because NaN
+# comparisons (<=, >) are both False, letting it slip past the bounds check.
+# math.isfinite() now rejects NaN/+inf/-inf explicitly. These tests pin that
+# fix and its neighboring bool/zero/negative/over-max/valid-value behavior.
+
+
+def test_validate_piper_timeout_rejects_nan():
+    """Req 1: float('nan') must be rejected — never silently accepted."""
+    from j0_tts_adapters import validate_piper_timeout
+
+    result = validate_piper_timeout(float("nan"))
+    assert result.ok is False
+    assert result.reason == "invalid_timeout"
+
+
+def test_validate_piper_timeout_rejects_positive_infinity():
+    """Req 2: float('inf') must be rejected."""
+    from j0_tts_adapters import validate_piper_timeout
+
+    result = validate_piper_timeout(float("inf"))
+    assert result.ok is False
+    assert result.reason == "invalid_timeout"
+
+
+def test_validate_piper_timeout_rejects_negative_infinity():
+    """Req 3: float('-inf') must be rejected."""
+    from j0_tts_adapters import validate_piper_timeout
+
+    result = validate_piper_timeout(float("-inf"))
+    assert result.ok is False
+    assert result.reason == "invalid_timeout"
+
+
+def test_validate_piper_timeout_rejects_bool_true():
+    """Req 4: True must be rejected even though bool is a subclass of int."""
+    from j0_tts_adapters import validate_piper_timeout
+
+    result = validate_piper_timeout(True)
+    assert result.ok is False
+    assert result.reason == "invalid_timeout"
+
+
+def test_validate_piper_timeout_rejects_bool_false():
+    """Req 5: False must be rejected even though bool is a subclass of int."""
+    from j0_tts_adapters import validate_piper_timeout
+
+    result = validate_piper_timeout(False)
+    assert result.ok is False
+    assert result.reason == "invalid_timeout"
+
+
+def test_validate_piper_timeout_rejects_zero():
+    """Req 6: zero must be rejected."""
+    from j0_tts_adapters import validate_piper_timeout
+
+    result = validate_piper_timeout(0)
+    assert result.ok is False
+    assert result.reason == "invalid_timeout"
+
+
+def test_validate_piper_timeout_rejects_negative_finite_value():
+    """Req 7: a negative finite value must be rejected."""
+    from j0_tts_adapters import validate_piper_timeout
+
+    result = validate_piper_timeout(-5.0)
+    assert result.ok is False
+    assert result.reason == "invalid_timeout"
+
+
+def test_validate_piper_timeout_rejects_value_above_maximum():
+    """Req 8: a value above the configured maximum must be rejected."""
+    from j0_tts_adapters import validate_piper_timeout, PIPER_DRY_RUN_MAX_TIMEOUT_SECONDS
+
+    result = validate_piper_timeout(PIPER_DRY_RUN_MAX_TIMEOUT_SECONDS + 1)
+    assert result.ok is False
+    assert result.reason == "invalid_timeout"
+
+
+def test_validate_piper_timeout_accepts_valid_integer():
+    """Req 9: a valid finite integer timeout remains accepted."""
+    from j0_tts_adapters import validate_piper_timeout
+
+    result = validate_piper_timeout(15)
+    assert result.ok is True
+
+
+def test_validate_piper_timeout_accepts_valid_finite_float():
+    """Req 10: a valid finite float timeout remains accepted."""
+    from j0_tts_adapters import validate_piper_timeout
+
+    result = validate_piper_timeout(10.5)
+    assert result.ok is True
+
+
+def test_validate_piper_timeout_does_not_raise_on_invalid_values():
+    """No uncontrolled exception for any invalid value — always a structured result."""
+    from j0_tts_adapters import validate_piper_timeout
+
+    for bad in (float("nan"), float("inf"), float("-inf"), True, False, 0, -1, 999, "10", None, [], {}):
+        result = validate_piper_timeout(bad)
+        assert result.ok is False
+        assert result.reason == "invalid_timeout"
+
+
+def test_validate_piper_text_rejects_too_long():
+    """Req 9: oversized text returns a structured failure."""
+    from j0_tts_adapters import validate_piper_text, PIPER_DRY_RUN_MAX_TEXT_LENGTH
+
+    result = validate_piper_text("x" * (PIPER_DRY_RUN_MAX_TEXT_LENGTH + 1))
+    assert result.ok is False
+    assert result.reason == "text_too_long"
+
+
+def test_build_piper_dry_run_plan_text_too_long_is_structured_failure(tmp_path):
+    from j0_tts_adapters import build_piper_dry_run_plan, PIPER_DRY_RUN_MAX_TEXT_LENGTH
+
+    exe, model = _make_fake_piper_files(tmp_path)
+    root = tmp_path / "manual_piper_smoke"
+    out = str(root / "jarvis_loop0e_first_voice.wav")
+
+    plan = build_piper_dry_run_plan(
+        executable=exe, model=model, output_path=out,
+        text="x" * (PIPER_DRY_RUN_MAX_TEXT_LENGTH + 1),
+        timeout_seconds=10, allowed_output_root=str(root),
+    )
+    assert plan.ok is False
+    assert plan.reason == "text_too_long"
+
+
+def test_build_piper_dry_run_plan_shell_like_text_does_not_alter_argv_positions(tmp_path):
+    """Req 10: shell-metacharacter text must not change argv positions or shape."""
+    from j0_tts_adapters import build_piper_dry_run_plan
+
+    exe, model = _make_fake_piper_files(tmp_path)
+    root = tmp_path / "manual_piper_smoke"
+    out = str(root / "jarvis_loop0e_first_voice.wav")
+
+    baseline = build_piper_dry_run_plan(
+        executable=exe, model=model, output_path=out,
+        text="Merhaba Ahmet. JARVIS ses hattı güvenli testtedir.",
+        timeout_seconds=10, allowed_output_root=str(root),
+    )
+    dangerous = build_piper_dry_run_plan(
+        executable=exe, model=model, output_path=out,
+        text="; rm -rf / && echo $(whoami) | evil `cmd` > out.txt",
+        timeout_seconds=10, allowed_output_root=str(root),
+    )
+
+    assert baseline.ok is True and dangerous.ok is True
+    assert baseline.argv == dangerous.argv == [exe, "--model", model, "--output_file", out]
+    for arg in dangerous.argv:
+        assert arg in (exe, "--model", model, "--output_file", out)
+
+
+def test_validate_piper_paths_executable_missing_is_structured_failure(tmp_path):
+    """Req 11: missing executable is a structured prerequisite failure, not a crash."""
+    from j0_tts_adapters import validate_piper_paths
+
+    _, model = _make_fake_piper_files(tmp_path)
+    missing_exe = str(tmp_path / "does_not_exist_piper.exe")
+    result = validate_piper_paths(missing_exe, model)
+    assert result.ok is False
+    assert result.reason == "executable_missing"
+
+
+def test_validate_piper_paths_model_missing_is_structured_failure(tmp_path):
+    """Req 12: missing model is a structured prerequisite failure, not a crash."""
+    from j0_tts_adapters import validate_piper_paths
+
+    exe, _ = _make_fake_piper_files(tmp_path)
+    missing_model = str(tmp_path / "does_not_exist.onnx")
+    result = validate_piper_paths(exe, missing_model)
+    assert result.ok is False
+    assert result.reason == "model_missing"
+
+
+def test_dry_run_plan_never_calls_subprocess_run_or_popen(tmp_path, monkeypatch):
+    """Req 13/14: dry-run never calls subprocess.run or subprocess.Popen."""
+    import subprocess as _subprocess
+    from j0_tts_adapters import build_piper_dry_run_plan
+
+    calls: list = []
+    monkeypatch.setattr(_subprocess, "run", lambda *a, **k: calls.append(("run", a, k)))
+    monkeypatch.setattr(_subprocess, "Popen", lambda *a, **k: calls.append(("Popen", a, k)))
+
+    exe, model = _make_fake_piper_files(tmp_path)
+    root = tmp_path / "manual_piper_smoke"
+    out = str(root / "jarvis_loop0e_first_voice.wav")
+
+    plan = build_piper_dry_run_plan(
+        executable=exe, model=model, output_path=out,
+        text="Merhaba Ahmet. JARVIS ses hattı güvenli testtedir.",
+        timeout_seconds=10, allowed_output_root=str(root),
+    )
+
+    assert plan.ok is True
+    assert calls == []
+
+
+def test_dry_run_plan_never_calls_os_system_or_playback(tmp_path, monkeypatch):
+    """Req 15: dry-run never calls os.system or any playback function."""
+    import os as _os
+    from j0_tts_adapters import build_piper_dry_run_plan
+
+    calls: list = []
+    monkeypatch.setattr(_os, "system", lambda *a, **k: calls.append(("system", a, k)))
+
+    exe, model = _make_fake_piper_files(tmp_path)
+    root = tmp_path / "manual_piper_smoke"
+    out = str(root / "jarvis_loop0e_first_voice.wav")
+
+    plan = build_piper_dry_run_plan(
+        executable=exe, model=model, output_path=out,
+        text="Merhaba Ahmet. JARVIS ses hattı güvenli testtedir.",
+        timeout_seconds=10, allowed_output_root=str(root),
+    )
+
+    assert plan.ok is True
+    assert calls == []
+
+
+def test_dry_run_plan_never_touches_network_socket(tmp_path, monkeypatch):
+    """Req 16: no network call occurs during dry-run planning."""
+    import socket as _socket
+    from j0_tts_adapters import build_piper_dry_run_plan
+
+    def _forbidden(*a, **k):
+        raise AssertionError("dry-run must never open a network socket")
+
+    monkeypatch.setattr(_socket, "socket", _forbidden)
+    monkeypatch.setattr(_socket, "create_connection", _forbidden)
+
+    exe, model = _make_fake_piper_files(tmp_path)
+    root = tmp_path / "manual_piper_smoke"
+    out = str(root / "jarvis_loop0e_first_voice.wav")
+
+    plan = build_piper_dry_run_plan(
+        executable=exe, model=model, output_path=out,
+        text="Merhaba Ahmet. JARVIS ses hattı güvenli testtedir.",
+        timeout_seconds=10, allowed_output_root=str(root),
+    )
+    assert plan.ok is True
+
+
+def test_dry_run_plan_never_reads_environ(tmp_path, monkeypatch):
+    """Req 17: no .env/secrets/environment access occurs during dry-run planning."""
+    from j0_tts_adapters import build_piper_dry_run_plan
+
+    class _ForbiddenEnviron(dict):
+        def __getitem__(self, key):
+            raise AssertionError(f"dry-run must never read os.environ[{key!r}]")
+
+        def get(self, key, default=None):
+            raise AssertionError(f"dry-run must never read os.environ.get({key!r})")
+
+    monkeypatch.setattr("os.environ", _ForbiddenEnviron())
+
+    exe, model = _make_fake_piper_files(tmp_path)
+    root = tmp_path / "manual_piper_smoke"
+    out = str(root / "jarvis_loop0e_first_voice.wav")
+
+    plan = build_piper_dry_run_plan(
+        executable=exe, model=model, output_path=out,
+        text="Merhaba Ahmet. JARVIS ses hattı güvenli testtedir.",
+        timeout_seconds=10, allowed_output_root=str(root),
+    )
+    assert plan.ok is True
+
+
+def test_real_piper_execution_remains_unreachable_from_dry_run_plan(tmp_path):
+    """Req 18: dry-run plan objects have no way to trigger real execution."""
+    from j0_tts_adapters import PiperCommandPlan, PiperSubprocessAdapter
+
+    assert not hasattr(PiperCommandPlan, "execute")
+    assert not hasattr(PiperCommandPlan, "run")
+
+    adapter = PiperSubprocessAdapter()
+    with pytest.raises(NotImplementedError):
+        adapter.speak("test")
+
+
+def test_dry_run_plan_ok_result_metadata_points_to_wav_without_playing(tmp_path, monkeypatch):
+    """Req 19: output metadata points to a .wav target but nothing plays it."""
+    import os as _os
+    from j0_tts_adapters import build_piper_dry_run_plan
+
+    played: list = []
+    monkeypatch.setattr(_os, "startfile", lambda *a, **k: played.append(a), raising=False)
+
+    exe, model = _make_fake_piper_files(tmp_path)
+    root = tmp_path / "manual_piper_smoke"
+    out = str(root / "jarvis_loop0e_first_voice.wav")
+
+    plan = build_piper_dry_run_plan(
+        executable=exe, model=model, output_path=out,
+        text="Merhaba Ahmet. JARVIS ses hattı güvenli testtedir.",
+        timeout_seconds=10, allowed_output_root=str(root),
+    )
+
+    assert plan.ok is True
+    assert plan.output_path.endswith(".wav")
+    assert played == []
+
+
+def test_manual_phase_b_command_can_be_documented_without_execution(tmp_path, monkeypatch):
+    """Req 20: the manual Phase B command can be derived/documented without running it."""
+    import subprocess as _subprocess
+    from j0_tts_adapters import build_piper_dry_run_plan
+
+    calls: list = []
+    monkeypatch.setattr(_subprocess, "run", lambda *a, **k: calls.append(a))
+    monkeypatch.setattr(_subprocess, "Popen", lambda *a, **k: calls.append(a))
+
+    exe, model = _make_fake_piper_files(tmp_path)
+    root = tmp_path / "manual_piper_smoke"
+    out = str(root / "jarvis_loop0e_first_voice.wav")
+
+    plan = build_piper_dry_run_plan(
+        executable=exe, model=model, output_path=out,
+        text="Merhaba Ahmet. JARVIS ses hattı güvenli testtedir.",
+        timeout_seconds=10, allowed_output_root=str(root),
+    )
+
+    assert plan.ok is True
+    manual_command_hint = " ".join(plan.argv)
+    assert isinstance(manual_command_hint, str)
+    assert exe in manual_command_hint
+    assert model in manual_command_hint
+    assert calls == []
+
+
+# ---------------------------------------------------------------------------
+# ISSUE 2 (manual follow-up) — Phase B manual-handoff argument-mapping regression
+# ---------------------------------------------------------------------------
+#
+# The prior report's manual template used `argv = sys.argv[1:5]` (4 items)
+# together with `text = sys.argv[5]` (a 6-argument invocation), which meant
+# the output-file value was never placed in argv and the output path was
+# treated as synthesis text instead. The corrected mapping is four explicit
+# positional values after the script name: executable, model, output_path,
+# text — reusing build_piper_dry_run_plan's existing argv shape rather than
+# inventing a new command-rendering framework. No subprocess is started by
+# any test in this section.
+
+
+def test_manual_handoff_output_path_immediately_follows_output_file_flag(tmp_path):
+    """Output path must sit at argv[index('--output_file') + 1]."""
+    from j0_tts_adapters import build_piper_dry_run_plan
+
+    exe, model = _make_fake_piper_files(tmp_path)
+    root = tmp_path / "manual_piper_smoke"
+    out = str(root / "jarvis_loop0e_first_voice.wav")
+
+    plan = build_piper_dry_run_plan(
+        executable=exe, model=model, output_path=out,
+        text="Merhaba Ahmet. JARVIS ses hattı güvenli testtedir.",
+        timeout_seconds=15, allowed_output_root=str(root),
+    )
+
+    assert plan.ok is True
+    idx = plan.argv.index("--output_file")
+    assert plan.argv[idx + 1] == out
+    assert out.endswith(".wav")
+
+
+def test_manual_handoff_text_is_never_part_of_argv(tmp_path):
+    """Synthesis text must never appear in argv, whole or as a substring of any arg."""
+    from j0_tts_adapters import build_piper_dry_run_plan
+
+    exe, model = _make_fake_piper_files(tmp_path)
+    root = tmp_path / "manual_piper_smoke"
+    out = str(root / "jarvis_loop0e_first_voice.wav")
+    text = "Merhaba Ahmet. JARVIS ses hattı güvenli testtedir."
+
+    plan = build_piper_dry_run_plan(
+        executable=exe, model=model, output_path=out,
+        text=text, timeout_seconds=15, allowed_output_root=str(root),
+    )
+
+    assert plan.ok is True
+    assert text not in plan.argv
+    for arg in plan.argv:
+        assert text not in arg
+
+
+def test_manual_handoff_four_argument_mapping_has_no_off_by_one(tmp_path):
+    """Regression for the fixed off-by-one bug.
+
+    Corrected mapping is exactly four explicit positional values after the
+    script name: piper_exe, model_onnx, out_file, text = sys.argv[1:5].
+    This must reproduce the identical argv shape produced by
+    build_piper_dry_run_plan, and text must be usable only as stdin/input
+    metadata, never as a fifth trailing argv slot (the old, wrong
+    `text = sys.argv[5]` six-argument invocation is not reproduced here).
+    """
+    from j0_tts_adapters import build_piper_dry_run_plan
+
+    exe, model = _make_fake_piper_files(tmp_path)
+    root = tmp_path / "manual_piper_smoke"
+    out = str(root / "jarvis_loop0e_first_voice.wav")
+    text = "Merhaba Ahmet. JARVIS ses hattı güvenli testtedir."
+
+    # Simulates the corrected manual wrapper's sys.argv parsing: exactly
+    # four values after the script name, no fifth trailing text argument.
+    fake_sys_argv = ["manual_wrapper.py", exe, model, out, text]
+    assert len(fake_sys_argv) == 5  # script name + 4 positional values only
+
+    piper_exe, model_onnx, out_file, parsed_text = fake_sys_argv[1:5]
+    manual_argv = [piper_exe, "--model", model_onnx, "--output_file", out_file]
+
+    plan = build_piper_dry_run_plan(
+        executable=exe, model=model, output_path=out,
+        text=text, timeout_seconds=15, allowed_output_root=str(root),
+    )
+
+    assert plan.ok is True
+    assert manual_argv == plan.argv
+    assert parsed_text == text
+    assert parsed_text not in manual_argv
+    assert out_file.endswith(".wav")
+
+
+def test_manual_handoff_command_plan_targets_wav_without_subprocess(tmp_path, monkeypatch):
+    """Command plan targets a .wav file; no subprocess is started to verify this."""
+    import subprocess as _subprocess
+    from j0_tts_adapters import build_piper_dry_run_plan
+
+    calls: list = []
+    monkeypatch.setattr(_subprocess, "run", lambda *a, **k: calls.append(a))
+    monkeypatch.setattr(_subprocess, "Popen", lambda *a, **k: calls.append(a))
+
+    exe, model = _make_fake_piper_files(tmp_path)
+    root = tmp_path / "manual_piper_smoke"
+    out = str(root / "jarvis_loop0e_first_voice.wav")
+
+    plan = build_piper_dry_run_plan(
+        executable=exe, model=model, output_path=out,
+        text="Merhaba Ahmet. JARVIS ses hattı güvenli testtedir.",
+        timeout_seconds=15, allowed_output_root=str(root),
+    )
+
+    assert plan.ok is True
+    assert plan.output_path.endswith(".wav")
+    assert calls == []
