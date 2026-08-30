@@ -38,13 +38,13 @@ from typing import Any, Optional
 
 import pytest
 
-# Ensure agents/ is on sys.path
-import sys
-_AGENTS_DIR = Path(__file__).resolve().parents[1] / "agents"
-if str(_AGENTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_AGENTS_DIR))
-
-from blackbox_log import (
+# agents/ paket olarak import edilir (repo konvansiyonu; bkz.
+# tests/test_e1_6b_delivery_result.py). Daha once burada agents/ dizini
+# duz bir dizin olarak sys.path[0]'a sokuluyordu; bu, agents/orchestrator.py
+# ile scripts/orchestrator.py arasinda ad cakismasi yaratip toplama aninda
+# test_orchestrator.py'nin yanlis module baglanmasina yol aciyordu.
+# Bkz. FAILURES.md -> "Test State Pollution & Isolation".
+from agents.blackbox_log import (
     AppendResult,
     AnchorVerifyResult,
     ValidationResult,

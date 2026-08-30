@@ -178,16 +178,26 @@ Beklenen alanlar:
 
 ---
 
-## 10. Auto Runner
+## 10. Auto Runner — PARK EDILMIS (CALISTIRMA)
 
-Auto Runner, JARVIS'in arka planda uzun sureli calismasi icin kullanilir.
+> **DURUM: PARK EDILMIS.** `CLAUDE.md` §9 DEGISMEZ KURALLAR: "Park edilmis
+> cepheler (AUTO / orchestrator / scheduler / Telegram auto-send) hicbir
+> isimle, hicbir gerekcyle yeniden acilmaz."
+>
+> Bu bolum tarihsel kayit ve **temizlik** icin duruyor. Asagidaki baslatma
+> komutu **calistirilmaz**; yalnizca kacak bir surec kaldiysa nasil
+> kapatilacagini gosteren kisim gecerlidir.
+>
+> §9 degismedikce bu bolum yeniden "desteklenen akis" haline getirilemez.
 
-TERMINALE YAZ:
+Auto Runner, JARVIS'in arka planda uzun sureli calismasi icin yazilmisti.
+
+~~TERMINALE YAZ:~~ (park edildi — calistirma)
 
     cd C:\Users\Ahmedov\Desktop\Jarvis\jarvis
     python auto_runner.py
 
-Beklenen cikti:
+Beklenen cikti (tarihsel):
 
     JARVIS Auto Runner baslatildi.
     Server zaten calisiyor. Yeni instance baslatilmadi.

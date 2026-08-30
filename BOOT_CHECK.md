@@ -159,14 +159,19 @@ Beklenen:
 
 ---
 
-## 11. Auto Runner kisa test
+## 11. Auto Runner kisa test — PARK EDILMIS (ATLA)
 
-TERMINALE YAZ:
+> **DURUM: PARK EDILMIS.** `CLAUDE.md` §9 DEGISMEZ KURALLAR geregi AUTO
+> cephesi kapalidir. Bu adim boot check'in **parcasi degildir** — atla.
+> Bolum yalnizca tarihsel kayit ve kacak surec temizligi icin duruyor.
+> Ayrintili gerekce: `README.md` §10.
+
+~~TERMINALE YAZ:~~ (park edildi — calistirma)
 
     cd C:\Users\Ahmedov\Desktop\Jarvis\jarvis
     python auto_runner.py
 
-Beklenen:
+Beklenen (tarihsel):
 
     JARVIS Auto Runner baslatildi.
     Server zaten calisiyor. Yeni instance baslatilmadi.

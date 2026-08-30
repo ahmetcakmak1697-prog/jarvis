@@ -40,6 +40,58 @@ eklenir:
 
 ## Kayıtlar
 
+### [2026-08-31] `orchestrator` ad çakışması — kök neden kaldırıldı (izolasyon yaması artık savunma katmanı)
+
+- **Alan:** test altyapısı / import mimarisi
+- **Şiddet:** CONCERN (belirti daha önce izole edilmişti, kök neden duruyordu)
+- **Tuzak:** Repoda iki `orchestrator` modülü var: `scripts/orchestrator.py`
+  (park edilmiş autocoder orchestrator'ı) ve `agents/orchestrator.py`
+  (`LLMOrchestrator`, model merdiveni). 2026-08-30'da belirti
+  `tests/conftest.py` ile izole edilmişti ama çakışmanın kendisi duruyordu.
+- **Kök neden:** `agents/` bir **paket** (`__init__.py` var) ve repo
+  konvansiyonu paket-nitelikli import (`from agents.proactive_runtime import ...`).
+  `tests/test_blackbox_log.py` bu konvansiyonu bozup `agents/` dizinini **düz
+  dizin** olarak `sys.path[0]`'a sokuyordu. Ad çakışması modüllerden değil, bu
+  tek satırdan doğuyordu: `agents/` düz dizin olunca `agents/orchestrator.py`
+  bare `import orchestrator` ile erişilebilir hale geliyor ve
+  `scripts/orchestrator.py`'nin önüne geçiyordu.
+- **Kural:** `agents/` ve `tools/` paket olarak import edilir
+  (`from agents.X import ...`); bu dizinler **hiçbir zaman** `sys.path`'e düz
+  dizin olarak eklenmez. Bir modülün adı iki dizinde birden geçiyorsa çözüm
+  yeniden adlandırmak değil, **paket-nitelikli import kullanmaktır** — böylece
+  ne parked koda ne de çalışan mimariye dokunulur.
+- **Kanıt:** `tests/test_blackbox_log.py:41-47` → `from agents.blackbox_log import`.
+  `agents/orchestrator.py`'nin tek tüketicisi `jarvis_brain.py:45` ve zaten
+  paket-nitelikli import kullanıyor. Doğrulama: `pytest tests/test_blackbox_log.py
+  tests/test_orchestrator.py` → 133 passed, conftest koruması devre dışıyken de
+  geçiyor. `ruff check .` 296 → 295 (bir E402 gitti).
+- **Regresyon testi:** YOK — açık borç. `tests/conftest.py`'deki
+  `pytest_collectstart` koruması artık *savunma katmanı* olarak duruyor:
+  kök neden gitti ama biri yeniden `sys.path`'e düz dizin eklerse yakalar.
+
+### [2026-08-31] FLAKY — `test_missing_sounddevice_early_return_has_t0_definition`
+
+- **Alan:** J0 ses hattı, `tests/test_j0_spike_b_latency_probe.py:768`
+- **Şiddet:** CONCERN — **açık, çözülmedi**
+- **Tuzak:** Tam süit **ters sırada** çalıştırıldığında bu test 5 koşunun
+  1'inde başarısız oldu; sonraki 4 ters-sıra koşusunda ve her alfabetik
+  koşuda geçti. Tek başına 48/48 geçiyor.
+- **Kök neden:** [EMİN DEĞİLİM] Kesin neden tespit edilemedi. Gözlem:
+  test `sys.modules`'ten `sounddevice`'ı çıkarıp `_real_probe()` çağırıyor.
+  `sounddevice` bu makinede **gerçekten kurulu** (0.5.5), dolayısıyla
+  `_real_probe` ImportError yerine gerçek ses cihazı yoluna girebiliyor.
+  Gerçek donanıma dokunan bir yol, zamanlama/cihaz meşguliyeti nedeniyle
+  nondeterministik olur. Hata izi yakalanamadı çünkü sonraki koşularda
+  tekrarlamadı.
+- **Kural:** Gerçek donanıma dokunan yol test içinde **koşula bağlı**
+  çalıştırılmaz. Bir testin gövdesi "kütüphane kuruluysa şunu yap, değilse
+  atla" diye dallanıyorsa, o test iki farklı makinede iki farklı şeyi test
+  ediyor demektir — donanım `tests/mocks/mock_hardware.py` ile taklit edilir.
+  Bu düzeltme henüz **yapılmadı**.
+- **Kanıt:** ters-sıra koşu 1/5 → `1 failed, 1350 passed`; koşu 2-5 →
+  `1351 passed`. Alfabetik koşuların hepsi → `1351 passed`.
+- **Regresyon testi:** YOK. Flake yeniden üretilemediği için kilitlenemedi.
+
 ### [2026-08-30] Test State Pollution & Isolation — süit sıra bağımlıydı, 49 "hata" sahteydi
 
 - **Alan:** test altyapısı (`tests/conftest.py`), orchestrator + J0 ses hattı

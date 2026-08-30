@@ -151,6 +151,14 @@ onaylanmaz.
   `"verdict": "DONE"` (2026-06-27, Ahmet imzalı telefon onayı) olarak
   gösteriyor. İki dosya senkron değil — hangisinin güncel olduğu burada
   varsayılmadı, repo'da açıkça netleştirilmemiş.
+- **~~auto_runner çelişkisi~~ — ÇÖZÜLDÜ (2026-08-30).** Graphify grafiği,
+  `README.md` §10 ve `BOOT_CHECK.md` §11'in `auto_runner.py`'yi desteklenen
+  bir akış olarak belgelerken §9'un tüm AUTO cephelerini kalıcı park
+  ettiğini AMBIGUOUS bir kenar olarak yakaladı. Çelişki **§9 lehine**
+  sabitlendi: §9 DEĞİŞMEZ bir kural, README/BOOT_CHECK ise operasyon
+  belgesi — anayasa kazanır. Her iki bölüm de "PARK EDİLMİŞ / ÇALIŞTIRMA"
+  banner'ıyla işaretlendi; başlatma komutu geçersiz, yalnızca kaçak süreç
+  temizliği geçerli. Bölümler silinmedi (tarihsel kayıt + temizlik gereği).
 
 ## 13. YALIN SAVUNMA VE DENETİM ALTYAPISI
 
