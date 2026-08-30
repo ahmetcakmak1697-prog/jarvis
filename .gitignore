@@ -113,3 +113,6 @@ memory/cost_ledger.jsonl
 outcome_contract.active.json
 cost_ledger.json
 TASK_*.md
+
+# graphify uretilmis grafik artefaktlari (graphify update . her calistiginda degisir)
+graphify-out/

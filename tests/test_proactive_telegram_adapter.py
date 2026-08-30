@@ -123,13 +123,16 @@ def test_integration_run_proactive_delivery_with_adapter():
 
     result = run_proactive_delivery(plan, chat_id_resolver=resolver, sender_factory=factory)
 
-    assert result is True
+    # E1-S6B: run_proactive_delivery() bare bool yerine DeliveryResult donuyor
+    # (bkz. tests/test_e1_6b_delivery_result.py). Iddia gonderim sonucuna kaydirildi.
+    assert result.sent is True
+    assert result.reason == "sent"
     assert len(calls) == 1
     assert calls[0][0] == "telegram_99"
     assert len(calls[0][1]) > 0
 
 
-# 12. integration: resolver miss → run_proactive_delivery returns False, no send
+# 12. integration: resolver miss → run_proactive_delivery sent=False, no send
 def test_integration_resolver_miss_no_send():
     plan = _ready_plan(user_id="unknown_user")
     calls = []
@@ -139,5 +142,7 @@ def test_integration_resolver_miss_no_send():
 
     result = run_proactive_delivery(plan, chat_id_resolver=resolver, sender_factory=factory)
 
-    assert result is False
+    # E1-S6B sozlesmesi: sent=False + neden kodu (bare bool degil).
+    assert result.sent is False
+    assert result.reason == "no_chat_id"
     assert calls == []
