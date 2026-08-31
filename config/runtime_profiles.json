@@ -7,14 +7,14 @@
       "label": "RTX 3070 8GB - mevcut sistem",
       "backend": "ollama",
       "ollama_url": "http://localhost:11434",
-      "local_small": "llama3.2:latest",
+      "local_small": "qwen2.5:7b",
       "local_main": "mistral-nemo:latest",
       "research_model": "mistral-nemo:latest",
       "vision_model": "",
       "stt_model": "faster-whisper",
       "tts_model": "edge",
       "tensor_parallel_size": 1,
-      "notes": "Su an calisan profil. local_main = sistemde dogrulanmis model. Qwen'e gecis ANCAK benchmark sonrasi yapilir."
+      "notes": "Su an calisan profil. local_main = sistemde dogrulanmis model. local_small 2026-08-31'de llama3.2:latest -> qwen2.5:7b olarak degistirildi; profil kuralinin gerektirdigi benchmark kosuldu (5 L1 sorusu, sicak): qwen2.5:7b ort 2.40s / Efendim 3-5 / Ingilizce sizintisi 0-5; llama3.2:latest ort 2.52s / Efendim 0-5 ve cevaplarda sistem prompt'u sizintisi + bozuk Turkce. Qwen hem daha hizli hem persona uyumlu. local_main icin Qwen'e gecis HALA benchmark bekliyor."
     },
     "dual3090": {
       "label": "2x RTX 3090 NVLink 48GB - hedef sistem",

@@ -18,8 +18,11 @@ Scope (negative):
 """
 from __future__ import annotations
 
+import os
 import time
 from typing import Any
+
+from agents.persona import build_system_prompt as _build_system_prompt
 
 
 _LEVEL_ROLE_MAP = {
@@ -29,31 +32,19 @@ _LEVEL_ROLE_MAP = {
     "L3": "research_model",
 }
 
+# Persona SSOT. Daha once burada satir-ici, ASCII'ye indirgenmis ve bozuk
+# kodlamali (Turkce harfler soru isaretine donusmus) uc ayri prompt
+# duruyordu. Artik tek kaynak
+# agents/persona.py; sozlesme kilidi tests/test_persona_ssot.py.
+#
+# config.py buraya import EDILMEZ: import aninda load_dotenv() cagirir ve
+# HF_*_OFFLINE ortam degiskenlerini yazar (CLAUDE.md 9). Ad, sureç ortamindan
+# okunur; config.py yuklenmisse zaten oradan gelmis olur.
+_JARVIS_NAME = os.getenv("JARVIS_NAME", "Jarvis")
+
 _SYSTEM_PROMPTS = {
-    "L1": (
-        "Sen JARVIS\'sin. Ahmet Firat Cakmak\'in kisisel AI sistemi. "
-        "Ahmet: ESHOT\'ta Tekniker, polimer/ISG uzmani, "
-        "veri analizi, telemetri, isitma-sogutma sistemleri, RTX 3070, Python. "
-        "Konusma kurali: sifir gevezelik. "
-        "Selamlama ve kisa sorgularda 1-2 cumle, direkt ve net. "
-        "Asla \'Size yardimci olmaktan mutluluk duyarim\' gibi yapay zeka kaliplari kullanma. "
-        "Turkce kon??, gerekmedikce Ingilizce karis tirma. "
-        "Hitap: Efendim veya direkt cevap ? ikisi de kabul."
-    ),
-    "L2": (
-        "Sen Jarvis teknik asistanissin. Kullanicin Ahmet Firat, ESHOT Tekniker. "
-        "Turkce yaz. Direkt cevap ver, giris cumlesi yazma. "
-        "Teknik sorularda calisabilir, dogru kod ver. Bilmiyorsan syle."
-    ),
-    "L3": (
-        "GOREV: Sen JARVIS analiz motorusun. Kullanicin: Ahmet Firat (ESHOT Tekniker). "
-        "KURAL 1: Direkt soruyu cevapla. Giris cumlesi yazma. "
-        "KURAL 2: Turkce yaz. Ingilizce baslamak yasak. "
-        "KURAL 3: Derin analizde: risk -> cozum -> kod sirasi. "
-        "KURAL 4: Varsayim yapiyorsan [VARSAYIM] etiketi ekle. "
-        "KURAL 5: Guvenlik/test/rollback risklerini ayri bir maddede belirt. "
-        "ALAN: telemetri, veri analizi, isitma-sogutma, polimer/ISG, RTX 3070, Python."
-    ),
+    level: _build_system_prompt(name=_JARVIS_NAME, level=level)
+    for level in ("L1", "L2", "L3")
 }
 
 _LEVEL_OPTIONS = {

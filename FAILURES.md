@@ -40,6 +40,70 @@ eklenir:
 
 ## Kayıtlar
 
+### [2026-08-31] Persona parçalanması — üç rakip kimlik, biri bozuk kodlamalı
+
+- **Alan:** karakter katmanı (`config.py`, `agents/ollama_executor.py`, `agent/local_agent.py`)
+- **Şiddet:** BLOCKER (JARVIS'in kim olduğu, hangi kapıdan girildiğine bağlıydı)
+- **Tuzak:** Repoda birbirinden habersiz **üç** persona tanımı vardı.
+  `config.py`'deki ~70 satırlık zengin sürüm yalnız `agent/jarvis_agent.py`'ye
+  ulaşıyordu; kaskad (`AssistantExecutor` → `OllamaExecutor`) ise kendi
+  satır-içi, ASCII'ye indirgenmiş sözlüğünü kullanıyordu. Dahası o sözlükteki
+  L1 prompt'unda Türkçe harfler soru işaretine dönüşmüştü — model kendi dil
+  kuralını okunamaz bir cümleden öğreniyordu. Aynı bozulma
+  `world/people.json`, `world/devices.json` ve `jarvis_server.py`'nin CSS
+  yorumlarında da vardı.
+- **Kök neden:** Persona bir *metin* olarak üç yere kopyalanmıştı ve hiçbir
+  test onu kilitlemiyordu. Kopyalar zamanla ayrıştı; biri de bir PowerShell
+  aktarımında bozuldu (CLAUDE.md §5). Kopya varsa kayma kaçınılmazdır.
+- **Kural:** Persona metni **yalnız** `agents/persona.py` içinde tanımlanır;
+  `config.py` ve `agents/ollama_executor.py` onu türetir. SSOT modülü **saf**
+  olmalıdır — `agents/` katmanı `config.py`'yi import edemez, çünkü `config.py`
+  import anında `load_dotenv()` çağırıp `HF_*_OFFLINE` yazar (§9: `.env`'e
+  dokunulmaz). Yeni bir persona metni yazmadan önce `tests/test_persona_ssot.py`
+  okunur.
+- **Kanıt:** `tests/test_persona_ssot.py` — 28 test. Kırmızı faz 21 başarısız,
+  yeşil faz 28/28. Tam süit 1351 → **1379 passed**; `ruff check .` 295'te sabit.
+  Canlı doğrulama: yakalayıcı istemci ile L1/L2/L3'ün üçünün de
+  `Efendim` + `SADAKAT` + gevezelik yasağı taşıdığı görüldü.
+- **Regresyon testi:** `tests/test_persona_ssot.py::test_ollama_executor_has_no_inline_persona`
+  (satır-içi persona geri doğarsa kırılır) ve
+  `test_live_files_have_no_corrupted_turkish` (kodlama bozulması geri gelirse kırılır).
+
+**Ölçümle çürüttüğüm iki varsayım** — ikisi de tasarım sırasında "besbelli"
+görünüyordu:
+
+1. *"Zengin personayı L1'e koymak kısa turları yavaşlatır."* **Yanlış.**
+   Sıcak L1: SSOT persona (596 token) **2.15s**, minimal prompt (12 token)
+   **2.14s**. Fark ölçüm gürültüsü içinde. İlk gözlenen 14s tamamen soğuk
+   başlangıçtı (model VRAM'e yükleniyor). Kural: yerel modelde prompt uzunluğu
+   maliyetini **varsayma, ölç** — asıl maliyet soğuk başlangıçtır.
+2. *"Prompt düzelince karakter düzelir."* **Yetersiz.** Prompt doğru gidiyor
+   ama `llama3.2:latest` (L1 rolü) ona uymuyor: 3 denemede `Efendim` **0 kez**
+   geçti, cevaplardan biri "Merhaba! Ben Ahmet." diyerek kullanıcıyla kendini
+   karıştırdı. Persona yine de ölçülebilir fayda sağlıyor — yapay zekâ kalıbı
+   SSOT ile 0/3, minimal prompt ile 1/3. Kural: karakter = prompt **×** model
+   kapasitesi. Türkçe persona uyumu için L1 rol modeli ayrıca değerlendirilmeli
+   (aday: `qwen2.5:7b`); bu **açık madde**, karara bağlanmadı.
+
+**Ek (aynı gün, L1 model geçişi sonrası):** Benchmark koşuldu ve `local_small`
+`llama3.2:latest` → `qwen2.5:7b` oldu (5 L1 sorusu, sıcak: qwen 2.40s /
+Efendim 3-5; llama 2.52s / Efendim 0-5 **ve cevaplarda sistem prompt'u
+sızıntısı**). Geçiş `config/runtime_profiles.json`'daki "benchmark olmadan
+varsayılan değiştirilmez" kuralına uyularak yapıldı.
+
+Geçiş **yeni bir kusur açığa çıkardı ve kusur benim yazdığım metindeydi:**
+persona'daki somut örnek cümle ("%23 daha verimli") zayıf modele halüsinasyon
+malzemesi oldu — qwen "Nerede kaldık?" sorusuna o sayıyı kullanarak **olmamış
+bir konuşma** anlattı. **Kural: bir prompt'a konan her somut sayı/olay, model
+tarafından anı olarak geri sunulabilir; örnekler açıkça "yalnızca üslup
+örneği, içeriği gerçek değil" diye etiketlenir.** Ayrıca `_ZEMIN` (gerçeklik)
+bloğu eklendi ve her seviyede gönderiliyor.
+
+Sonuç kısmi: "Nerede kaldık?" düzeldi (artık "erişimim yok" diyor), ama
+"Geçen hafta ne konuşmuştuk?" hâlâ uyduruyor ve selamlamada yapay zekâ kalıbı
+sürüyor. **Prompt mühendisliği 7B bir modeli tam kısıtlayamaz** — kalıcı çözüm
+modele gerçek kayıt beslemektir (Eşik 3). Bu **açık madde**.
+
 ### [2026-08-31] `orchestrator` ad çakışması — kök neden kaldırıldı (izolasyon yaması artık savunma katmanı)
 
 - **Alan:** test altyapısı / import mimarisi

@@ -3286,7 +3286,7 @@ html.mobile-layout .weather-strip {
   gap: 8px !important;
 }
 
-/* Kart i?i yaz? bindirmelerini engelle */
+/* Kart içi yazı bindirmelerini engelle */
 html.mobile-layout .info-line {
   display: grid !important;
   grid-template-columns: minmax(70px, auto) 1fr !important;
@@ -3335,7 +3335,7 @@ html.mobile-layout .bar {
   min-width: 0 !important;
 }
 
-/* Footer art?k sabit de?il: sayfayla beraber akar */
+/* Footer artık sabit değil: sayfayla beraber akar */
 html.mobile-layout .footer {
   position: relative !important;
   bottom: auto !important;

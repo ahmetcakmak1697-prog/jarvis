@@ -19,7 +19,7 @@
     },
     {
       "id": "arduino_01_kit",
-      "name": "Hallederiz Arduino 01 E?itim Kiti",
+      "name": "Hallederiz Arduino 01 Eğitim Kiti",
       "type": "electronics_learning_kit",
       "room_id": "hobby_room",
       "status": "planned_purchase",
@@ -31,7 +31,7 @@
       ],
       "notes": [
         "?lk ay sadece bu kit ile 12 proje tamamlanacak.",
-        "Lehim ve breadboard gerektirmeden temel Arduino projeleri yap?lacak."
+        "Lehim ve breadboard gerektirmeden temel Arduino projeleri yapılacak."
       ]
     },
     {
@@ -47,8 +47,8 @@
         "future_home_automation_bridge"
       ],
       "notes": [
-        "Arduino kit sonras? al?nacak.",
-        "Kit sens?r verilerini Wi-Fi ?zerinden Jarvis'e ta??mak i?in kullan?lacak."
+        "Arduino kit sonrası alınacak.",
+        "Kit sensör verilerini Wi-Fi üzerinden Jarvis'e taşımak için kullanılacak."
       ]
     },
     {
