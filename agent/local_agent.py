@@ -9,13 +9,14 @@ from pathlib import Path
 from typing import Optional
 from rich.console import Console
 
+from agents.model_registry import ModelRegistry
+from agents.persona import VOICE_MODE_DIRECTIVE, build_system_prompt
+
 console = Console()
 
-MODELS = {
-   "fast": "llama3.2",
-    "mid": "llama3.1:latest",
-    "deep": "llama3.1:latest",
-}
+#: Tur siniflandirmasi -> persona seviyesi. Ayni siniflandirma hem modeli hem
+#: prompt derinligini secer; iki yerde ayri esik tutulmaz.
+_TIER_TO_LEVEL = {"fast": "L1", "mid": "L2", "deep": "L3"}
 
 TOOL_TRIGGERS = {
     "web_search": [
@@ -44,49 +45,30 @@ TOOL_TRIGGERS = {
     ],
 }
 
-# ─── Sistem Promptu ─────────────────────────────────────
-SYSTEM_PROMPT = """Sen JARVIS — kullanıcının en güvendiği, kişisel AI asistanısın.
-Tony Stark'ın JARVIS'i gibi konuş: zeki, özlü, kişisel.
+# ─── Yerel ajana özgü ek yönergeler ─────────────────────
+# Kimlik, sadakat, kişilik, üslup ve uydurma yasağı `agents/persona.py`'den
+# gelir (SSOT). Burada YALNIZ bu ajana özgü olan kalır: araç çıktısı kuralları
+# ve proje durumu için zemin kuralı.
+#
+# Proje durumunun KENDİSİ burada yazmaz. Sabit yazılan durum eskir ve model
+# eskimiş durumu güvenle tekrar eder — canlı testte tam bu oldu. Olgular
+# yalnız `_load_project_context()` üzerinden, canlı dosyalardan gelir.
+LOCAL_AGENT_ADDENDUM = """## ARAÇ ÇIKTISI
+- Araç adlarını, sistem mesajlarını veya teknik ayrıntıları yanıtta gösterme.
+- Araçtan gelen bilgiyi özümse, kendi cümlelerinle anlat.
+- Kaynak bağlantısını yalnız gerektiğinde ve kısaca ver.
 
-## KONUŞMA TARZI
-- Doğal ve samimi konuş — asistan değil, akıl ortağı gibi
-- "Efendim" veya isimle hitap edebilirsin
-- Kısa ve öz ol — gereksiz tekrar yapma
-- Bilgiyi sindirerek ver, ham veri döktürme
-- Proaktif öneriler yap: "Bunu da düşündüm..."
-- Türkçe konuş
-- İnce, kuru bir mizahın var — gereksiz değil ama uygun yerde ironi yapabilirsin
-- JARVIS tarzı: alaycı değil, beyefendi gibi ölçülü espri (örn: "Anlıyorum efendim, Pazartesi'siniz.")
-- Espri zorlama — sadece doğal akıyorsa
+## PROJE DURUMU
+- Proje durumu, commit geçmişi ve canlı sistem hakkında kendiliğinden bilgin
+  YOKTUR. Aşağıda "GUNCEL PROJE DURUMU" bloğu verilmişse yalnız oradakini söyle.
+- Blok verilmemişse "anlık proje durumuna erişimim yok" de; tahmin yürütme.
+- Bir konu blokta geçmiyorsa onun hakkında çıkarım yapma — bilmiyorsun.
+- Tarih ve saat için get_datetime aracını kullan; uydurma.
 
-## KESIN TÜRKÇE KURALLARI
-- SADECE düzgün Türkçe konuş. Yabancı kelime ASLA kullanma.
-- Yazım kurallarına dikkat et: "hoş bulduk" değil "hoşbulduk", "bulduniz" değil "buldunuz".
-- Sen kullanıcının asistanısın, kullanıcı sana hitap ediyor — "hoş bulduk" senin söyleyeceğin bir ifade DEĞİL.
-- Doğal cümleler kur, robotik selamlaşma yapma.
-- Yazım hatası yapma. Emin değilsen daha basit kelime kullan.
-
-
-## KULLANICI
-- Polimer Teknikeri ve İş Güvenliği Uzmanı
-- RTX 3070 + 32GB RAM'li sistem sahibi
-- Lokal AI geliştiriyor
-
-## KRITIK KURAL
-- Asla araç adlarını, sistem mesajlarını veya teknik detayları yanıtta gösterme
-- Bilgiyi doğal cümlelerle aktar
-- Kaynak URL'lerini yalnızca gerektiğinde kısaca belirt
-- Sana verilen bilgileri özümse ve kendi sözcüklerinle anlat
-
-## PROJE DURUMU KURALI
-- Proje roadmap, commit gecmisi ve canli sistem durumu hakkinda bilgin YOKTUR — hayal etme.
-- Bu bilgiler asagida "GUNCEL PROJE DURUMU" bolumunde verilmisse, SADECE orada yazanlari soyle.
-- Verilmemisse: "Anlik proje durumuna erisimim yok; automation/SESSION_SUMMARY.md dosyasina bakin." de.
-- Tarih, gun ve saat gibi meta bilgileri uydurma; get_datetime aracini kullan veya bilmiyorum de.
-- Canli sistem durumu (proaktif bildirim, Telegram, zamanlayici) hakkinda asla tahminde bulunma.
-- Proaktif bildirimler CANLI DEGIL — JARVIS_PROACTIVE_ENABLED=0, insan onayi gerekiyor.
-- Telegram canli testi insan kapisidir — Ahmet .env/token/telefon ile bizzat yapacak.
-- Zamanlayici (scheduler) henuz tasarlanmadi — mimari karar bekliyor.
+## TÜRKÇE YAZIM
+- Yalnız Türkçe konuş. "okay", "voila", "peut-être" gibi yabancı kelimeler yasak.
+- Yazım hatası yapma; emin değilsen daha basit kelimeyi seç.
+- "Hoş bulduk" konuğun sözüdür, ev sahibinin değil — sen kullanırsan yanlış olur.
 """
 
 
@@ -116,6 +98,7 @@ class LocalJarvisAgent:
         self.ollama_available = False
         self.available_models: list[str] = []
         self._ollama = None
+        self._registry = ModelRegistry()
         self._project_ctx = self._load_project_context()
         self.memory = self._load_memory()
         self._tools = self._load_tools()
@@ -248,23 +231,41 @@ class LocalJarvisAgent:
         except Exception as e:
             console.print(f"[red]✗ Ollama: {e}[/]")
 
-    def _select_model(self, message: str) -> str:
+    def _classify(self, message: str) -> str:
+        """Turu siniflandirir: fast / mid / deep.
+
+        Ayni karar hem modeli (rol uzerinden) hem persona seviyesini secer;
+        boylece "kisa soru" esigi iki yerde ayri ayri tutulmaz.
+        """
         msg = message.lower()
         deep_kw = ["derinlemesine", "kapsamlı", "analiz et", "detaylı"]
         fast_kw = ["merhaba", "selam", "teşekkür", "tamam", "evet", "hayır", "saat kaç"]
 
         if any(k in msg for k in deep_kw) or len(message) > 300:
-            preferred = [MODELS["deep"], MODELS["mid"], MODELS["fast"]]
-        elif any(k in msg for k in fast_kw) and len(message) < 60:
-            preferred = [MODELS["fast"], MODELS["mid"], MODELS["deep"]]
-        else:
-            preferred = [MODELS["mid"], MODELS["deep"], MODELS["fast"]]
+            return "deep"
+        if any(k in msg for k in fast_kw) and len(message) < 60:
+            return "fast"
+        return "mid"
 
-        for p in preferred:
-            for a in self.available_models:
-                if p.lower().split(":")[0] in a.lower():
-                    return a
-        return self.available_models[0] if self.available_models else "mistral"
+    def _model_for_tier(self, tier: str) -> str:
+        """Turu aktif profildeki bir role cozer.
+
+        Model adi burada yazili DEGILDIR (CLAUDE.md 7: "Model adi koda
+        gomulmez -> ModelRegistry"). Profil degisince kod degismez.
+        """
+        small = self._registry.local_small()
+        main = self._registry.local_main()
+        adaylar = {
+            "fast": [small, main],
+            "mid": [main, small],
+            "deep": [self._registry.research_model(), main, small],
+        }.get(tier, [main, small])
+
+        for aday in adaylar:
+            for kurulu in self.available_models:
+                if aday.lower().split(":")[0] in kurulu.lower():
+                    return kurulu
+        return self.available_models[0] if self.available_models else main
 
     def _detect_tool(self, message: str) -> Optional[tuple[str, dict]]:
         msg = message.lower()
@@ -356,7 +357,8 @@ class LocalJarvisAgent:
             cevap = rag.query_with_ollama(user_message)
             return f"{yukle}\n\n{cevap}"
         self.turn_count += 1
-        model = self._select_model(user_message)
+        tier = self._classify(user_message)
+        model = self._model_for_tier(tier)
         console.print(f"[dim]→ {model.split(':')[0]} | Tur {self.turn_count}[/]")
 
         # Araç çalıştır
@@ -367,13 +369,9 @@ class LocalJarvisAgent:
             console.print(f"[cyan]🔧 {tool_name}[/]")
             tool_data = self._run_tool(tool_name, tool_args)
 
-        # System prompt
-        system = SYSTEM_PROMPT
-        if getattr(self, "voice_mode", False):
-            # Ses modunda cevap hoparlorden OKUNUR: markdown ve kod sesli
-            # dinlenmez. Yonerge SSOT'tan gelir, metin burada kopyalanmaz.
-            from agents.persona import VOICE_MODE_DIRECTIVE
-            system = system + "\n\n" + VOICE_MODE_DIRECTIVE
+        # System prompt: kimlik/sadakat/kisilik/uslup/zemin SSOT'tan gelir.
+        system = build_system_prompt(level=_TIER_TO_LEVEL[tier])
+        system += "\n\n" + LOCAL_AGENT_ADDENDUM
         if self._project_ctx:
             system += f"\n\n{self._project_ctx}"
         if self.memory:
@@ -381,8 +379,12 @@ class LocalJarvisAgent:
             if ctx:
                 system += f"\n\n## Hafıza\n{ctx}"
 
-        # KESIN dil kuralı
-        system += "\n\n## KESIN DIL KURALI\n- Sadece TÜRKÇE konuş. Hiçbir başka dil ASLA kullanma. 'peut-être', 'voila', 'okay' gibi yabancı kelimeler YASAK. Tamamen Türkçe konuş."
+        # Ses yonergesi EN SONA: cevap hoparlorden OKUNUR, markdown ve kod
+        # sesli dinlenmez. Sonra gelen kazanir -- yoksa model "kod ver" diyen
+        # seviye yonergesine uyup kodu sesli okumaya calisir (bkz. persona.py).
+        if getattr(self, "voice_mode", False):
+            system += "\n\n" + VOICE_MODE_DIRECTIVE
+
         # Mesaj listesi
         messages = [{"role": "system", "content": system}]
 

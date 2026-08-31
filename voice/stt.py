@@ -31,6 +31,7 @@ __all__ = [
     "DEFAULT_SILENCE_DURATION_S",
     "rms",
     "is_silent",
+    "resolve_mic_device",
     "RecordResult",
     "STTResult",
     "MicrophoneRecorder",
@@ -44,6 +45,30 @@ DEFAULT_SILENCE_THRESHOLD = 0.01     # config.py SILENCE_THRESHOLD ile aynı
 DEFAULT_SILENCE_DURATION_S = 1.5     # config.py SILENCE_DURATION ile aynı
 DEFAULT_MAX_DURATION_S = 20.0
 DEFAULT_START_TIMEOUT_S = 8.0
+
+#: Hangi mikrofonun dinleneceğini seçer. Boş bırakılırsa işletim sisteminin
+#: varsayılan giriş aygıtı kullanılır — makinede birden fazla mikrofon varsa
+#: bu, konuşulan aygıt olmayabilir ve JARVIS sessizlik duyar.
+MIC_DEVICE_ENV = "JARVIS_MIC_DEVICE"
+
+
+def resolve_mic_device():
+    """``JARVIS_MIC_DEVICE`` değerini sounddevice'in beklediği tipe çevirir.
+
+    Tam sayı verilirse aygıt indeksi, aksi halde isim parçası olarak geçer
+    (sounddevice alt-dize eşleşmesi yapar). İsim tercih edilir: indeksler
+    aygıt yeniden bağlandığında kayar, isim kaymaz.
+
+    Boş/tanımsız değer ``None`` döner — yani mevcut davranış korunur.
+    Ortam **çağrı anında** okunur; ``.env`` bu modül import edildikten sonra
+    yüklenebiliyor.
+    """
+    import os
+
+    ham = (os.getenv(MIC_DEVICE_ENV) or "").strip()
+    if not ham:
+        return None
+    return int(ham) if ham.isdigit() else ham
 
 
 # --------------------------------------------------------------------------- #
@@ -127,7 +152,9 @@ class MicrophoneRecorder:
         self.max_duration_s = max_duration_s
         self.start_timeout_s = start_timeout_s
         self._chunk_source = chunk_source
-        self._device = device
+        # Açık parametre ortamı ezer; verilmezse JARVIS_MIC_DEVICE, o da yoksa
+        # işletim sistemi varsayılanı (None).
+        self._device = device if device is not None else resolve_mic_device()
 
     # Parça sayısına çevrilmiş eşikler — zamanlayıcı yerine sayaç kullanılır ki
     # test gerçek zaman beklemesin ve sonuç deterministik olsun.

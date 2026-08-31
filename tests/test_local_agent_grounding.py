@@ -1,8 +1,8 @@
 """Regression guard: LocalJarvisAgent must not hallucinate project state.
 
 Tests verify:
-1. SYSTEM_PROMPT contains the grounding rule that forbids invented project facts.
-2. SYSTEM_PROMPT uses correct Turkish ('erisimim yok', 'zamanlayici').
+1. The prompt actually sent to the model forbids invented project facts.
+2. That prompt uses correct Turkish ('erisimim yok', not 'erisimi yok').
 3. _load_project_context() always returns a non-empty structured block.
 4. _load_project_context() includes git log lines when subprocess returns data.
 5. _load_project_context() extracts pending items from HUMAN_NEEDED.md.
@@ -36,6 +36,29 @@ def _make_agent_no_ollama(project_ctx: str = "GUNCEL PROJE DURUMU"):
         agent.ollama_available = True
         agent.available_models = ["llama3.2:latest"]
         return agent
+
+
+def _captured_system_prompt(agent, message: str = "Nerede kaldik?") -> str:
+    """chat()'in modele FIILEN gonderdigi system prompt'u yakalar.
+
+    Prompt artik tek bir modul sabitinden gelmiyor: kimlik/sadakat/uslup/zemin
+    `agents/persona.py` (SSOT) uzerinden, arac ve proje-durumu kurallari
+    `LOCAL_AGENT_ADDENDUM` uzerinden, olgular ise `_load_project_context()`
+    uzerinden birlesir. Sozlesme bu parcalarin herhangi birinde degil,
+    BIRLESIMINDE tutulur -- modelin gordugu sey odur.
+    """
+    captured: list = []
+
+    def fake_ask_ollama(messages, model):
+        captured.extend(messages)
+        return "Test yaniti."
+
+    agent._ask_ollama = fake_ask_ollama
+    with patch("rich.console.Console.status"):
+        agent.chat(message)
+
+    assert captured, "chat() _ask_ollama'yi cagirmadi"
+    return captured[0]["content"]
 
 
 def _call_real_loader(root: Path) -> str:
@@ -100,9 +123,18 @@ def _call_real_loader(root: Path) -> str:
 # ---------------------------------------------------------------------------
 
 def test_system_prompt_contains_grounding_rule():
-    from agent.local_agent import SYSTEM_PROMPT
-    assert "hayal etme" in SYSTEM_PROMPT, "SYSTEM_PROMPT must forbid hallucination ('hayal etme' missing)"
-    assert "PROJE DURUMU KURALI" in SYSTEM_PROMPT, "SYSTEM_PROMPT must contain PROJE DURUMU KURALI section"
+    """Uydurma yasagi modele giden prompt'ta bulunmali.
+
+    Kural artik iki kaynaktan gelir: `agents/persona.py`'nin GERCEKLIK KURALI
+    blogu ("Bilmedigin seyi uydurmazsin") ve `LOCAL_AGENT_ADDENDUM`'un PROJE
+    DURUMU bolumu. Test modul sabitine degil kompoze prompt'a bakar; modelin
+    gordugu sey odur ve sozlesme orada tutulur.
+    """
+    system = _captured_system_prompt(_make_agent_no_ollama())
+
+    assert "uydurma" in system, "uydurma yasagi modele giden prompt'ta yok"
+    assert "PROJE DURUMU" in system, "proje durumu zemin bolumu yok"
+    assert "erişimim yok" in system, "kayit yoksa ne denecegi yazili degil"
 
 
 # ---------------------------------------------------------------------------
@@ -110,13 +142,30 @@ def test_system_prompt_contains_grounding_rule():
 # ---------------------------------------------------------------------------
 
 def test_system_prompt_turkish_grammar():
-    from agent.local_agent import SYSTEM_PROMPT
-    assert "erisimim yok" in SYSTEM_PROMPT, (
-        "SYSTEM_PROMPT must use 'erisimim yok' (first-person possessive), not 'erisimi yok'"
+    """Birinci tekil iyelik: "erişimim yok", "erişimi yok" degil.
+
+    Ayrica ASCII'ye indirgenmis Turkce geri gelmemeli: persona SSOT calismasi
+    tam olarak bunu duzeltti -- model kendi dil kuralini okunamaz bir cumleden
+    ogreniyordu (bkz. tests/test_persona_ssot.py).
+
+    Not: eski surum ayrica prompt'ta "zamanlayici" kelimesini sart kosuyordu.
+    O iddia, artik yanlis olan bir OLGUYA bagliydi ("Zamanlayici henuz
+    tasarlanmadi"); roadmap_state.json'da E1-S5 karari APPROVED ve E1-S6A-E
+    adimlari done. Olgular prompt'a sabit yazilmaz, _load_project_context()
+    ile canli dosyalardan gelir -- bu yuzden iddia dusuruldu.
+    """
+    system = _captured_system_prompt(_make_agent_no_ollama())
+
+    assert "erişimim yok" in system, (
+        "prompt 'erişimim yok' (birinci tekil iyelik) kullanmali"
     )
-    assert "zamanlayici" in SYSTEM_PROMPT.lower(), (
-        "SYSTEM_PROMPT must use 'zamanlayici' instead of 'scheduler architekt/dizayn'"
+    assert "erişimi yok" not in system, (
+        "ucuncu tekil 'erişimi yok' yanlis: JARVIS kendinden bahsediyor"
     )
+
+    from tests.test_persona_ssot import corrupted_fragments
+    bozuk = corrupted_fragments(system)
+    assert not bozuk, f"modele giden prompt'ta bozuk kodlama: {bozuk}"
 
 
 # ---------------------------------------------------------------------------
