@@ -96,6 +96,9 @@ def _run_local_mode():
         console.print("[yellow]3. 'ollama serve' çalışıyor mu?[/yellow]")
         return
 
+    from memory.life_graph import LifeGraph, remember_exchange
+    life_graph = LifeGraph()
+
     voice_io = _build_voice_io()
 
     if voice_io.enabled:
@@ -154,11 +157,36 @@ def _run_local_mode():
                 )
                 continue
 
-            response = agent.chat(user_input)
+            # ZEMİN: modele tahmin ettirmek yerine gerçek kaydı ver.
+            # Denetimde ölçülen kusur buydu — "Geçen hafta ne konuştuk?"
+            # sorusuna olmamış bir konuşma anlatılıyordu. Kayıt yoksa hiçbir
+            # şey eklenmez; boş zemin, yanlış zeminden iyidir.
+            zemin = life_graph.recall_context()
+            mesaj = (
+                f"[BİLİNEN GERÇEKLER — yalnız bunlara dayan, "
+                f"burada olmayanı uydurma]\n{zemin}\n\n{user_input}"
+                if zemin else user_input
+            )
+
+            response = agent.chat(mesaj)
             console.print(f"\n[bold cyan]Jarvis:[/]")
             console.print(Markdown(response))
             console.print()
             voice_io.say(response)
+
+            # ÖĞREN: bu turdan çıkan olguları hafızaya işle. Hassas olanlar
+            # (sağlık/finans) kalıcı yazılmaz, incelemeye düşer (CLAUDE.md §7).
+            try:
+                for sonuc in remember_exchange(user_input, life_graph):
+                    if sonuc["stored"]:
+                        console.print("[dim][hafıza] kaydedildi[/]")
+                    elif sonuc["target"] == "review_queue":
+                        console.print(
+                            "[yellow][hafıza] hassas bilgi — kalıcı "
+                            "kaydedilmedi, incelemeye alındı[/]"
+                        )
+            except Exception as exc:  # noqa: BLE001
+                console.print(f"[dim][hafıza] işlenemedi: {exc}[/]")
 
         except KeyboardInterrupt:
             console.print(f"\n[dim]Çıkmak için 'çıkış' yazın.[/]")
