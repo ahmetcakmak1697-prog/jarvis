@@ -1,23 +1,35 @@
 """
 scripts/j0_tts_adapters.py — TTS adapter layer for J0 voice pipeline.
 
-INTERFACE + FAKE ONLY THIS SPRINT (J0A).
-Real Piper subprocess integration = J0B.
-Real Edge TTS integration = J0B.
+Esik 1 (2026-08-31): PiperSubprocessAdapter and EdgeTTSAdapter are now LIVE.
+Before this date both raised NotImplementedError unconditionally.
 
-No subprocess is spawned in this file. No network calls. No audio devices.
+The safety properties were kept, not dropped -- they moved from "never runs"
+to "runs only behind an explicit gate":
 
-LOOP-0E Phase A addition: build_piper_dry_run_plan() and its validators
-construct/validate a real Piper argv WITHOUT ever executing it (no
-subprocess.run/Popen, no os.system, no playback). Real execution stays
-behind PiperSubprocessAdapter.speak()'s NotImplementedError pending a
-separately approved, manually-run Phase B step. See
+  * Piper is local (no network). It refuses to run unless the executable and
+    the .onnx model are supplied as ABSOLUTE, EXISTING paths. PATH is never
+    searched, nothing is downloaded, no path is guessed. Failures come back
+    as TTSResult(ok=False), never as an exception.
+  * Edge TTS is a CLOUD service -- the text leaves this machine. It stays
+    default-off and refuses unless JARVIS_J0_EDGE_TTS_ENABLED=1 is set
+    (CLAUDE.md 7: data class governs what may leave).
+
+Imports stay light on purpose: subprocess, edge_tts and pygame are imported
+lazily inside the default runners, so importing this module still pulls in no
+network library, spawns no subprocess and touches no audio device. The
+import-safety tests assert exactly that.
+
+LOOP-0E Phase A remains: build_piper_dry_run_plan() and its validators
+construct/validate a real Piper argv WITHOUT executing it, and plan objects
+still expose no execution path of their own. See
 automation/LOOP0D_J0B_SAFETY_CONTRACT.md.
 """
 from __future__ import annotations
 
 import math
 import os
+import time
 import warnings
 from dataclasses import dataclass, field
 from typing import List, Optional, Protocol, runtime_checkable
@@ -270,39 +282,229 @@ def build_piper_dry_run_plan(
     )
 
 
+PIPER_MAX_TIMEOUT_SECONDS = PIPER_DRY_RUN_MAX_TIMEOUT_SECONDS
+
+
 class PiperSubprocessAdapter:
-    """Stub. Real Piper subprocess integration = J0B.
+    """Local Piper TTS over a subprocess boundary.
+
+    Gate change (2026-08-31, Esik 1): speak() used to raise NotImplementedError
+    unconditionally. It now executes -- but the safety property is preserved,
+    not removed: execution is refused unless prerequisites validate, and a
+    failure is returned as a TTSResult rather than raised. Nothing is
+    downloaded, no path is guessed, and PATH is never searched; the caller
+    must supply absolute, existing paths (see validate_piper_paths).
+
+    Piper runs entirely on this machine -- no network, no data egress.
+
+    ``runner`` is injectable so the execution path is testable without a Piper
+    binary present. It is called as ``runner(argv, text, timeout)`` and must
+    return an object with ``returncode`` and ``stderr``.
 
     Piper subprocess boundary preferred to reduce coupling and
     licensing/linking ambiguity; license must be verified before
     distribution/commercial use; no legal conclusion is made in this sprint.
     """
 
-    def __init__(self, config: Optional[dict] = None) -> None:
+    engine_name = "piper"
+
+    def __init__(self, config: Optional[dict] = None, runner=None) -> None:
         self._config: dict = config or {}
+        self._runner = runner
+
+    def _fail(self, reason: str) -> TTSResult:
+        return TTSResult(
+            ok=False,
+            engine=self.engine_name,
+            first_audio_hint_ms=None,
+            warning=f"piper_not_run: {reason}",
+        )
 
     def speak(self, text: str) -> TTSResult:
-        raise NotImplementedError(
-            "J0B: PiperSubprocessAdapter is not implemented in J0A. "
-            "Real Piper subprocess integration is scheduled for sprint J0B."
+        text_check = validate_piper_text(text)
+        if not text_check.ok:
+            return self._fail(text_check.reason or "text_invalid")
+
+        executable = self._config.get("executable", "")
+        model = self._config.get("model", "")
+        prereq = validate_piper_paths(executable, model)
+        if not prereq.ok:
+            return self._fail(prereq.reason or "prerequisite_failed")
+
+        timeout_check = validate_piper_timeout(
+            self._config.get("timeout_seconds", PIPER_MAX_TIMEOUT_SECONDS)
+        )
+        if not timeout_check.ok:
+            return self._fail(timeout_check.reason or "timeout_invalid")
+        timeout = float(self._config.get("timeout_seconds",
+                                         PIPER_MAX_TIMEOUT_SECONDS))
+
+        output_file = self._config.get("output_file")
+        if output_file is not None:
+            out_check = validate_piper_output_path(output_file)
+            if not out_check.ok:
+                return self._fail(out_check.reason or "output_path_invalid")
+
+        argv = build_piper_cmd(self._config)
+        runner = self._runner or _default_piper_runner
+
+        start = time.perf_counter()
+        try:
+            completed = runner(argv, text, timeout)
+        except Exception as exc:  # noqa: BLE001 - surfaced, never swallowed
+            return self._fail(f"subprocess_error: {exc}")
+
+        returncode = getattr(completed, "returncode", 1)
+        if returncode != 0:
+            stderr = getattr(completed, "stderr", "") or ""
+            if isinstance(stderr, bytes):
+                stderr = stderr.decode("utf-8", "replace")
+            return self._fail(f"exit_{returncode}: {stderr.strip()[:200]}")
+
+        elapsed_ms = (time.perf_counter() - start) * 1000.0
+        return TTSResult(
+            ok=True,
+            engine=self.engine_name,
+            # Piper writes the whole file before returning, so this is
+            # synthesis wall-clock, not true first-audio onset. Named as a
+            # hint precisely because it must not be read as onset latency.
+            first_audio_hint_ms=elapsed_ms,
+            warning=(
+                "first_audio_hint_ms is synthesis wall-clock, not audio onset: "
+                "piper writes the file before returning"
+            ),
         )
 
 
+def _default_piper_runner(argv: List[str], text: str, timeout: float):
+    """Real subprocess runner. Imported lazily so importing this module
+    never pulls in subprocess machinery (see import-safety tests)."""
+    import subprocess
+
+    return subprocess.run(
+        argv,
+        input=text.encode("utf-8"),
+        capture_output=True,
+        timeout=timeout,
+        check=False,
+    )
+
+
 # ---------------------------------------------------------------------------
-# EdgeTTSAdapter (stub — J0B, default-off cloud fallback)
+# EdgeTTSAdapter (cloud fallback — DEFAULT OFF)
 # ---------------------------------------------------------------------------
+
+EDGE_TTS_ENABLE_FLAG = "JARVIS_J0_EDGE_TTS_ENABLED"
+EDGE_TTS_DEFAULT_VOICE = "tr-TR-AhmetNeural"
 
 
 class EdgeTTSAdapter:
-    """Default-off cloud fallback adapter. Stub. No network in J0A.
+    """Microsoft Edge TTS. Cloud service -- DEFAULT OFF.
 
-    Edge TTS is a cloud service. This adapter is labeled cloud-fallback.
-    Activating it requires JARVIS_J0_EDGE_TTS_ENABLED=1 (not wired yet).
-    Real implementation = J0B. No network calls anywhere in this sprint.
+    Gate change (2026-08-31, Esik 1): speak() used to raise
+    NotImplementedError. It now works, but the data-egress gate is kept
+    exactly as designed: **the text leaves this machine**, so synthesis is
+    refused unless ``JARVIS_J0_EDGE_TTS_ENABLED=1`` is set (CLAUDE.md 7 --
+    data class governs what may leave). Refusal is a TTSResult, never an
+    exception, so a caller can fall back without try/except.
+
+    ``synth`` and ``player`` are injectable so tests exercise the full path
+    with no network and no audio device.
     """
 
-    def speak(self, text: str) -> TTSResult:
-        raise NotImplementedError(
-            "J0B-edge: EdgeTTSAdapter is not implemented in J0A. "
-            "Edge TTS is a cloud-only fallback scheduled for sprint J0B."
+    engine_name = "edge-tts"
+
+    def __init__(
+        self,
+        voice: str = EDGE_TTS_DEFAULT_VOICE,
+        synth=None,
+        player=None,
+        enabled: Optional[bool] = None,
+    ) -> None:
+        self._voice = voice
+        self._synth = synth
+        self._player = player
+        self._enabled = enabled
+
+    def is_enabled(self) -> bool:
+        if self._enabled is not None:
+            return bool(self._enabled)
+        return os.getenv(EDGE_TTS_ENABLE_FLAG, "") == "1"
+
+    def _fail(self, reason: str) -> TTSResult:
+        return TTSResult(
+            ok=False,
+            engine=self.engine_name,
+            first_audio_hint_ms=None,
+            warning=f"edge_tts_not_run: {reason}",
         )
+
+    def speak(self, text: str) -> TTSResult:
+        if not isinstance(text, str) or not text.strip():
+            return self._fail("text_empty")
+        if not self.is_enabled():
+            return self._fail(
+                f"disabled: cloud TTS sends text off this machine; "
+                f"set {EDGE_TTS_ENABLE_FLAG}=1 to allow"
+            )
+
+        synth = self._synth or _default_edge_synth
+        player = self._player or _default_audio_player
+
+        start = time.perf_counter()
+        try:
+            audio_path = synth(text, self._voice)
+        except Exception as exc:  # noqa: BLE001 - surfaced, never swallowed
+            return self._fail(f"synthesis_error: {exc}")
+        # Measured BEFORE playback: the default player blocks for the whole
+        # utterance, so including it would report speech duration as latency.
+        synth_ms = (time.perf_counter() - start) * 1000.0
+
+        try:
+            player(audio_path)
+        except Exception as exc:  # noqa: BLE001
+            return self._fail(f"playback_error: {exc}")
+
+        return TTSResult(
+            ok=True,
+            engine=self.engine_name,
+            first_audio_hint_ms=synth_ms,
+            warning=(
+                "first_audio_hint_ms is synthesis time only (network round-trip "
+                "to the cloud TTS); playback start follows it and is not measured"
+            ),
+        )
+
+
+def _default_edge_synth(text: str, voice: str) -> str:
+    """Synthesize with edge-tts to a temp mp3 and return its path.
+
+    Imported lazily: importing this module must not pull in a network
+    library (import-safety tests assert exactly that).
+    """
+    import asyncio
+    import tempfile
+
+    import edge_tts
+
+    fd, path = tempfile.mkstemp(suffix=".mp3")
+    os.close(fd)
+
+    async def _run() -> None:
+        await edge_tts.Communicate(text, voice).save(path)
+
+    asyncio.run(_run())
+    return path
+
+
+def _default_audio_player(path: str) -> None:
+    """Play an audio file through the default output device (pygame)."""
+    import pygame
+
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
+    pygame.mixer.music.load(path)
+    pygame.mixer.music.play()
+    while pygame.mixer.music.get_busy():
+        pygame.time.wait(50)
+    pygame.mixer.music.unload()

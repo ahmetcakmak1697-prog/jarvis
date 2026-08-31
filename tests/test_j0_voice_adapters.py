@@ -270,17 +270,105 @@ def test_fake_tts_adapter_warning_is_non_empty_string():
 
 
 # ---------------------------------------------------------------------------
-# 6. PiperSubprocessAdapter.speak() raises NotImplementedError("J0B")
+# 6. PiperSubprocessAdapter.speak() -- kapi degisti (2026-08-31, Esik 1)
+#
+# ESKI SOZLESME: speak() kosulsuz NotImplementedError firlatirdi.
+# YENI SOZLESME: speak() calisir, ama onkosullar dogrulanmadan CALISMAZ ve
+# basarisizligi firlatmak yerine TTSResult olarak dondurur.
+#
+# Guvenlik ozelligi kaldirilmadi, yer degistirdi: "hic calismaz" ->
+# "yalnizca mutlak + var olan yollarla calisir; PATH aranmaz, indirme yapilmaz".
+# Bu bir sozlesme degisikligidir ve Ahmet'in acik talimatiyla yapilmistir.
 # ---------------------------------------------------------------------------
 
 
-def test_piper_subprocess_adapter_speak_raises_not_implemented():
+def test_piper_speak_without_prerequisites_returns_error_not_raises():
+    """Onkosul yoksa: exception DEGIL, yapisal hata donmeli."""
     from j0_tts_adapters import PiperSubprocessAdapter
 
-    adapter = PiperSubprocessAdapter()
-    with pytest.raises(NotImplementedError) as exc_info:
-        adapter.speak("test")
-    assert "J0B" in str(exc_info.value)
+    result = PiperSubprocessAdapter().speak("test")
+    assert result.ok is False
+    assert result.engine == "piper"
+    assert result.first_audio_hint_ms is None
+    assert "piper_not_run" in (result.warning or "")
+
+
+def test_piper_speak_refuses_relative_executable():
+    """Mutlak olmayan yol reddedilmeli -- PATH araması yapilmaz."""
+    from j0_tts_adapters import PiperSubprocessAdapter
+
+    called = []
+
+    def spy_runner(argv, text, timeout):
+        called.append(argv)
+        raise AssertionError("onkosul gecmeden runner cagrilmamali")
+
+    result = PiperSubprocessAdapter(
+        {"executable": "piper", "model": "voice.onnx"}, runner=spy_runner
+    ).speak("test")
+    assert result.ok is False
+    assert "executable_not_absolute" in (result.warning or "")
+    assert called == []
+
+
+def test_piper_speak_runs_when_prerequisites_are_met(tmp_path):
+    """Onkosullar saglandiginda gercek yurutme yolu calisir.
+
+    Piper ikilisi bu makinede YOK; bu yuzden runner enjekte ediliyor.
+    Test edilen sey: dogru argv olusuyor, metin stdin'e gidiyor, sonuc ok.
+    """
+    from j0_tts_adapters import PiperSubprocessAdapter
+
+    exe = tmp_path / "piper.exe"
+    exe.write_text("", encoding="utf-8")
+    model = tmp_path / "tr_TR-voice.onnx"
+    model.write_text("", encoding="utf-8")
+
+    seen = {}
+
+    class _Done:
+        returncode = 0
+        stderr = b""
+
+    def fake_runner(argv, text, timeout):
+        seen["argv"] = argv
+        seen["text"] = text
+        seen["timeout"] = timeout
+        return _Done()
+
+    result = PiperSubprocessAdapter(
+        {"executable": str(exe), "model": str(model)}, runner=fake_runner
+    ).speak("Merhaba efendim")
+
+    assert result.ok is True
+    assert result.engine == "piper"
+    assert result.first_audio_hint_ms is not None
+    assert seen["text"] == "Merhaba efendim"
+    assert seen["argv"][0] == str(exe)
+    assert "--model" in seen["argv"] and str(model) in seen["argv"]
+    assert seen["timeout"] <= 60.0
+
+
+def test_piper_speak_reports_nonzero_exit(tmp_path):
+    from j0_tts_adapters import PiperSubprocessAdapter
+
+    exe = tmp_path / "piper.exe"
+    exe.write_text("", encoding="utf-8")
+    model = tmp_path / "v.onnx"
+    model.write_text("", encoding="utf-8")
+
+    class _Failed:
+        returncode = 3
+        stderr = b"model yuklenemedi"
+
+    result = PiperSubprocessAdapter(
+        {"executable": str(exe), "model": str(model)},
+        runner=lambda a, t, to: _Failed(),
+    ).speak("test")
+
+    assert result.ok is False
+    assert "exit_3" in (result.warning or "")
+    assert "model yuklenemedi" in (result.warning or "")
 
 
 def test_piper_subprocess_adapter_no_subprocess_on_import():
@@ -304,16 +392,88 @@ def test_piper_subprocess_adapter_no_subprocess_on_import():
 
 
 # ---------------------------------------------------------------------------
-# 7. EdgeTTSAdapter.speak() raises NotImplementedError
+# 7. EdgeTTSAdapter.speak() -- kapi degisti (2026-08-31, Esik 1)
+#
+# Edge TTS bir BULUT servisidir: metin bu makineden cikar. Kapi kaldirilmadi;
+# "hic calismaz" yerine "yalnizca JARVIS_J0_EDGE_TTS_ENABLED=1 ile calisir".
+# Veri-egress kurali icin bkz. CLAUDE.md 7.
 # ---------------------------------------------------------------------------
 
 
-def test_edge_tts_adapter_speak_raises_not_implemented():
+def test_edge_tts_disabled_by_default(monkeypatch):
+    """Bayrak yoksa: ag'a CIKILMAZ, exception da firlatilmaz."""
+    from j0_tts_adapters import EDGE_TTS_ENABLE_FLAG, EdgeTTSAdapter
+
+    monkeypatch.delenv(EDGE_TTS_ENABLE_FLAG, raising=False)
+
+    def exploding_synth(text, voice):
+        raise AssertionError("kapaliyken sentez cagrilmamali")
+
+    result = EdgeTTSAdapter(synth=exploding_synth).speak("test")
+    assert result.ok is False
+    assert "disabled" in (result.warning or "")
+    assert EDGE_TTS_ENABLE_FLAG in (result.warning or "")
+
+
+def test_edge_tts_flag_must_be_exactly_one(monkeypatch):
+    from j0_tts_adapters import EDGE_TTS_ENABLE_FLAG, EdgeTTSAdapter
+
+    for deger in ("0", "true", "yes", ""):
+        monkeypatch.setenv(EDGE_TTS_ENABLE_FLAG, deger)
+        assert EdgeTTSAdapter().is_enabled() is False, f"{deger!r} acmamali"
+    monkeypatch.setenv(EDGE_TTS_ENABLE_FLAG, "1")
+    assert EdgeTTSAdapter().is_enabled() is True
+
+
+def test_edge_tts_runs_when_enabled():
+    """Acikken tam yol calisir. Ag ve ses cihazi enjekte edilerek atlanir."""
     from j0_tts_adapters import EdgeTTSAdapter
 
-    with pytest.raises(NotImplementedError) as exc_info:
-        EdgeTTSAdapter().speak("test")
-    assert "J0B" in str(exc_info.value) or "edge" in str(exc_info.value).lower()
+    seen = {}
+
+    def fake_synth(text, voice):
+        seen["text"] = text
+        seen["voice"] = voice
+        return "C:/tmp/ses.mp3"
+
+    def fake_player(path):
+        seen["played"] = path
+
+    result = EdgeTTSAdapter(
+        voice="tr-TR-AhmetNeural",
+        synth=fake_synth,
+        player=fake_player,
+        enabled=True,
+    ).speak("Merhaba efendim")
+
+    assert result.ok is True
+    assert result.engine == "edge-tts"
+    assert result.first_audio_hint_ms is not None
+    assert seen["text"] == "Merhaba efendim"
+    assert seen["voice"] == "tr-TR-AhmetNeural"
+    assert seen["played"] == "C:/tmp/ses.mp3"
+
+
+def test_edge_tts_empty_text_refused():
+    from j0_tts_adapters import EdgeTTSAdapter
+
+    for bos in ("", "   ", None):
+        result = EdgeTTSAdapter(enabled=True).speak(bos)
+        assert result.ok is False
+        assert "text_empty" in (result.warning or "")
+
+
+def test_edge_tts_surfaces_synthesis_failure():
+    """Hata yutulmaz; TTSResult icinde gorunur kalir."""
+    from j0_tts_adapters import EdgeTTSAdapter
+
+    def broken_synth(text, voice):
+        raise RuntimeError("ag yok")
+
+    result = EdgeTTSAdapter(synth=broken_synth, enabled=True).speak("test")
+    assert result.ok is False
+    assert "synthesis_error" in (result.warning or "")
+    assert "ag yok" in (result.warning or "")
 
 
 # ---------------------------------------------------------------------------
@@ -813,15 +973,21 @@ def test_dry_run_plan_never_reads_environ(tmp_path, monkeypatch):
 
 
 def test_real_piper_execution_remains_unreachable_from_dry_run_plan(tmp_path):
-    """Req 18: dry-run plan objects have no way to trigger real execution."""
+    """Req 18: dry-run plan objects have no way to trigger real execution.
+
+    Bu ozellik korunuyor. Degisen tek sey: speak() artik NotImplementedError
+    firlatmiyor, onkosul dogrulamasinda duruyor. Plan objesinin kendisi hala
+    hicbir yurutme yolu sunmuyor -- kritik olan buydu.
+    """
     from j0_tts_adapters import PiperCommandPlan, PiperSubprocessAdapter
 
     assert not hasattr(PiperCommandPlan, "execute")
     assert not hasattr(PiperCommandPlan, "run")
 
-    adapter = PiperSubprocessAdapter()
-    with pytest.raises(NotImplementedError):
-        adapter.speak("test")
+    # Onkosulsuz speak() yurutmeye gecmez: yapisal hata doner.
+    result = PiperSubprocessAdapter().speak("test")
+    assert result.ok is False
+    assert "piper_not_run" in (result.warning or "")
 
 
 def test_dry_run_plan_ok_result_metadata_points_to_wav_without_playing(tmp_path, monkeypatch):

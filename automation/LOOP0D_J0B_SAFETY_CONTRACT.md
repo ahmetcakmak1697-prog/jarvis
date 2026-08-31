@@ -316,5 +316,33 @@ This task is complete when:
 
 ---
 
+## EK — 2026-08-31: TTS kapısı taşındı (Eşik 1)
+
+Bu sözleşme yazıldığında `PiperSubprocessAdapter.speak()` ve
+`EdgeTTSAdapter.speak()` **koşulsuz** `NotImplementedError` fırlatıyordu.
+Ahmet'in açık talimatıyla (denetim raporundaki Eşik 1) bu kapı **kaldırılmadı,
+taşındı**:
+
+| | Önce | Şimdi |
+|---|---|---|
+| Piper | Hiç çalışmaz | Yalnız **mutlak + var olan** exe ve `.onnx` yolu ile çalışır. PATH aranmaz, indirme yapılmaz, yol tahmin edilmez. Başarısızlık `TTSResult(ok=False)` döner, exception değil. |
+| Edge TTS | Hiç çalışmaz | Yalnız `JARVIS_J0_EDGE_TTS_ENABLED=1` ile çalışır. **Bulut servisi — metin makineden çıkar** (CLAUDE.md §7). Varsayılan kapalı. |
+
+Korunan özellikler:
+
+- Modülü import etmek hâlâ subprocess doğurmaz, ağ kütüphanesi yüklemez, ses
+  cihazına dokunmaz — `subprocess`, `edge_tts` ve `pygame` yalnız varsayılan
+  çalıştırıcıların içinde, tembel import edilir. Import-güvenliği testleri
+  bunu doğruluyor.
+- `PiperCommandPlan` hâlâ kendi başına hiçbir yürütme yolu sunmuyor
+  (`execute`/`run` yok).
+- Faz A kuru-çalıştırma planlaması olduğu gibi duruyor.
+
+**Doğrulama durumu:** Edge TTS yolu bu makinede **gerçekten çalıştırıldı** —
+hoparlörden Türkçe ses alındı, sentez 1.1–1.5s. Piper yolu **gerçek ikiliyle
+hiç çalıştırılmadı**: `piper.exe` ve `.onnx` ses modeli bu makinede yok, bu
+yüzden yürütme yolu yalnız enjekte edilmiş çalıştırıcıyla test edildi. Piper
+Faz B (gerçek ikiliyle manuel çalıştırma) **hâlâ yürütülmedi**.
+
 *Prepared by: Claude Code | Date: 2026-07-10 | Sprint: LOOP-0D (safety
-contract only)*
+contract only) | Amended: 2026-08-31 (Eşik 1)*
