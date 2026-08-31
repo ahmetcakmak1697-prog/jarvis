@@ -201,6 +201,49 @@ def test_levels_remain_distinct():
     assert len(set(prompts.values())) == 3, "seviyeler ayirt edilemez hale gelmis"
 
 
+def test_voice_mode_is_off_by_default():
+    from agents.persona import build_system_prompt
+
+    assert "BU TUR SESLİ" not in build_system_prompt()
+    assert "BU TUR SESLİ" not in build_system_prompt(level="L2")
+
+
+@pytest.mark.parametrize("level", [None, "L1", "L2", "L3"])
+def test_voice_mode_adds_spoken_instructions(level):
+    """Model ses modunda oldugunu UNUTMAMALI.
+
+    Sesli cevap hoparlorden okunur: markdown, kod ve uzun rapor sesli
+    dinlenmez. Bu blok her seviyede eklenebilmeli.
+    """
+    from agents.persona import build_system_prompt
+
+    metin = build_system_prompt(level=level, voice_mode=True)
+    assert "BU TUR SESLİ" in metin
+    assert "Markdown kullanma" in metin
+    assert "Kod verme" in metin
+
+
+def test_voice_block_comes_last():
+    """Ses kurali seviye yonergesinden SONRA gelmeli.
+
+    L2/L3 'calisabilir kod ver' diyor; ses modu 'kod okuma' diyor. Sonra
+    gelen kazanir, yoksa model sesli olarak kod okumaya calisir.
+    """
+    from agents.persona import build_system_prompt
+
+    metin = build_system_prompt(level="L2", voice_mode=True)
+    assert metin.index("BU TUR SESLİ") > metin.index("BU TUR: TEKNİK")
+
+
+def test_voice_mode_keeps_identity_and_loyalty():
+    from agents.persona import build_system_prompt
+
+    metin = build_system_prompt(level="L1", voice_mode=True)
+    assert "Efendim" in metin
+    assert "SADAKAT" in metin.upper()
+    assert "uydurma" in metin
+
+
 def test_name_is_injected():
     from agents.persona import build_system_prompt
 

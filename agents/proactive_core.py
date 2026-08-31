@@ -39,6 +39,10 @@ class ProactiveCore:
             "music": self._music_stub(profile),
             "security": self._security_stub(),
             "system": self._system_stub(),
+            # Esik 4/5: metrikler zaten okunuyordu ama hicbir ESIK yoktu --
+            # JARVIS sicakligi goruyor, fark edemiyordu. hardware alani
+            # eşik asimlarini ve bildirim kararini tasir.
+            "hardware": self._hardware_signals(),
             "suggestion": self._suggestion_stub(now, profile),
             "tasks": self._tasks_stub(),
         }
@@ -379,6 +383,21 @@ class ProactiveCore:
             }
 
 
+
+    def _hardware_signals(self) -> dict:
+        """Donanim esik kontrolu. Nobetci ornegi ornek omru boyunca yasar ki
+        tekrar bastirma (cooldown) durumu turlar arasinda korunsun."""
+        try:
+            if getattr(self, "_sentinel", None) is None:
+                from agents.hardware_sentinel import HardwareSentinel
+                self._sentinel = HardwareSentinel()
+            return self._sentinel.check()
+        except Exception as exc:  # noqa: BLE001 - proaktif tur asla cokmez
+            return {
+                "ok": False, "error": str(exc), "metrics": {}, "alerts": [],
+                "level": "ok", "spoken": "", "should_notify": False,
+                "recovered": False,
+            }
 
     def _system_stub(self) -> dict:
         try:

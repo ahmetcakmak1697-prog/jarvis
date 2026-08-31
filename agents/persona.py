@@ -21,6 +21,7 @@ from __future__ import annotations
 __all__ = [
     "JARVIS_DEFAULT_NAME",
     "LEVELS",
+    "VOICE_MODE_DIRECTIVE",
     "build_system_prompt",
 ]
 
@@ -187,8 +188,26 @@ Karşı tezi de kur; tek yönlü analiz verme.""",
 }
 
 
+_SES_MODU = """## BU TUR SESLİ
+
+Cevabın hoparlörden **okunacak**, ekranda okunmayacak. Buna göre konuş:
+
+- Kısa tut. En fazla 3-4 cümle. Uzun cevap sesli dinlenmez.
+- Markdown kullanma: başlık, madde işareti, yıldız, backtick yok. Bunlar
+  sesli okunduğunda anlamsız gürültüdür.
+- Kod verme. Kod gerekiyorsa "kodu ekrana yazdım" de, tek satır bile okuma.
+- Tablo, liste ve numaralandırma yerine düz cümle kur.
+- Rakamları okunabilir söyle: "seksen dört derece", "yüzde doksan altı".
+- Ahmet konuşarak sordu; sen de konuşur gibi cevap ver, rapor yazar gibi değil."""
+
+#: Ses yönergesi tek kaynaktır. `LocalJarvisAgent` gibi kendi prompt'unu
+#: kuran çağıranlar bunu **kompozisyonla** ekler; metni kopyalamaz.
+VOICE_MODE_DIRECTIVE = _SES_MODU
+
+
 def build_system_prompt(name: str = JARVIS_DEFAULT_NAME,
-                        level: str | None = None) -> str:
+                        level: str | None = None,
+                        voice_mode: bool = False) -> str:
     """JARVIS sistem prompt'unu üretir.
 
     Args:
@@ -213,5 +232,10 @@ def build_system_prompt(name: str = JARVIS_DEFAULT_NAME,
         bloklar += [_KAPASITE, _YONTEM, _SEVIYE_YONERGELERI["L3"]]
     else:
         bloklar.append(_SEVIYE_YONERGELERI[level])
+
+    # Ses modu EN SONA eklenir: seviye yönergesinden sonra gelir ki "kod ver"
+    # diyen L2/L3 talimatını "kod okuma" kuralı geçersiz kılabilsin.
+    if voice_mode:
+        bloklar.append(_SES_MODU)
 
     return "\n\n".join(bloklar)

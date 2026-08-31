@@ -99,6 +99,31 @@ def _run_local_mode():
     from memory.life_graph import LifeGraph, remember_exchange
     life_graph = LifeGraph()
 
+    # Esik 4/5: donanim nobetcisi. Ornek dongu boyunca yasar ki ayni uyari
+    # her turda tekrarlanmasin (cooldown durumu ornekte tutulur).
+    try:
+        from agents.hardware_sentinel import HardwareSentinel
+        sentinel = HardwareSentinel()
+    except Exception:  # noqa: BLE001 - nobetci yoksa sohbet yine calisir
+        sentinel = None
+
+    def _donanimi_kontrol_et():
+        """Kritik durumu SORULMADAN bildir. Proaktif koruyucu davranis."""
+        if sentinel is None:
+            return
+        try:
+            durum = sentinel.check()
+        except Exception:  # noqa: BLE001
+            return
+        if durum.get("should_notify") and durum.get("alerts"):
+            renk = "red" if durum["level"] == "critical" else "yellow"
+            console.print()
+            for uyari in durum["alerts"]:
+                console.print(f"[{renk}]⚠ {uyari['message']}[/]")
+            voice_io.say(durum["spoken"])
+        elif durum.get("recovered"):
+            console.print("[green]✓ Efendim, donanım normale döndü.[/]")
+
     voice_io = _build_voice_io()
 
     if voice_io.enabled:
@@ -116,6 +141,9 @@ def _run_local_mode():
 
     while True:
         try:
+            # Her turdan ONCE donanimi yokla: Ahmet sormadan uyarilsin.
+            _donanimi_kontrol_et()
+
             user_input = voice_io.prompt("[bold blue]Sen:[/] ").strip()
             if not user_input:
                 continue
@@ -167,6 +195,11 @@ def _run_local_mode():
                 f"burada olmayanı uydurma]\n{zemin}\n\n{user_input}"
                 if zemin else user_input
             )
+
+            # Ses modunu HER TURDA bildir: 'ses kapat' dendiginde model de
+            # bunu ogrenmeli, yoksa sesli konusma kuralini uygulamaya devam
+            # eder ya da tersine, sesliyken markdown/kod dokmeye baslar.
+            agent.voice_mode = voice_io.enabled
 
             response = agent.chat(mesaj)
             console.print(f"\n[bold cyan]Jarvis:[/]")

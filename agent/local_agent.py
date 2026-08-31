@@ -369,6 +369,11 @@ class LocalJarvisAgent:
 
         # System prompt
         system = SYSTEM_PROMPT
+        if getattr(self, "voice_mode", False):
+            # Ses modunda cevap hoparlorden OKUNUR: markdown ve kod sesli
+            # dinlenmez. Yonerge SSOT'tan gelir, metin burada kopyalanmaz.
+            from agents.persona import VOICE_MODE_DIRECTIVE
+            system = system + "\n\n" + VOICE_MODE_DIRECTIVE
         if self._project_ctx:
             system += f"\n\n{self._project_ctx}"
         if self.memory:
