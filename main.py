@@ -52,6 +52,35 @@ def chat_loop(mode: str = "auto"):
         _run_claude_mode()
 
 
+def _voice_requested() -> bool:
+    """Ses açık mı? Varsayılan AÇIK; JARVIS_VOICE=0 ile kapatılır.
+
+    Edge TTS bir bulut servisi olduğu için AĞIZ ayrıca
+    JARVIS_J0_EDGE_TTS_ENABLED=1 ister (CLAUDE.md §7 — veri egress).
+    O bayrak yoksa mikrofon çalışır, JARVIS yalnız yazarak cevap verir.
+    """
+    import os
+
+    return os.getenv("JARVIS_VOICE", "1").strip().lower() not in ("0", "false", "no")
+
+
+def _build_voice_io(force: bool = False):
+    """Ses katmanını kurar. Kurulamazsa klavye moduna düşer — asla çökmez."""
+    from voice.voice_loop import build_default_voice_io
+
+    def _klavye(prompt: str) -> str:
+        return console.input(prompt)
+
+    def _bildir(mesaj: str) -> None:
+        console.print(f"[dim]{mesaj}[/]")
+
+    return build_default_voice_io(
+        keyboard=_klavye,
+        notify=_bildir,
+        enabled=force or _voice_requested(),
+    )
+
+
 def _run_local_mode():
     """Tamamen lokal Ollama modu — 0 maliyet."""
     console.print("[bold green]⚡ LOKAL MOD[/] — Ollama | 0 Token maliyeti\n")
@@ -67,11 +96,24 @@ def _run_local_mode():
         console.print("[yellow]3. 'ollama serve' çalışıyor mu?[/yellow]")
         return
 
-    console.print("[bold green]Jarvis hazır![/] Konuşabilirsiniz.\n")
+    voice_io = _build_voice_io()
+
+    if voice_io.enabled:
+        console.print(
+            "[bold green]Jarvis hazır![/] Mikrofon açık — konuşabilirsiniz.\n"
+            "[dim]Sustuğunuzda cümle tamamlanır. Ses alınamazsa klavyeye "
+            "düşer. Sesi kapatmak: 'ses kapat'[/]\n"
+        )
+    else:
+        console.print(
+            "[bold green]Jarvis hazır![/] [yellow]Ses kapalı[/] — yazabilirsiniz.\n"
+            "[dim]Sesi açmak için: JARVIS_VOICE=1 ve "
+            "JARVIS_J0_EDGE_TTS_ENABLED=1[/]\n"
+        )
 
     while True:
         try:
-            user_input = console.input("[bold blue]Sen:[/] ").strip()
+            user_input = voice_io.prompt("[bold blue]Sen:[/] ").strip()
             if not user_input:
                 continue
 
@@ -80,6 +122,7 @@ def _run_local_mode():
             if lower in ("çıkış", "exit", "quit", "q"):
                 agent.show_stats()
                 console.print("\n[dim]Jarvis: Görüşürüz efendim.[/]")
+                voice_io.say("Görüşürüz efendim.")
                 break
 
             elif lower in ("temizle", "clear", "reset"):
@@ -98,10 +141,24 @@ def _run_local_mode():
                 _show_help(mode="local")
                 continue
 
+            elif lower in ("ses kapat", "sesi kapat", "voice off"):
+                voice_io.enabled = False
+                console.print("[yellow]Ses kapatıldı — klavye devam ediyor.[/]")
+                continue
+
+            elif lower in ("ses aç", "sesi aç", "voice on"):
+                voice_io = _build_voice_io(force=True)
+                console.print(
+                    "[green]Ses açıldı.[/]" if voice_io.enabled
+                    else "[red]Ses açılamadı.[/]"
+                )
+                continue
+
             response = agent.chat(user_input)
             console.print(f"\n[bold cyan]Jarvis:[/]")
             console.print(Markdown(response))
             console.print()
+            voice_io.say(response)
 
         except KeyboardInterrupt:
             console.print(f"\n[dim]Çıkmak için 'çıkış' yazın.[/]")
