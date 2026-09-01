@@ -173,9 +173,21 @@ class LocalJarvisAgent:
             console.print(f"[yellow]⚠ Araç hatası: {e}[/]")
             return {}
 
-    def _load_project_context(self) -> str:
-        """Build a compact, explicit current project state block for system prompt grounding."""
-        root = Path(__file__).parent.parent
+    def _load_project_context(self, root: Path | None = None) -> str:
+        """Modele verilecek **canlı** proje durumu bloğunu kurar.
+
+        Olgular burada YAZILMAZ, okunur. Durum daha önce koda sabit
+        yazılmıştı ve üç satırı eskimişti (E1-S4 "BEKLIYOR" iken
+        `roadmap_state.json`'da DONE); model bu tabloyu her turda görüp
+        "tasarım aşamasındayız" diyordu. Kaynak artık `roadmap_state.json` —
+        dosya kendini "TEK DOĞRULUK KAYNAGI" ilan ediyor.
+
+        Fail-safe korunur: bir kaynak okunamazsa o bölüm **atlanır**;
+        uydurma durum yerine hiç durum yeğdir.
+
+        ``root`` yalnız test içindir; üretimde depo kökü kullanılır.
+        """
+        root = Path(root) if root is not None else Path(__file__).parent.parent
         lines: list[str] = ["## GUNCEL PROJE DURUMU"]
 
         # 1. Git log (safe read-only subprocess)
@@ -197,9 +209,13 @@ class LocalJarvisAgent:
         human_path = root / "automation" / "HUMAN_NEEDED.md"
         try:
             human_text = human_path.read_text(encoding="utf-8")
+            # Sablon yer tutucusu ("- [ ] [YYYY-MM-DD] [TASK-ID] ...") gercek
+            # bir bekleyen is DEGILDIR; modele oyle sunulursa uydurma bir
+            # gorev olarak konusur. Dosyadaki ornek satir elenir.
             pending = [
                 ln.strip() for ln in human_text.splitlines()
                 if ln.strip().startswith("- [ ]")
+                and "YYYY-MM-DD" not in ln and "TASK-ID" not in ln
             ]
             if pending:
                 lines.append("\n### Insan Onayi Gereken Isler (HUMAN_NEEDED)")
@@ -207,13 +223,44 @@ class LocalJarvisAgent:
         except Exception:
             pass
 
-        # 3. Explicit known state (always injected so model can't invent)
-        lines.append("\n### Bilinen Durum")
-        lines.append("  - T1-S2: Turkce kalite subjektif onayi — BEKLIYOR (Ahmet imzalayana kadar)")
-        lines.append("  - E1-S4: Canli Telegram smoke testi — BEKLIYOR (insan kapisi; .env/token/telefon gerekli)")
-        lines.append("  - E1-S5: Zamanlayici mimari karari — BEKLIYOR (tasarim kapisi; henuz kod yok)")
-        lines.append("  - Proaktif bildirimler: CANLI DEGIL (JARVIS_PROACTIVE_ENABLED=0)")
-        lines.append("  - Guvende otonom gorevler: TAMAMLANDI — sadece insan kapilari kaldi")
+        # 3. Yol haritasi durumu — TEK DOGRULUK KAYNAGI: roadmap_state.json.
+        #    Sabit metin yok; dosya degisince blok degisir.
+        try:
+            import json as _json
+            veri = _json.loads(
+                (root / "roadmap_state.json").read_text(encoding="utf-8")
+            )
+            adimlar = veri.get("steps") or []
+            if adimlar:
+                biten = sum(1 for a in adimlar if a.get("status") == "done")
+                lines.append("\n### Yol Haritasi Durumu")
+                lines.append(f"  Tamamlanan adim: {biten}/{len(adimlar)}")
+                for adim in adimlar:
+                    if adim.get("status") == "done":
+                        continue
+                    lines.append(
+                        f"  - {adim.get('id')} [{adim.get('status')}] "
+                        f"{adim.get('title', '')}"
+                    )
+                    kanit = adim.get("evidence")
+                    if isinstance(kanit, dict):
+                        for ad, k in kanit.items():
+                            if isinstance(k, dict) and k.get("verdict"):
+                                tarih = k.get("date") or k.get("ts") or ""
+                                lines.append(
+                                    f"      {ad}: {k['verdict']}"
+                                    + (f" ({tarih})" if tarih else "")
+                                )
+        except Exception:
+            # Dosya yok/bozuk: durum bolumu ATLANIR. Uydurma durum yerine
+            # hic durum yegdir.
+            pass
+
+        # 4. Ortamdan CANLI okunan durum (sabit iddia degil).
+        import os as _os
+        if _os.getenv("JARVIS_PROACTIVE_ENABLED", "0").strip() not in ("1", "true", "True"):
+            lines.append("\n### Calisma Modu")
+            lines.append("  - Proaktif bildirimler: CANLI DEGIL (JARVIS_PROACTIVE_ENABLED=0)")
 
         # 4. Optional: T1-S2 fail log summary if present
         fail_log = root / "automation" / "T1_S2_FAIL_LOG.md"

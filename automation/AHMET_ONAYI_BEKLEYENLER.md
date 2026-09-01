@@ -22,7 +22,37 @@ Açıldı: 2026-09-01, gözetimsiz oturum.
 
 ---
 
-## A5 — `analyze_file` de ulaşılamıyor (YENİ)
+## A6 — `HUMAN_NEEDED.md` ile `roadmap_state.json` hala celisiyor (YENI)
+
+A4 uygulandiktan sonra CANLI blokta gorundu: model artik **ayni prompt icinde
+iki celiskili olgu** goruyor.
+
+```
+### Insan Onayi Gereken Isler (HUMAN_NEEDED)
+  - [ ] [2026-06-24] [E1-S4] Live Telegram proactive smoke test...   <- BEKLIYOR
+
+### Yol Haritasi Durumu
+  - FAZ-3-E1 [in_progress] ...
+      e1_s4: DONE                                                    <- TAMAM
+```
+
+Bu, `CLAUDE.md` 12'de zaten kayitli olan celiskinin ta kendisi
+(`HUMAN_NEEDED.md` "Pending" derken `roadmap_state.json` "DONE" diyor).
+Kod tarafinda cozulemez: iki dosya da mesru kaynak, hangisinin guncel oldugu
+bir PROJE GERCEGI karari.
+
+Ek olarak `memory/` hafiza kaydi `project_e1_s4_done.md` de DONE diyor
+(Ahmet telefon onayi, 2026-06-27) -- yani iki kaynak DONE, biri Pending.
+
+**Onerim:** `automation/HUMAN_NEEDED.md`'deki E1-S4 maddesi `- [x]` yapilsin
+ya da Resolved bolumune tasinsin. Kendi basima yapmadim: proje gercegi.
+
+**Not:** Sablon yer tutucusu (`- [ ] [YYYY-MM-DD] [TASK-ID] ...`) koddan
+filtrelendi -- o bir veri karari degil, acik bir hataydi.
+
+---
+
+## A5 — `analyze_file` de ulasilamiyor (YENI)
 
 `_detect_tool()` yalnız 6 araca yol açıyor; `analyze_file` ajanın araç
 sözlüğünde ama hiçbir tetikleyiciye bağlı değil — `run_python_code` ile aynı

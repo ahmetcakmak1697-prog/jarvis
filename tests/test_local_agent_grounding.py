@@ -6,7 +6,7 @@ Tests verify:
 3. _load_project_context() always returns a non-empty structured block.
 4. _load_project_context() includes git log lines when subprocess returns data.
 5. _load_project_context() extracts pending items from HUMAN_NEEDED.md.
-6. _load_project_context() always includes hardcoded known-state facts.
+6. _load_project_context() reports live state from roadmap_state.json.
 7. chat() injects project context into the system prompt.
 8. chat() with empty project context does not inject placeholder section.
 """
@@ -61,61 +61,30 @@ def _captured_system_prompt(agent, message: str = "Nerede kaldik?") -> str:
     return captured[0]["content"]
 
 
-def _call_real_loader(root: Path) -> str:
-    """Call the real _load_project_context logic with subprocess patched to fake git log."""
-    fake_log = "abc1234 fix(local-agent): ground project-status answers\ndef5678 fix(cli): prevent rich markup crash"
+def _gercek_loader(root: Path) -> str:
+    """GERCEK `_load_project_context()`'i cagirir -- replika DEGIL.
+
+    Eskiden burada metodun bir KOPYASI vardi ve `patch.object` ile gercegin
+    yerine geciyordu; dort test gercek kodu degil o kopyayi olcuyordu ve kopya
+    zaten sapmisti (gercekteki T1_S2_FAIL_LOG okumasini ve "Onemli Kural"
+    blogunu icermiyordu). Metot artik test icin `root` parametresi aldigi
+    icin replikaya gerek yok.
+
+    Yalniz `subprocess.run` sahtelenir: git log'un cikti bicimi test edilir,
+    bu makinenin gercek commit gecmisi degil.
+    """
+    fake_log = "\n".join([
+        "abc1234 fix(local-agent): ground project-status answers",
+        "def5678 fix(cli): prevent rich markup crash",
+    ])
     fake_result = MagicMock()
     fake_result.returncode = 0
     fake_result.stdout = fake_log
 
     with patch("subprocess.run", return_value=fake_result):
-        # Instantiate a minimal agent that uses the real _load_project_context
-        with (
-            patch("agent.local_agent.LocalJarvisAgent._init_ollama"),
-            patch("agent.local_agent.LocalJarvisAgent._load_memory", return_value=None),
-            patch("agent.local_agent.LocalJarvisAgent._load_tools", return_value={}),
-            patch("memory.memory_manager.JarvisMemory", return_value=MagicMock(get_context_for_prompt=lambda: "")),
-        ):
-            # Patch Path so automation/ reads come from root
-            from agent.local_agent import LocalJarvisAgent
-            agent_instance = LocalJarvisAgent.__new__(LocalJarvisAgent)
-            agent_instance._project_ctx = ""
-
-            orig_parent = Path(__file__).parent.parent
-
-            def patched_loader(self):
-                # Replicate the real method, but redirect root to our tmp root
-                import subprocess as sp
-                lines = ["## GUNCEL PROJE DURUMU"]
-                try:
-                    r = sp.run(["git", "log", "-5", "--oneline"],
-                               capture_output=True, text=True, timeout=5, cwd=str(root))
-                    if r.returncode == 0 and r.stdout.strip():
-                        lines.append("\n### Son Commitler")
-                        for l in r.stdout.strip().splitlines():
-                            lines.append(f"  {l}")
-                except Exception:
-                    pass
-                human_path = root / "automation" / "HUMAN_NEEDED.md"
-                try:
-                    human_text = human_path.read_text(encoding="utf-8")
-                    pending = [ln.strip() for ln in human_text.splitlines() if ln.strip().startswith("- [ ]")]
-                    if pending:
-                        lines.append("\n### Insan Onayi Gereken Isler (HUMAN_NEEDED)")
-                        lines.extend(f"  {p}" for p in pending)
-                except Exception:
-                    pass
-                lines.append("\n### Bilinen Durum")
-                lines.append("  - T1-S2: Turkce kalite subjektif onayi — BEKLIYOR")
-                lines.append("  - E1-S4: Canli Telegram smoke testi — BEKLIYOR (insan kapisi)")
-                lines.append("  - E1-S5: Zamanlayici mimari karari — BEKLIYOR (tasarim kapisi)")
-                lines.append("  - Proaktif bildirimler: CANLI DEGIL (JARVIS_PROACTIVE_ENABLED=0)")
-                lines.append("  - Guvende otonom gorevler: TAMAMLANDI")
-                return "\n".join(lines)
-
-            with patch.object(LocalJarvisAgent, "_load_project_context", patched_loader):
-                agent = LocalJarvisAgent()
-            return agent._project_ctx
+        from agent.local_agent import LocalJarvisAgent
+        agent = LocalJarvisAgent.__new__(LocalJarvisAgent)
+        return agent._load_project_context(root=root)
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +142,7 @@ def test_system_prompt_turkish_grammar():
 # ---------------------------------------------------------------------------
 
 def test_load_project_context_always_returns_nonempty(tmp_path):
-    result = _call_real_loader(tmp_path)
+    result = _gercek_loader(tmp_path)
     assert result.strip(), "Project context block must never be empty"
     assert "GUNCEL PROJE DURUMU" in result, "Block must start with GUNCEL PROJE DURUMU header"
 
@@ -183,7 +152,7 @@ def test_load_project_context_always_returns_nonempty(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_load_project_context_includes_git_log(tmp_path):
-    result = _call_real_loader(tmp_path)
+    result = _gercek_loader(tmp_path)
     assert "abc1234" in result or "Son Commitler" in result, (
         f"Git log lines must appear in project context. Got:\n{result[:500]}"
     )
@@ -200,7 +169,7 @@ def test_load_project_context_extracts_human_needed(tmp_path):
         "## Pending\n- [ ] [2026-06-24] [T1-S2] Turkish sign-off\n- [ ] [2026-06-24] [E1-S4] Telegram\n",
         encoding="utf-8",
     )
-    result = _call_real_loader(tmp_path)
+    result = _gercek_loader(tmp_path)
     assert "T1-S2" in result, "Pending HUMAN_NEEDED items must appear in project context"
     assert "E1-S4" in result, "All pending items must appear in project context"
 
@@ -210,10 +179,31 @@ def test_load_project_context_extracts_human_needed(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_load_project_context_includes_known_state(tmp_path):
-    result = _call_real_loader(tmp_path)
+    """SOZLESME DEGISTI (2026-09-01, Ahmet onayi).
+
+    Eski iddia sabit yazilmis "BEKLIYOR" satirlarini kilitliyordu; o olgular
+    artik YANLIS (roadmap_state.json: E1-S4 DONE 2026-06-27, E1-S5 APPROVED).
+    Yanlis olgu sabitleyen bir test, kodu yanlis tutmaya zorlar.
+
+    Yeni iddia: blok CANLI kaynaktan beslenir ve calisma modunu bildirir.
+    Ayrintili kapsam: tests/test_project_context_dynamic.py
+    """
+    import json
+
+    (tmp_path / "roadmap_state.json").write_text(json.dumps({
+        "steps": [
+            {"id": "FAZ-0", "title": "Temel", "status": "done", "evidence": {}},
+            {"id": "FAZ-3-E1", "title": "Proaktif teslimat",
+             "status": "in_progress",
+             "evidence": {"e1_s4": {"verdict": "DONE", "date": "2026-06-27"}}},
+        ]
+    }, ensure_ascii=False), encoding="utf-8")
+
+    result = _gercek_loader(tmp_path)
     assert "Proaktif bildirimler: CANLI DEGIL" in result, "Must state proactive is disabled"
-    assert "Zamanlayici" in result or "E1-S5" in result, "Must mention scheduler gate"
-    assert "BEKLIYOR" in result, "Must show pending status for human gates"
+    assert "FAZ-3-E1" in result, "Devam eden adim canli dosyadan gelmeli"
+    assert "DONE" in result, "Kanit verdict'i canli dosyadan gelmeli"
+    assert "BEKLIYOR" not in result, "Sabit yazilmis eskimis durum geri gelmis"
 
 
 # ---------------------------------------------------------------------------
