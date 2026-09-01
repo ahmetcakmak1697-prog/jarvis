@@ -40,6 +40,52 @@ eklenir:
 
 ## Kayıtlar
 
+### [2026-09-01] Bir worktree klasörünü kopyalamak yedek değildir
+
+- **Alan:** yedekleme / git topolojisi
+- **Şiddet:** BLOCKER (yanlış bir yedek, yedek olmadığını ancak ihtiyaç
+  anında gösterir)
+- **Tuzak:** `jarvis-agent-auto/` bağımsız bir depo sanıldı ve "bu klasörü
+  kopyala/yedekle" tavsiyesi verildi. Klasör kopyalansaydı **hiçbir commit
+  geçmişi taşınmazdı** — kopyalayan bunu ancak yeni makinede `git log`
+  çalıştırdığında öğrenirdi, yani felaket anında.
+- **Kök neden:** Bu dizin bir **git worktree**. Ölçüldü:
+
+  ```
+  .git            -> dizin DEĞİL, 80 baytlık dosya
+  içerik          -> gitdir: .../Jarvis/jarvis/.git/worktrees/jarvis-agent-auto
+  --git-common-dir-> C:/Users/Ahmedov/Desktop/Jarvis/jarvis/.git
+  .git/objects    -> BURADA YOK
+  ../jarvis/.git/objects -> 619 MB   <- gerçek geçmiş burada
+  ```
+
+  Yani klasördeki `.git`, başka bir yoldaki asıl depoya **işaret eden 80
+  bayt**. O yol yeni makinede bulunmayacağı için kopya, geçmişi olmayan bir
+  çalışma ağacından ibaret kalır.
+
+- **Kural:**
+  1. Bir klasörü yedek saymadan önce **`.git`'in dizin olduğunu doğrula.**
+     Dosyaysa orası bir worktree ya da submodule'dür; geçmiş başka yerdedir.
+     Tek satırlık kontrol: `git rev-parse --git-common-dir` — çıktı `.git`
+     değilse, klasör kendi kendine yetmiyor.
+  2. **Yedek, kopyalamayla değil `git clone`/`git bundle` ile alınır.**
+     Bunlar nesneleri gerçekten taşır; dosya kopyası taşımaz.
+  3. **Test edilmemiş yedek yedek değildir.** Yedek, geçici bir dizine
+     klonlanıp içindeki kilit dosyalar ve `pytest` toplaması doğrulanarak
+     kabul edilir.
+
+- **Neden bu kayıt önemli:** Bu, `FAILURES.md`'deki *"açılan akış çalışan
+  akış demek değildir"* dersiyle **aynı aileden**: görünüş ile gerçeğin
+  ayrıldığı, ve hatanın sessizce beklediği bir durum. Ses hattında bedeli
+  bir saatti; burada bedeli tüm proje geçmişi olurdu.
+
+- **Kanıt:** `git rev-parse --git-common-dir` → `Jarvis/jarvis/.git`;
+  `.git` dosya boyutu 80 bayt; `size-pack` 618,83 MiB ve geçmişte 69.184
+  `venv/` nesnesi. Kayıt: `automation/AHMET_ONAYI_BEKLEYENLER.md` A10.
+
+- **Regresyon testi:** YOK — bu bir süreç kuralı, kod değil. Kilit,
+  yedeğin klondan doğrulanması adımıdır.
+
 ### [2026-09-01] Açılan akış çalışan akış demek değildir — sessiz başarısızlık
 
 - **Alan:** J0 ses hattı (`voice/stt.py`), aygıt seçimi
