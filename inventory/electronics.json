@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "electronics": [
+    {
+      "id": "arduino_01_kit",
+      "name": "Hallederiz Arduino 01 Egitim Kiti",
+      "category": "learning_kit",
+      "status": "planned_purchase",
+      "room_id": "hobby_room",
+      "learning_stage": "beginner"
+    },
+    {
+      "id": "esp32_devkit",
+      "name": "ESP32 DevKit",
+      "category": "microcontroller_wifi",
+      "status": "future_purchase",
+      "room_id": "hobby_room",
+      "learning_stage": "after_arduino_basics"
+    }
+  ]
+}

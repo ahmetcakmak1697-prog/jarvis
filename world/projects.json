@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "projects": [
+    {
+      "id": "jarvis_v5",
+      "name": "Jarvis v5",
+      "status": "active",
+      "room_id": "work_area",
+      "mode_id": "development_mode",
+      "related_devices": [
+        "jarvis_pc"
+      ],
+      "related_inventory": [
+        "computer"
+      ],
+      "purpose": [
+        "local_first_personal_ai",
+        "personal_reality_os",
+        "project_orchestration"
+      ],
+      "next_focus": "continue_m0_world_inventory_project_context"
+    },
+    {
+      "id": "arduino_learning_path",
+      "name": "Arduino Learning Path",
+      "status": "planned",
+      "room_id": "hobby_room",
+      "mode_id": "maker_learning_mode",
+      "related_devices": [
+        "arduino_01_kit"
+      ],
+      "related_inventory": [
+        "arduino_01_kit",
+        "multimeter"
+      ],
+      "purpose": [
+        "learn_electronics_basics",
+        "complete_12_kit_projects",
+        "prepare_for_esp32"
+      ],
+      "next_focus": "start_after_arduino_kit_arrives"
+    },
+    {
+      "id": "hobby_room_maker_lab",
+      "name": "Hobby Room Maker Lab",
+      "status": "planned",
+      "room_id": "hobby_room",
+      "mode_id": "show_progress_mode",
+      "related_devices": [
+        "future_3d_printer",
+        "esp32_devkit"
+      ],
+      "related_inventory": [
+        "esp32_devkit",
+        "breadboard_830",
+        "jumper_wires",
+        "safety_glasses"
+      ],
+      "purpose": [
+        "visible_progress_demos",
+        "electronics_workspace",
+        "future_3d_printing_and_iot"
+      ],
+      "next_focus": "define_first_three_safe_maker_projects"
+    }
+  ]
+}

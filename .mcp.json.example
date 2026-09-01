@@ -1,0 +1,50 @@
+{
+  "_README": [
+    "Home Assistant MCP sunucusu icin SABLON. Bu dosya bilerek '.mcp.json' DEGIL,",
+    "'.mcp.json.example' olarak duruyor: Claude Code proje kokundeki .mcp.json'i her",
+    "oturumda okur ve icindeki her sunucuyu baslatmayi dener. Asagidaki 'command' alani",
+    "henuz DOGRULANMAMIS bir yer tutucudur; boyle bir dosya .mcp.json adiyla aktif",
+    "edilirse her oturumda basarisiz sunucu baslatma denemesi uretir.",
+    "",
+    "AKTIF ETMEK ICIN (Ahmet):",
+    "  1. Kullanilacak HA MCP sunucusunun gercek paket adini/komutunu belirle.",
+    "  2. Asagidaki 'command' ve 'args' alanlarini o pakete gore doldur.",
+    "  3. .env dosyasina HA_URL / HA_TOKEN / HA_WS_URL degiskenlerini ekle.",
+    "     (Bu dosyayi Claude Code yazmadi ve .env'e dokunmadi - CLAUDE.md 9.",
+    "      '.env / secret dosyalarina dokunulmaz, okunmaz, loglanmaz'.)",
+    "  4. Dosyayi '.mcp.json' adiyla kopyala.",
+    "",
+    "GUVENLIK NOTU: token dogrudan buraya YAZILMAZ. ${VAR} ile ortamdan okunur;",
+    "boylece config repoya girse bile sir sizmaz.",
+    "",
+    "MIMARI NOTU: HA/Wyoming 'adopt-vs-build' karari HENUZ VERILMEDI",
+    "(CLAUDE.md 12 + automation/LOOP0D_J0B_SAFETY_CONTRACT.md 6). Bu sablonun",
+    "varligi o karari vermis saymaz; secenek A (J0 ayri kalir) secilirse bu dosya",
+    "silinir."
+  ],
+
+  "mcpServers": {
+    "ha-mcp": {
+      "_status": "SABLON - command/args dogrulanmadi, doldurulmadan aktif edilmez",
+      "command": "PLACEHOLDER_HA_MCP_COMMAND",
+      "args": ["PLACEHOLDER_ARGS"],
+      "env": {
+        "HA_URL": "${HA_URL}",
+        "HA_TOKEN": "${HA_TOKEN}",
+        "HA_WS_URL": "${HA_WS_URL:-${HA_URL}/api/websocket}"
+      }
+    }
+  },
+
+  "_ENV_DEGISKENLERI": {
+    "HA_URL": "Home Assistant REST tabani, ornek: http://192.168.1.50:8123",
+    "HA_TOKEN": "HA long-lived access token. Profil > Guvenlik > Uzun omurlu erisim belirteci",
+    "HA_WS_URL": "Opsiyonel. Verilmezse HA_URL'den /api/websocket olarak turetilir"
+  },
+
+  "_KAPSAM_NOTU": [
+    "Lovelace panel entegrasyonu bu sablonun kapsaminda DEGIL: Lovelace, HA'nin",
+    "kendi UI katmani ve MCP sunucusu uzerinden degil, HA'nin kendi REST/WS API'si",
+    "uzerinden yonetilir. Ayri bir kart olarak ele alinmali."
+  ]
+}

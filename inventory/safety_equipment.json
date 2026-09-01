@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "safety_equipment": [
+    {
+      "id": "multimeter",
+      "name": "Multimeter",
+      "category": "electrical_safety",
+      "status": "recommended_next",
+      "needed_for": [
+        "esp32_devkit",
+        "electronics_debugging"
+      ]
+    },
+    {
+      "id": "safety_glasses",
+      "name": "Safety glasses",
+      "category": "workshop_safety",
+      "status": "future_purchase",
+      "needed_for": [
+        "soldering",
+        "3d_printing"
+      ]
+    }
+  ]
+}

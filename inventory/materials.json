@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "materials": [
+    {
+      "id": "jumper_wires",
+      "name": "Jumper cable set",
+      "category": "electronics_accessory",
+      "status": "future_purchase",
+      "needed_for": [
+        "esp32_devkit"
+      ]
+    },
+    {
+      "id": "breadboard_830",
+      "name": "830 pin breadboard",
+      "category": "electronics_accessory",
+      "status": "future_purchase",
+      "needed_for": [
+        "esp32_devkit"
+      ]
+    }
+  ]
+}

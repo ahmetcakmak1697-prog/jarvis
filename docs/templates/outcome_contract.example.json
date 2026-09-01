@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "task_id": "example-001",
+  "goal": "Brief description of what this task aims to accomplish.",
+  "allowed_paths": [
+    "scripts/",
+    "tests/",
+    "docs/"
+  ],
+  "forbidden_paths": [
+    ".env",
+    "memory/",
+    "config/"
+  ],
+  "required_commands": [
+    "py -3.11 -m pytest .\\tests\\ -q --tb=no"
+  ],
+  "human_review_required": false,
+  "minimum_pytest_collected": 0,
+  "notes": "Optional notes about this contract, edge cases, or special instructions. Set minimum_pytest_collected to the current known baseline (e.g. 658) to detect accidental test-count drops."
+}

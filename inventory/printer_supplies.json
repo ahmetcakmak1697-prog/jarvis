@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "printer_supplies": [
+    {
+      "id": "pla_filament",
+      "name": "PLA filament",
+      "category": "3d_printing",
+      "status": "future_target",
+      "needed_for": [
+        "future_3d_printer"
+      ]
+    }
+  ]
+}

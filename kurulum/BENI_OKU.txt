@@ -1,0 +1,75 @@
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║              J A R V I S  -  KURULUM REHBERİ                ║
+║              Eve Gelince Adım Adım Uygula                    ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+
+HAZIRLIK (BU BİLGİSAYARDA - ŞİMDİ YAP):
+══════════════════════════════════════════
+GitHub'a push at veya bu klasörü Google Drive'a koy.
+Evde indirip kullanırsın.
+
+VEYA: Bu klasörü zip'le → kendine e-posta/WhatsApp at.
+
+
+EVE GELİNCE - SIRA İLE ÇALIŞTIRr:
+══════════════════════════════════════════
+
+ADIM 1 → 1_windows_hazirlik.bat
+   Ne yapar: Python, VS Code, Git, Ollama kurar
+   Süre: ~5 dakika
+   Not: İnternet bağlantısı gerekli
+
+ADIM 2 → 2_model_indir.bat  
+   Ne yapar: Jarvis'in beynini (AI modeli) indirir
+   Süre: ~10 dakika (internet hızına göre)
+   Not: 4-8 GB indirilecek, sabırlı ol
+   Öneri: Seçenek 5 (hepsini indir)
+
+ADIM 3 → 3_jarvis_kur.bat
+   Ne yapar: Python kütüphanelerini kurar
+   Süre: ~5 dakika
+   Not: Sanal ortam oluşturulur
+
+ADIM 4 → 4_baslat.bat
+   Ne yapar: JARVIS başlar! Artık konuşabilirsin.
+   Sonra: Her seferinde sadece bunu çalıştır.
+
+
+AYARLAR (.env dosyası):
+══════════════════════════════════════════
+Kurulum sonrası jarvis/.env dosyasını aç:
+
+   JARVIS_NAME=Jarvis          ← İstersen değiştir
+   LOCAL_MODEL=mistral          ← Kullanılacak model
+   USE_LOCAL_MODEL=true         ← Lokal mod açık
+   ANTHROPIC_API_KEY=           ← Claude API (opsiyonel)
+
+Claude API'yi boş bırakabilirsin.
+Tamamen lokal çalışır, internet bağlantısı gerekmez!
+(İnternet arama özelliği için bağlantı gerekir ama zorunlu değil)
+
+
+SORUN GİDERME:
+══════════════════════════════════════════
+❌ "ollama bulunamadı" → 1_windows_hazirlik.bat tekrar çalıştır
+❌ "model yok"         → 2_model_indir.bat çalıştır
+❌ "venv hatası"       → 3_jarvis_kur.bat çalıştır
+❌ Jarvis cevap vermez → Ollama çalışıyor mu? Görev Yöneticisi'nde "ollama" ara
+
+
+SİSTEM GEREKSİNİMLERİ:
+══════════════════════════════════════════
+✅ Senin sistemin (RTX 3070 + 32GB RAM + Ryzen 5 7600) - MÜKEMMEL
+✅ Windows 10/11
+✅ 20GB boş disk (modeller için)
+✅ İnternet (sadece kurulum için)
+
+
+İLETİŞİM:
+══════════════════════════════════════════
+Bu dosyalar hazırlandı: Jarvis kurulum sistemi v1.0
+Geliştirici: Sen + Jarvis (Claude) birlikte :)
+
+Bir sonraki adım: İnternet arama özelliği eklemek!
