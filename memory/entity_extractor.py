@@ -26,7 +26,7 @@ import re
 from dataclasses import asdict, dataclass, field
 from typing import List, Optional
 
-from agents.data_classifier import _fold_tr
+from agents.data_classifier import _fold_tr, keyword_present
 
 __all__ = ["ExtractedFact", "extract", "SENSITIVE_CATEGORIES"]
 
@@ -164,22 +164,15 @@ def _aile_olgulari(metin: str) -> List[ExtractedFact]:
     return olgular
 
 
-#: Kısa kökler substring olarak aranmaz. CLAUDE.md §6: "kısa köklerde
-#: false-positive'e dikkat." Ölçülen gerçek vaka: "fon" kökü
-#: "Python fonksiyonu yaz" cümlesinde eşleşip onu finans olgusu sandı.
-_KISA_KOK_SINIRI = 5
-
-
-def _kelime_var(fold: str, anahtar: str) -> bool:
-    """Anahtar kelime metinde geçiyor mu?
-
-    Uzun kökler substring aranır (Türkçe sondan eklemeli: "alerji" →
-    "alerjim"). Kısa kökler ise TAM KELIME aranır, yoksa başka kelimelerin
-    içine gizlenirler.
-    """
-    if len(anahtar) < _KISA_KOK_SINIRI:
-        return re.search(rf"\b{re.escape(anahtar)}\b", fold) is not None
-    return anahtar in fold
+#: Kısa kökler substring olarak aranmaz — CLAUDE.md §6: "kısa köklerde
+#: false-positive'e dikkat." Ölçülen vakalar: "fon" kökü "Python fonksiyonu
+#: yaz" cümlesini finans olgusu sandı; "haber" kökü "ne haber" selamını web
+#: aramasına çevirdi.
+#:
+#: Kural artık `agents/data_classifier.keyword_present` içinde TEK kaynak
+#: olarak yaşıyor; burada kopyası tutulmaz. Aynı yardımcıyı
+#: `agent/local_agent.py` de araç tetikleyicileri için kullanıyor.
+_kelime_var = keyword_present
 
 
 def _kategori_olgulari(metin: str, fold: str) -> List[ExtractedFact]:

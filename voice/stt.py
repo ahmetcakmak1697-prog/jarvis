@@ -32,6 +32,7 @@ __all__ = [
     "rms",
     "is_silent",
     "resolve_mic_device",
+    "select_input_device",
     "RecordResult",
     "STTResult",
     "MicrophoneRecorder",
@@ -71,6 +72,57 @@ def resolve_mic_device():
     return int(ham) if ham.isdigit() else ham
 
 
+def select_input_device(spec, query=None, check=None):
+    """Bir aygıt belirtimini (``None``/indeks/isim) somut indekse çevirir.
+
+    Neden ayrı bir katman: ``resolve_mic_device()`` yalnız ortamı *ayrıştırır*
+    ve saf kalır (sounddevice'a dokunmaz). Aygıt *seçimi* donanım bilgisi
+    ister, o yüzden akış açılırken burada yapılır.
+
+    Ölçüldü: bu makinede ``check_input_settings("SoloCast")`` →
+    *"Multiple input devices found"*, çünkü isim dört host API'de birden
+    eşleşiyor ve sounddevice ilk eşleşmeye düşmüyor, reddediyor. Bu yüzden
+    ismi kendimiz çözüyoruz: eşleşen **giriş** aygıtları arasından
+    gerçekten **açılabilen** ilkini seçiyoruz.
+
+    Açık indeks doğrulanmadan geçer — o kullanıcının kararıdır.
+    Eşleşme bulunamazsa ``None`` döner: işletim sistemi varsayılanına
+    düşmek, yanlış aygıtı zorlamaktan iyidir.
+    """
+    if spec is None or isinstance(spec, int):
+        return spec
+
+    if query is None or check is None:
+        import sounddevice as sd
+
+        if query is None:
+            def query():
+                return sd.query_devices()
+
+        if check is None:
+            def check(index):
+                try:
+                    sd.check_input_settings(
+                        device=index, channels=1,
+                        samplerate=DEFAULT_SAMPLE_RATE, dtype="float32",
+                    )
+                    return True
+                except Exception:  # noqa: BLE001
+                    return False
+
+    from agents.data_classifier import _fold_tr
+
+    aranan = _fold_tr(str(spec))
+    for indeks, aygit in enumerate(query()):
+        if aygit.get("max_input_channels", 0) < 1:
+            continue  # çıkış aygıtı asla mikrofon olarak seçilmez
+        if aranan not in _fold_tr(aygit.get("name", "")):
+            continue
+        if check(indeks):
+            return indeks
+    return None
+
+
 # --------------------------------------------------------------------------- #
 # Saf VAD mantığı — sayısal kütüphane gerektirmez
 # --------------------------------------------------------------------------- #
@@ -96,11 +148,17 @@ def is_silent(chunk: Sequence[float], threshold: float) -> bool:
 
 @dataclass
 class RecordResult:
-    """Kayıt sonucu. Başarısızlık istisna değil, yapısal sonuçtur."""
+    """Kayıt sonucu. Başarısızlık istisna değil, yapısal sonuçtur.
+
+    ``diagnostic`` **ek** bir alandır; ``reason`` sözleşmesini değiştirmez.
+    Ölü akış gibi, kullanıcının kendi başına asla çözemeyeceği durumlarda
+    doldurulur — "no_speech_detected" doğrudur ama nedeni anlatmaz.
+    """
 
     ok: bool
     samples: List[float] = field(default_factory=list)
     reason: Optional[str] = None
+    diagnostic: Optional[str] = None
 
 
 @dataclass
@@ -176,13 +234,24 @@ class MicrophoneRecorder:
         konusma_basladi = False
         ardarda_sessiz = 0
         bekleme = 0
+        # Gerçek bir mikrofon sessiz odada bile TAM sıfır üretmez; gürültü
+        # tabanı vardır. Hiç sıfır-dışı örnek görmediysek akış ölüdür
+        # (yanlış host API ya da susturulmuş aygıt), sadece sessiz değil.
+        sifir_disi_goruldu = False
 
         for parca in akis:
+            if not sifir_disi_goruldu and any(parca):
+                sifir_disi_goruldu = True
+
             if not konusma_basladi:
                 if is_silent(parca, self.silence_threshold):
                     bekleme += 1
                     if bekleme >= baslangic_siniri:
-                        return RecordResult(ok=False, reason="no_speech_detected")
+                        return RecordResult(
+                            ok=False,
+                            reason="no_speech_detected",
+                            diagnostic=self._olu_akis_tanisi(sifir_disi_goruldu),
+                        )
                     continue
                 konusma_basladi = True
 
@@ -201,27 +270,69 @@ class MicrophoneRecorder:
                 )
 
         if not konusma_basladi:
-            return RecordResult(ok=False, reason="no_speech_detected")
+            return RecordResult(
+                ok=False,
+                reason="no_speech_detected",
+                diagnostic=self._olu_akis_tanisi(sifir_disi_goruldu),
+            )
         return RecordResult(ok=True, samples=samples, reason="source_exhausted")
 
+    def _olu_akis_tanisi(self, sifir_disi_goruldu: bool) -> Optional[str]:
+        """Hiç sinyal gelmediyse ne yapılacağını söyleyen tanı metni."""
+        if sifir_disi_goruldu:
+            return None
+        aygit = self._device if self._device is not None else "(varsayılan)"
+        return (
+            f"dead_audio_stream: aygıt {aygit} yalnız sıfır üretti — hiç sinyal "
+            f"yok. Muhtemel neden: yanlış aygıt ya da susturulmuş mikrofon. "
+            f"Başka aygıt denemek için {MIC_DEVICE_ENV} değerini değiştirin; "
+            f"çalışan aygıtları listelemek için: "
+            f"python scripts/j0_mic_check.py --scan"
+        )
+
     def _default_chunk_source(self):
-        """Gerçek mikrofon. sounddevice tembel import edilir."""
+        """Gerçek mikrofon. sounddevice tembel import edilir.
+
+        **Geri-çağırma kullanılır, bloklayan ``read()`` değil.** Ölçüldü
+        (2026-09-01, bu makine): DirectSound aygıtında ``InputStream.read()``
+        hata vermeden 9600 örneğin 9600'ünü tam sıfır döndürüyor; aynı
+        aygıtta geri-çağırma rms 0.020 veriyor. ``sd.rec`` de geri-çağırma
+        kullandığı için çalışıyordu. Bloklayan yol bazı host API'lerinde
+        sessizce ölü.
+        """
+        import queue
+
         import numpy as np
         import sounddevice as sd
+
+        device = select_input_device(self._device)
+        kuyruk: "queue.Queue[list]" = queue.Queue()
+
+        def _geri_cagirma(indata, frames, time_info, status):
+            # status yutulmaz ama akışı da durdurmaz; taşma bilgisi
+            # tanı için anlamlı, kaydı kesmek için değil.
+            kuyruk.put(np.asarray(indata, dtype="float32").reshape(-1).tolist())
 
         stream = sd.InputStream(
             samplerate=self.sample_rate,
             channels=1,
             dtype="float32",
             blocksize=self.chunk_samples,
-            device=self._device,
+            device=device,
+            callback=_geri_cagirma,
         )
+
+        # Kuyruk beklemesi için üst sınır: aygıt hiç veri vermezse sonsuza
+        # kadar asılı kalınmaz.
+        bekleme_s = max(2.0, (self.chunk_ms / 1000.0) * 20)
 
         def _uret():
             with stream:
                 while True:
-                    veri, _tasma = stream.read(self.chunk_samples)
-                    yield np.asarray(veri, dtype="float32").reshape(-1).tolist()
+                    try:
+                        yield kuyruk.get(timeout=bekleme_s)
+                    except queue.Empty:
+                        return
 
         return _uret()
 
@@ -339,10 +450,13 @@ class VoiceListener:
 
         kayit = self._recorder.record()
         if not kayit.ok or not kayit.samples:
-            return STTResult(
-                ok=False,
-                warning=f"stt_no_input: {kayit.reason or 'unknown'}",
-            )
+            uyari = f"stt_no_input: {kayit.reason or 'unknown'}"
+            # Tanı varsa onu da geçir: "no_speech_detected" doğrudur ama
+            # ölü akışta kullanıcıya hiçbir şey anlatmaz.
+            tani = getattr(kayit, "diagnostic", None)
+            if tani:
+                uyari = f"{uyari} | {tani}"
+            return STTResult(ok=False, warning=uyari)
 
         try:
             ham = self._get_transcriber()(kayit.samples, self.sample_rate)

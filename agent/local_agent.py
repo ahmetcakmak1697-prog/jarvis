@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional
 from rich.console import Console
 
+from agents.data_classifier import _fold_tr, keyword_present
 from agents.model_registry import ModelRegistry
 from agents.persona import VOICE_MODE_DIRECTIVE, build_system_prompt
 
@@ -18,9 +19,47 @@ console = Console()
 #: prompt derinligini secer; iki yerde ayri esik tutulmaz.
 _TIER_TO_LEVEL = {"fast": "L1", "mid": "L2", "deep": "L3"}
 
+#: Selamlama ve nezaket deyimleri (fold'lanmis). Iki isi birden yapar:
+#: bunlar ARAC TETIKLEMEZ ve `fast` sinifina duser.
+#:
+#: Neden ayri bir katman: canli testte "Ne haber Jarvis?" web aramasi
+#: tetikledi, cunku "haber" TOOL_TRIGGERS icinde. Kelime siniri bunu cozmez --
+#: "ne haber" icinde "haber" zaten tam kelime. Ayrim deyimde: "ne haber" bir
+#: selamlamadir, "son dakika haberleri" bir arama istegidir.
+_SELAMLAR: tuple[str, ...] = (
+    "merhaba", "selam", "naber", "ne haber", "ne haberler",
+    "gunaydin", "iyi sabahlar", "iyi aksamlar", "iyi geceler", "iyi gunler",
+    "nasilsin", "nasilsiniz", "iyi misin", "iyi misiniz", "keyifler nasil",
+    "tesekkur", "tesekkurler", "sag ol", "sagol", "eyvallah",
+    "gorusuruz", "hosca kal", "kolay gelsin", "hos geldin",
+    "tamam", "peki", "anladim", "evet", "hayir", "olur",
+)
+
+#: Selamlama sayilmak icin ust sinir. Uzun bir mesaj selamla baslasa bile
+#: selamlama degildir: "Merhaba, su konuyu uzun uzun anlat..." gercek bir istek.
+_SELAM_MAX_UZUNLUK = 60
+
+
+def _is_greeting(message: str) -> bool:
+    """Mesaj bir selamlama/nezaket ifadesi mi?
+
+    Uzunluk siniri kasitli: kisa bir tur selamlamadir, uzun bir tur icinde
+    selamlama GECER ama kendisi selamlama degildir.
+    """
+    metin = (message or "").strip()
+    if not metin or len(metin) > _SELAM_MAX_UZUNLUK:
+        return False
+    fold = _fold_tr(metin)
+    return any(keyword_present(fold, s) for s in _SELAMLAR)
+
 TOOL_TRIGGERS = {
     "web_search": [
-        "araştır", "haber", "güncel", "son dakika", "öğren",
+        # "öğren" BİLEREK çıkarıldı: 5 harflik bir fiil kökü ve "öğrenme
+        # algoritması", "öğrencilerim" gibi masum cümlelerde eşleşiyordu.
+        # Hiçbir sınır kuralı bunu ayıramaz — "öğrenme" morfolojik olarak
+        # "hissesinde" ile aynı yapıda (kök + Türkçe ek), ve "hisse" kökünün
+        # ek almış hâlinde eşleşmesini İSTİYORUZ. Ayrım kelime listesinde.
+        "araştır", "haber", "güncel", "son dakika",
         "search", "latest", "news", "find out", "look up",
         "ne oldu", "durum nedir", "bilgi ver",
     ],
@@ -237,13 +276,17 @@ class LocalJarvisAgent:
         Ayni karar hem modeli (rol uzerinden) hem persona seviyesini secer;
         boylece "kisa soru" esigi iki yerde ayri ayri tutulmaz.
         """
-        msg = message.lower()
-        deep_kw = ["derinlemesine", "kapsamlı", "analiz et", "detaylı"]
-        fast_kw = ["merhaba", "selam", "teşekkür", "tamam", "evet", "hayır", "saat kaç"]
+        # Duz .lower() KULLANILMAZ: "İ".lower() combining dot uretir ve
+        # eslesme sessizce kacar (CLAUDE.md 6). Fold her iki tarafa da uygulanir.
+        fold = _fold_tr(message)
+        deep_kw = ("derinlemesine", "kapsamli", "analiz et", "detayli", "rapor hazirla")
+        # Selamin disinda kalan kisa-tur isaretleri.
+        fast_kw = ("saat kac", "gorusuruz", "tarih nedir")
 
-        if any(k in msg for k in deep_kw) or len(message) > 300:
+        # Uzunluk once bakilir: uzun mesaj selamla baslasa bile kisa tur degil.
+        if len(message) > 300 or any(keyword_present(fold, k) for k in deep_kw):
             return "deep"
-        if any(k in msg for k in fast_kw) and len(message) < 60:
+        if _is_greeting(message) or any(keyword_present(fold, k) for k in fast_kw):
             return "fast"
         return "mid"
 
@@ -268,43 +311,47 @@ class LocalJarvisAgent:
         return self.available_models[0] if self.available_models else main
 
     def _detect_tool(self, message: str) -> Optional[tuple[str, dict]]:
-        msg = message.lower()
+        # Selamlama hicbir arac tetiklemez. Bu kontrol EN BASTA durur:
+        # "Ne haber Jarvis?" canli testte web aramasi baslatiyordu.
+        if _is_greeting(message):
+            return None
 
-        for trigger in TOOL_TRIGGERS["deep_research"]:
-            if trigger in msg:
-                return "deep_research", {"topic": message.strip(), "depth": 2}
+        # Duz .lower() yerine fold: "İ" tuzagi (CLAUDE.md 6) ve kisa koklerde
+        # kelime siniri, `keyword_present` icinde tek kaynaktan gelir.
+        msg = _fold_tr(message)
 
-        for trigger in TOOL_TRIGGERS["get_datetime"]:
-            if trigger in msg:
-                return "get_datetime", {}
+        def _eslesir(grup: str) -> bool:
+            return any(keyword_present(msg, t) for t in TOOL_TRIGGERS[grup])
 
-        for trigger in TOOL_TRIGGERS["get_notes"]:
-            if trigger in msg:
-                return "get_notes", {"filter_by": "", "show_done": False}
+        if _eslesir("deep_research"):
+            return "deep_research", {"topic": message.strip(), "depth": 2}
 
-        for trigger in TOOL_TRIGGERS["save_note"]:
-            if trigger in msg:
-                content = message
-                for kw in ["not et:", "not al:", "kaydet:", "hatırlat:"]:
-                    if kw in msg:
-                        idx = msg.index(kw) + len(kw)
-                        content = message[idx:].strip()
-                        break
-                return "save_note", {"content": content, "category": "genel"}
+        if _eslesir("get_datetime"):
+            return "get_datetime", {}
 
-        for trigger in TOOL_TRIGGERS["calculate"]:
-            if trigger in msg:
-                expr = message.replace("hesapla", "").replace("calculate", "").strip()
-                return "calculate", {"expression": expr}
+        if _eslesir("get_notes"):
+            return "get_notes", {"filter_by": "", "show_done": False}
 
-        for trigger in TOOL_TRIGGERS["web_search"]:
-            if trigger in msg:
+        if _eslesir("save_note"):
+            content = message
+            for kw in ["not et:", "not al:", "kaydet:", "hatırlat:"]:
+                if kw in message.lower():
+                    idx = message.lower().index(kw) + len(kw)
+                    content = message[idx:].strip()
+                    break
+            return "save_note", {"content": content, "category": "genel"}
+
+        if _eslesir("calculate"):
+            expr = message.replace("hesapla", "").replace("calculate", "").strip()
+            return "calculate", {"expression": expr}
+
+        if _eslesir("web_search"):
+            query = message
+            for kw in ["araştır", "ara ", "haber", "güncel bilgi ver", "öğren", "ne oldu"]:
+                query = query.replace(kw, "").strip()
+            if len(query) < 3:
                 query = message
-                for kw in ["araştır", "ara ", "haber", "güncel bilgi ver", "öğren", "ne oldu"]:
-                    query = query.replace(kw, "").strip()
-                if len(query) < 3:
-                    query = message
-                return "web_search", {"query": query, "max_results": 5}
+            return "web_search", {"query": query, "max_results": 5}
 
         return None
 

@@ -68,6 +68,35 @@ def _fold_tr(s: str) -> str:
     )
 
 
+# Kisa koklerde alt-dize aramasi yanlis pozitif uretir. Olculen iki gercek
+# vaka: "fon" koku "Python fonksiyonu yaz" cumlesini finans olgusu sandi;
+# "ogren" koku "ogrenme algoritmasi" cumlesinde web aramasi tetikledi.
+# Bu esigin ALTINDAKI kokler tam kelime olarak aranir.
+SHORT_ROOT_LIMIT = 5
+
+
+def keyword_present(text: str, keyword: str) -> bool:
+    """Anahtar kelime metinde geciyor mu? Turkce-guvenli tek dogruluk kaynagi.
+
+    Uzun kokler alt-dize aranir -- Turkce sondan eklemelidir, "alerji" kokunun
+    "alerjim" icinde gecmesi ISTENIR. Kisa kokler tam kelime aranir, yoksa
+    baska kelimelerin icine gizlenirler.
+
+    Her iki taraf da ayni sekilde ASCII-fold'lanir (CLAUDE.md 6): '\u0130'.lower()
+    combining dot uretir ve duz karsilastirma sessizce KACIRIR.
+
+    Bu fonksiyon `memory/entity_extractor.py` ve `agent/local_agent.py`
+    tarafindan ORTAK kullanilir; ikinci bir kopyasi yazilmaz.
+    """
+    metin = _fold_tr(text)
+    anahtar = _fold_tr(keyword)
+    if not anahtar:
+        return False
+    if len(anahtar) < SHORT_ROOT_LIMIT:
+        return re.search(rf"\b{re.escape(anahtar)}\b", metin) is not None
+    return anahtar in metin
+
+
 # Evaluated in this order; the FIRST matching category wins. Order reflects
 # severity, most restrictive first -- not a claim that institution_internal
 # is "worse" than sensitive in the abstract, just a deterministic tie-break
