@@ -148,9 +148,15 @@ class LocalJarvisAgent:
 
     def _load_tools(self) -> dict:
         try:
+            # `run_python_code` BILEREK yuklenmiyor. `tools/tools.py:482`
+            # icinde `exec()` var ve SkillSpector bunu HIGH isaretledi; ama
+            # asil sorun erisilebilirlik degil, ERISILEMEZLIK: `_detect_tool()`
+            # yalnizca TOOL_TRIGGERS'ta karsiligi olan araclara yol aciyor,
+            # bu arac hicbirine bagli degil. Yani yuklu olmasi deger uretmeden
+            # risk tasiyordu. `tools/tools.py` DEGISTIRILMEDI (CLAUDE.md 3).
             from tools.tools import (
                 web_search, deep_research, calculate, get_datetime,
-                get_notes, save_note, run_python_code, analyze_file,
+                get_notes, save_note, analyze_file,
             )
             tools = {
                 "web_search":      web_search,
@@ -159,10 +165,9 @@ class LocalJarvisAgent:
                 "get_datetime":    get_datetime,
                 "get_notes":       get_notes,
                 "save_note":       save_note,
-                "run_python_code": run_python_code,
                 "analyze_file":    analyze_file,
             }
-            console.print("[green]✓ Araçlar yüklendi (14 araç)[/]")
+            console.print(f"[green]✓ Araçlar yüklendi ({len(tools)} araç)[/]")
             return tools
         except Exception as e:
             console.print(f"[yellow]⚠ Araç hatası: {e}[/]")
