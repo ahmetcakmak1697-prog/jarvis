@@ -40,6 +40,44 @@ eklenir:
 
 ## Kayıtlar
 
+### [2026-09-01] Açılan akış çalışan akış demek değildir — sessiz başarısızlık
+
+- **Alan:** J0 ses hattı (`voice/stt.py`), aygıt seçimi
+- **Şiddet:** BLOCKER (ses hattı hiç çalışmadı, sebebi bir saat bulunamadı)
+- **Tuzak:** JARVIS mikrofonu "açıyor", hata vermiyor, sonsuza kadar
+  `no_speech_detected` diyordu. Ahmet bir saat boyunca mikrofon ayarlarıyla
+  uğraştı; sorun mikrofonda değildi.
+- **Kök neden — iki katman:**
+  1. `sd.InputStream` + bloklayan `read()`, bazı Windows host API'lerinde
+     **hata vermeden** sıfır döndürüyor. Ölçüldü: DirectSound aygıtında
+     9600 örneğin **9600'ü tam sıfır**; aynı aygıtta geri-çağırma yolu
+     rms 0.020 veriyor. `sd.rec` hep çalışmıştı çünkü içeride
+     geri-çağırma kullanıyor.
+  2. Aygıt indeksleri **kayıyor**. Kulaklık bağlantısı kesilince SoloCast
+     2/9/17'den 1/7/15'e kaydı ve bir önceki oturumda önerilen "9" numarası
+     bir **hoparlöre** (çıkış aygıtı) denk geldi. İsimle seçim de çalışmıyordu:
+     `check_input_settings("SoloCast")` → *"Multiple input devices found"*.
+- **Kural — üç parça:**
+  1. **Bir kaynağın açılması, veri verdiği anlamına gelmez.** Açılıştan sonra
+     *gerçekten sinyal geldiği* doğrulanmalı. Gerçek bir mikrofonun gürültü
+     tabanı vardır; **yalnız dijital sessizlik tam sıfırdır** — bu ayrım
+     ölü akışı sessiz odadan ayırmanın deterministik yoludur.
+  2. **Sessiz başarısızlık en pahalı hata türüdür.** Çöken kod dakikada
+     bulunur; "hiçbir şey olmuyor" saatler yer. Bir yol sessizce
+     başarısız olabiliyorsa, o sessizliği **ölçüp adlandıran** bir tanı
+     alanı eklenir (`RecordResult.diagnostic`) ve tanı, kullanıcının
+     çalıştıracağı komutu söyler.
+  3. **Aygıt indeksi kalıcı bir kimlik değildir.** Donanım listesi
+     değişebilir; indeks yalnız o anki listede anlamlıdır. Seçim isimle
+     yapılmalı ve isim **açılabilen bir giriş aygıtına** çözülmeli —
+     çıkış aygıtları asla aday değildir.
+- **Kanıt:** `tests/test_voice_capture_path.py` (16 test);
+  ölçüm: aygıt 7 `read()` rms 0.000000 / `callback` rms 0.019981.
+  Commit `ccce9b21e`.
+- **Regresyon testi:** `test_default_capture_path_uses_callback_not_blocking_read`
+  (AST ile kilitli — docstring koda sayılmaz),
+  `test_all_zero_stream_is_flagged_as_dead`, `test_name_skips_output_devices`.
+
 ### [2026-08-31] Persona parçalanması — üç rakip kimlik, biri bozuk kodlamalı
 
 - **Alan:** karakter katmanı (`config.py`, `agents/ollama_executor.py`, `agent/local_agent.py`)

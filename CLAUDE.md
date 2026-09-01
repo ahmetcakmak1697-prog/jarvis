@@ -86,48 +86,47 @@ sorulur. Değilse yanıt yanlıştır.
   çözüm var mı diye sorulur (bkz. `automation/LOOP0D_J0B_SAFETY_CONTRACT.md`
   §6 — HA/Wyoming adopt-vs-build örneği).
 
-## 10. MEVCUT DURUM
+## 10. MEVCUT DURUM — nereden OKUNUR
 
-*(bu bölüm repo'dan çıkarılmıştır: `git log`, `roadmap_state.json`,
-`automation/BLACKBOX.jsonl`, `automation/AUTONOMY_LOG.md`)*
+> **Bu bölüm bilerek olgu içermez.** Önceki sürümü sabit bir commit hash'i ve
+> "aktif cephe" yazıyordu; ikisi de altı hafta içinde eskidi ve her oturumu
+> yanlış yönlendirdi. Aynı hatayı `agent/local_agent.py`'de de yaptık: sabit
+> yazılmış proje durumu modele "her şey bekliyor" dedirtti (bkz. `FAILURES.md`).
+> **Kural: olgu koda ve anayasaya yazılmaz, canlı dosyadan okunur.**
 
-- **Aktif branch:** `auto/opencode-deepseek`
-- **Son commit:** `0537895b6` — "feat(voice): add safe Piper Phase A command
-  planning" (2026-07-13)
-- **Aktif cephe:** J0 ses hattı (J0B/Piper) — `docs/THIRD_PARTY_VOICE.md` ve
-  `scripts/j0_tts_adapters.py` altında, LOOP-0 zinciri disipliniyle
-  ilerliyor.
-- **BLACKBOX son durum** (`automation/BLACKBOX.jsonl`, append-only, 6
-  event):
-  - `sequence=6`, `sprint_id=LOOP0E`,
-    `task_id=LOOP0E_J0B_PHASE_A_CORRECTION_VERIFICATION`, `status=PASS`.
-  - Bu event, Codex'in `sequence=5`'te işaretlediği iki sorunun (NaN
-    timeout false-positive'i ve Phase B manuel komut şablonundaki
-    off-by-one argüman eşlemesi) düzeltmesinin doğrulamasıdır.
-  - `sequence=5` (CONCERN) silinmedi/yeniden yazılmadı — append-only
-    disiplinine göre tarihsel kayıt olarak duruyor.
-- **LOOP-0 zincirinde neredeyiz:** LOOP-0A (capability probe) → LOOP-0S
-  (machine-gate spec) → LOOP-0B (stub rehearsal, CONCERN kabul edildi) →
-  LOOP-0C (first real cargo + readiness inventory) → LOOP-0D (J0B safety
-  contract, runtime onayı değil) → **LOOP-0E Phase A tamamlandı ve
-  düzeltmesi Codex PASS aldı; Phase B (gerçek Piper komutunun elle
-  çalıştırılması) hâlâ yürütülmedi ve ayrı, açık bir Ahmet onayı
-  bekliyor.**
+Bir oturuma başlarken durumu şuralardan **oku**:
+
+| Ne | Nereden |
+|---|---|
+| Son commit'ler, aktif branch | `git log --oneline -10`, `git status` |
+| Adımların durumu (tek doğruluk kaynağı) | `roadmap_state.json` |
+| İnsan onayı bekleyenler | `automation/AHMET_ONAYI_BEKLEYENLER.md`, `automation/HUMAN_NEEDED.md` |
+| Otonom tur kayıtları (append-only) | `automation/BLACKBOX.jsonl`, `automation/AUTONOMY_LOG.md` |
+| **Ne sırayla çalışıyoruz, ne ertelendi** | `docs/strategy/CALISMA_SIRASI_KARARI.md` |
+| Donanım ve yerel model gerçekleri (ölçülmüş) | `docs/HARDWARE_AND_LOCAL_LLM_RESEARCH.md` |
+| Geçmiş tuzaklar | `FAILURES.md` |
+
+**Yavaş değişen doğrular** (bunlar olgu değil, yön):
+
+- Ses hattı **canlı**: mikrofon → faster-whisper → yerel model → Edge TTS.
+  `python main.py` ile çalışır. Mikrofon `JARVIS_MIC_DEVICE` ile seçilir.
+- Model adları koda gömülmez; `ModelRegistry` + `config/runtime_profiles.json`.
+- Persona tek kaynaktan gelir: `agents/persona.py`.
+- LOOP-0 zinciri (J0B/Piper) **tarihsel bir cephedir**. Ses hattı Piper'a
+  ihtiyaç duymadan Edge TTS ile canlıya alındı; LOOP-0E Phase B hiç
+  yürütülmedi ve artık aktif iş değildir. BLACKBOX kayıtları append-only
+  disiplini gereği duruyor, silinmedi.
 
 ## 11. SIRADAKİ TEK ADIM
 
-Repo'da literal bir "LOOP-0E Phase B0" kart dosyası **bulunamadı**. En
-güncel kart bilgisi `automation/AUTONOMY_LOG.md`'nin son girişinden
-("LOOP-0E Phase A manual correction after Codex CONCERN", 2026-07-12)
-alınmıştır:
+Sıra tek bir yerde yazılıdır: **`docs/strategy/CALISMA_SIRASI_KARARI.md`**.
+O belge hem sırayı hem *neyin bilerek ertelendiğini* içerir — erteleme yazılı
+olmazsa üç gün sonra taze bir öneri olarak geri gelir.
 
-> Ahmet, düzeltme/Codex PASS sonucunu inceler, Piper çalıştırılabilir
-> dosyası/model yollarını elle doğrular ve Phase B'yi (gerçek Piper
-> komutunun manuel çalıştırılması) onaylayıp onaylamayacağına ayrıca
-> karar verir.
+Buraya adım adı yazma. Belgeyi oku, oradaki ilk açık maddeyi al.
 
-Bu adım `human_required` niteliktedir — otomatik başlamaz, otomatik
-onaylanmaz.
+Değişmeyen kural: adım `human_required` ise otomatik başlamaz, otomatik
+onaylanmaz (§9).
 
 ## 12. BİLİNEN AÇIK MADDELER
 
@@ -140,17 +139,25 @@ onaylanmaz.
   değil**, yalnızca mimari desen olarak referans alınabilir. Kalıcı
   çözüm için tek bir doğruluk kaynağı dokümanı güncellenmeli — bunu
   Ahmet ayrıca karara bağlamalı.
-- **HA/Wyoming adopt-vs-build kararı:** `automation/LOOP0D_J0B_SAFETY_CONTRACT.md`
-  §6, J0/J0B (bu Windows PC) ile Home Assistant + Wyoming (ayrı donanım,
-  J2/J5) arasındaki ilişkinin (A: ayrı, B: HA/Wyoming'e devir, C: hibrit)
-  henüz Ahmet tarafından tek bir kararla netleştirilmediğini kaydediyor.
-  Danışma niteliğinde öneri (C) hibrit yönünde, ama bağlayıcı değil.
 - **HUMAN_NEEDED.md ↔ roadmap_state.json tutarsızlığı:** `automation/HUMAN_NEEDED.md`
   hâlâ `[2026-06-24] [E1-S4]` maddesini "Pending" olarak listeliyor, ama
   `roadmap_state.json`'daki `FAZ-3-E1.evidence.e1_s4` alanı bu maddeyi
   `"verdict": "DONE"` (2026-06-27, Ahmet imzalı telefon onayı) olarak
-  gösteriyor. İki dosya senkron değil — hangisinin güncel olduğu burada
-  varsayılmadı, repo'da açıkça netleştirilmemiş.
+  gösteriyor. Ahmet 2026-09-01'de **kapatılmasına karar verdi** (kanıt
+  `roadmap_state.json`'da, imzalı); `HUMAN_NEEDED.md`'de Resolved bölümüne
+  taşınması işi henüz yapılmadı. İkisi de aynı prompt'u besliyor, yani model
+  şu an çelişkili iki olgu görüyor.
+- **~~HA/Wyoming adopt-vs-build kararı~~ — ÇÖZÜLDÜ (2026-09-01).**
+  `automation/LOOP0D_J0B_SAFETY_CONTRACT.md` §6 üç seçeneği (A: ayrı,
+  B: HA/Wyoming'e devir, C: hibrit) karara bağlanmamış olarak kaydetmişti.
+  Ahmet kararı verdi: **her şey bu PC'den döner** — Raspberry Pi yok, ayrı
+  sunucu yok. Home Assistant bu Windows makinesinde uygulama olarak çalışır;
+  ESP32 uyduları, sensörler ve kameralar **ESPHome** bellenimiyle WiFi
+  üzerinden HA ile konuşur; **özel protokol yazılmaz** (§9 adopt-over-build).
+  Bilerek kabul edilen bedel: PC kapalıysa ev aptaldır, ve HA + Docker +
+  Ollama + Whisper aynı 8 GB kartı paylaşır. Geri dönülebilir — HA
+  yapılandırması taşınabilir. Gerekçe ve bağlam:
+  `docs/strategy/CALISMA_SIRASI_KARARI.md` §4a.
 - **~~auto_runner çelişkisi~~ — ÇÖZÜLDÜ (2026-08-30).** Graphify grafiği,
   `README.md` §10 ve `BOOT_CHECK.md` §11'in `auto_runner.py`'yi desteklenen
   bir akış olarak belgelerken §9'un tüm AUTO cephelerini kalıcı park
