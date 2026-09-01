@@ -180,6 +180,52 @@ yüzden sırada değil. Yeniden gündeme gelirse bu bölüm cevaptır.
 | **MoE / `--n-cpu-moe` ile 30B sınıfı model** | Gerçek bir seçenek (§3'te ölçülmüş) ama motor sorusu açık ve frontier kapısından sonra değeri düşer. |
 | **"Full autopilot / sıfır soru" akışı** | `CLAUDE.md` §9 ihlali. Bir kez denendi: gözetimsiz bir oturum 381 commit'i yeniden yazdı ve 38 çapraz referansı kırdı. Katmanlı denetim korunur. |
 | **Abonelik oturumu üzerinden "sınırsız" API** | Kullanım şartları ihlali, hesap riski, ve sürekli kırılan bir bağımlılık. Meşru yol: Claude API + yerel-önce cascade + önbellek. |
+| **GitHub yedeği** (2026-09-01'de denendi, **engellendi**) | Aşağıya bakınız — ertelenen bir tercih değil, çözülmemiş bir engel. |
+
+### GitHub yedeği neden ertelendi — teknik engel
+
+Depo `ahmetcakmak1697-prog/jarvis` **private** olarak açıldı, remote eklendi,
+kimlik doğrulaması çalıştı. Push **GitHub tarafından reddedildi**:
+
+```
+remote: error: GH001: Large files detected.
+! [remote rejected] auto/opencode-deepseek (pre-receive hook declined)
+```
+
+Sebep, `01e1bf04e`'in *"ayrı bir karar"* diye bilerek bıraktığı `venv/`
+borcudur. Geçmişteki en büyük blob'lar:
+
+| Dosya | Boyut |
+|---|---|
+| `venv/Lib/site-packages/torch/lib/torch_cpu.dll` | **253,5 MB** |
+| `venv/Lib/site-packages/llvmlite/binding/llvmlite.dll` | **101,7 MB** |
+| `venv/Lib/site-packages/playwright/driver/node.exe` | 87,2 MB |
+| `venv/Lib/site-packages/chromadb_rust_bindings.pyd` | 60,5 MB |
+| `venv/Lib/site-packages/ctranslate2/ctranslate2.dll` | 57,1 MB |
+
+İlk ikisi GitHub'ın **100 MB sert dosya sınırını** aşıyor; bu geçmişle push
+hiçbir koşulda geçmez. Hepsi `requirements*.txt`'den yeniden kurulabilir
+paketlerdir — **sıfır bilgi değeri**, deponun 618 MB'ının neredeyse tamamı.
+
+**Ahmet'in kararı (2026-09-01): şimdilik push edilmeyecek.** Yedek ayrı bir
+güne, taze kafayla bırakıldı. Değerlendirilen üç yol:
+
+- **A) `venv/`'i geçmişten kazı** (`git filter-repo`) — 394 commit korunur,
+  depo ~20-40 MB'a düşer. Bedeli: tüm commit hash'leri **yine** değişir
+  (`AUTONOMY_LOG.md` 27 referans, `BLACKBOX.jsonl` 10, `CLAUDE.md`,
+  `FAILURES.md`) ve **iki worktree** var — rewrite ikincisini
+  (`Desktop/Jarvis/jarvis`, `faz1a-api-executor`) bozar, yeniden kurulmalı.
+- **B) GitHub'da temiz geçmişle başla** — yerel geçmişe dokunulmaz, arkeoloji
+  GitHub'a gitmez.
+- **C) Git LFS** — yine rewrite, üstelik 1 GB'lık ücretsiz kotayı yeniden
+  kurulabilir çöp için harcar. Elendi.
+
+**Zamanlama uyarısı, kayda geçsin:** A seçeneği **şu an en ucuz olduğu
+noktadadır**. Geçmiş bir kez GitHub'a çıktıktan ve başka klonlar oluştuktan
+sonra aynı rewrite çok daha pahalıdır. Erteleme bedelsiz değildir.
+
+**Bu arada yedek YOK.** Tek koruma, `01e1bf04e` sırasında alınan
+2026-08-31 tarihli bundle — bugünkü çalışmanın hiçbirini içermiyor.
 
 Bu tablo `docs/JARVIS_VISION_BACKLOG.md`'nin kendi kuralının uygulanmasıdır:
 *"Hiçbir yeni model/proje heyecanı sırayı bozmaz."* Fikir kaydedilir; sıra
