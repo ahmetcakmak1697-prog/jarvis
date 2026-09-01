@@ -22,6 +22,74 @@ Açıldı: 2026-09-01, gözetimsiz oturum.
 
 ---
 
+## A7 — `AUTONOMY_CHARTER_PROPOSAL.md` kisisel e-posta iceriyor (COMMIT EDILMEDI)
+
+`automation/AUTONOMY_CHARTER_PROPOSAL.md:154` senin kisisel e-posta adresini
+duz metin olarak tasiyor (`ahmet...@gmail.com`, satir 156'da da bir ikinci
+hesap adi). GitHub yedegi kartinda bu dosya "otomasyon kayitlari" grubunda
+listelenmisti; **bilerek commit ETMEDIM.**
+
+Gerekce: private depoda felaket degil, ama bu hafta `.env` gecmisini kazimak
+zorunda kaldik ve maliyeti gorduk. Kisisel veriyi gecmise gommek geri
+alinmasi pahali bir istir; depo ileride public yapilirsa ya da erisim
+paylasilirsa veri onbellekte kalir.
+
+**Secenekler:** (a) oldugu gibi commit et (private depo yeterli koruma sayilir),
+(b) e-postayi `<AHMET_EPOSTA>` gibi bir yer tutucuyla degistirip commit et,
+(c) dosyayi hic izleme.
+
+---
+
+## A8 — Depo boyutu 618 MB: `venv/` gecmiste (BU KARTTA COZULMEDI)
+
+Olculdu: `size-pack 618.83 MiB`, ve gecmiste **69.184 adet `venv/` nesnesi**
+var -- boyutun tamami pratikte bu. Kart bunu bilinen borc olarak isaretledi
+ve cozmemeyi soyledi; uymadim demeyeyim, uydum: **dokunulmadi.**
+
+Ikinci bir gecmis yeniden yazma riskli: `.env` kazimasi zaten tum commit
+hash'lerini degistirdi ve `AUTONOMY_LOG.md` (27) ile `BLACKBOX.jsonl` (10)
+icindeki git referanslarini bayatlatti. Ayni bedeli ikinci kez odemek,
+ustelik push'tan sonra yapmak, cok daha pahali olur.
+
+**Onemli sira notu:** yapilacaksa **ilk push'tan ONCE** yapilmali. Push
+edildikten sonra gecmis yeniden yazmak, klonlamis herkesi bozar.
+
+**Secenekler:** (a) simdilik 618 MB ile yasa (private depo, boyut sinirinin
+altinda), (b) push'tan once `git filter-repo --path venv --invert-paths`
+ile temizle (yedek zaten var: `jarvis-agent-auto-BACKUP-20260831-180827.bundle`).
+
+---
+
+## A9 — Kucuk kalanlar (uc madde)
+
+1. **`automation/_ss_raw/`, `_model_bench_raw.json`, `_whisper_bench_raw.json`**
+   commit edilmedi (kart boyle dedi). `.gitignore`'a eklenmesini **oneriyorum**,
+   eklemedim -- yoksa her `git status`'ta gorunmeye devam ederler.
+2. **`automation/codex_denetim_2026-08-27_185006.txt`** hicbir grupta adi
+   gecmiyordu. Bir denetim transkripti; tarihsel deger tasiyor ama karar
+   bana ait degil, birakildi.
+3. **`.gitattributes`'taki `merge=graphify` satiri artik olu** --
+   `graphify-out/` `01e1bf04e`'de gitignore'a girdi, yani surucunun yonettigi
+   dosya hic izlenmiyor. Zararsiz, oldugu gibi commit edildi.
+
+---
+
+## A10 — Bu depo bir git WORKTREE (yedegi etkiler)
+
+`.git` bir dizin degil, dosya: asil git dizini
+`C:/Users/Ahmedov/Desktop/Jarvis/jarvis/.git/worktrees/jarvis-agent-auto`
+altinda. Yani **nesneler bu klasorde degil, ana depoda yasiyor.**
+
+Pratik sonucu: bu dizinden push etmek calisir ve tum dallari gonderir
+(refler paylasilir), ama "bu klasoru kopyalarsam yedegim olur" YANLIS.
+`git count-objects` de bir uyari veriyor:
+*"garbage found: .../worktrees/jarvis-agent-auto/refs"*.
+
+**Onerim:** push kurulduktan sonra ana depo (`Jarvis/jarvis`) icin de ayni
+remote dusunulmeli; ayrica o "garbage" uyarisi ayrica bakilmali. Karar senin.
+
+---
+
 ## A6 — `HUMAN_NEEDED.md` ile `roadmap_state.json` hala celisiyor (YENI)
 
 A4 uygulandiktan sonra CANLI blokta gorundu: model artik **ayni prompt icinde
