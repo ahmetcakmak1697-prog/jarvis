@@ -8,13 +8,13 @@
       "backend": "ollama",
       "ollama_url": "http://localhost:11434",
       "local_small": "qwen2.5:7b",
-      "local_main": "mistral-nemo:latest",
-      "research_model": "mistral-nemo:latest",
+      "local_main": "llama3.1:latest",
+      "research_model": "llama3.1:latest",
       "vision_model": "",
       "stt_model": "faster-whisper",
       "tts_model": "edge",
       "tensor_parallel_size": 1,
-      "notes": "Su an calisan profil. local_main = sistemde dogrulanmis model. local_small 2026-08-31'de llama3.2:latest -> qwen2.5:7b olarak degistirildi; profil kuralinin gerektirdigi benchmark kosuldu (5 L1 sorusu, sicak): qwen2.5:7b ort 2.40s / Efendim 3-5 / Ingilizce sizintisi 0-5; llama3.2:latest ort 2.52s / Efendim 0-5 ve cevaplarda sistem prompt'u sizintisi + bozuk Turkce. Qwen hem daha hizli hem persona uyumlu. local_main icin Qwen'e gecis HALA benchmark bekliyor."
+      "notes": "Su an calisan profil. local_main 2026-09-01'de mistral-nemo:latest -> llama3.1:latest oldu; research_model da mistral-nemo:latest -> llama3.1:latest. Profil kuralinin gerektirdigi benchmark kosuldu (automation/MODEL_KIYASI_0901.md; 3 model x 7 Turkce soru, ayni persona prompt'u, num_ctx=4096). OLCUM: mistral-nemo tepe VRAM 6880 MB -- 8 GB kartta belgelenmis ~6 GB pratik tavanin USTUNDE; 25.8 tok/s (TR-esdeger 13.6), ilk token 180 ms, Efendim 0/7, ve uzun turda sistem prompt'unu cevap sanip geri kustu. llama3.1 tepe 5878 MB, 74.3 tok/s (TR-esdeger 39.1), ilk token 52 ms, Efendim 3/7. qwen2.5:7b tepe 5386 MB, 78.2 tok/s, Efendim 2/7. Olcum mistral-nemo'yu ELEDI; llama3.1 ile qwen arasindaki fark 7 ornekte 3'e 2 -- istatistiksel olarak anlamsiz, kulak karari. local_small qwen2.5:7b olarak KALDI ki kademe ayrimi cokmesin. Turkish-Gemma-9b-T1 indirilmedi (Ahmet karari: once bu degisikligin etkisi dinlenecek)."
     },
     "dual3090": {
       "label": "2x RTX 3090 NVLink 48GB - hedef sistem",
