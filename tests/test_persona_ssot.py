@@ -19,33 +19,17 @@ from __future__ import annotations
 
 import ast
 import json
-import re
 from pathlib import Path
 
 import pytest
 
 _REPO = Path(__file__).resolve().parents[1]
 
-# UTF-8 metnin cp1254/latin-1 olarak okunmasindan dogan ikili desenler.
-_MOJIBAKE = re.compile(r"Ã[¼§¶±]|Ä[±°]|Å[Ÿ]|â€|ï¿½|�")
-
-# Turkce harfin '?' ile degistirilmesi: harf-?-harf ya da ardarda '??'.
-# URL query string'leri ('?blocked=1') yanlis eslesmesin diye '=' iceren
-# parcalar disarida birakilir.
-_QMARK = re.compile(r"[A-Za-zçğıöşüÇĞİÖŞÜ]\?{1,2}"
-                    r"[A-Za-zçğıöşüÇĞİÖŞÜ]|\?\?")
-
-
-def corrupted_fragments(text: str) -> list[str]:
-    """Metindeki bozuk-kodlama supheli parcalari dondurur. Bos liste = temiz."""
-    found: list[str] = []
-    for line in text.splitlines():
-        if "=" in line and "?" in line and not _MOJIBAKE.search(line):
-            # URL / query string satiri: '?' burada mesru.
-            continue
-        if _MOJIBAKE.search(line) or _QMARK.search(line):
-            found.append(line.strip()[:120])
-    return found
+# Bozuk-kodlama dedektoru artik `agents/data_classifier` icinde, `_fold_tr`
+# ve `keyword_present` ile ayni evde tek kaynak olarak yasiyor. Kalite
+# regresyon takimi (`eval/`) da ayni olcumu kullaniyor; iki kopya tutmak
+# yerine buradan yeniden disa aktarilir.
+from agents.data_classifier import corrupted_fragments  # noqa: E402
 
 
 # --------------------------------------------------------------------------- #

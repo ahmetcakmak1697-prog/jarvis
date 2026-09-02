@@ -97,6 +97,41 @@ def keyword_present(text: str, keyword: str) -> bool:
     return anahtar in metin
 
 
+# --------------------------------------------------------------------------- #
+# Bozuk kodlama tespiti — Turkce metin ilkelleri burada, tek kaynak
+# --------------------------------------------------------------------------- #
+#
+# Daha once bu yardimci `tests/test_persona_ssot.py` icinde yasiyordu. Kalite
+# regresyon takimi da ayni olcumu yapiyor ve `eval/`'in `tests/`'ten import
+# etmesi kirilgan bir yapi olurdu; bu yuzden `_fold_tr` ve `keyword_present`
+# ile ayni eve tasindi. Test modulu onu buradan yeniden disa aktarir.
+
+#: UTF-8 metnin cp1254/latin-1 olarak okunmasindan dogan ikili desenler.
+_MOJIBAKE = re.compile(r"Ã[¼§¶±]|Ä[±°]|Å[Ÿ]|â€|ï¿½|�")
+
+#: Turkce harfin '?' ile degistirilmesi: harf-?-harf ya da ardarda '??'.
+_QMARK = re.compile(r"[A-Za-zçğıöşüÇĞİÖŞÜ]\?{1,2}"
+                    r"[A-Za-zçğıöşüÇĞİÖŞÜ]|\?\?")
+
+
+def corrupted_fragments(text: str) -> list[str]:
+    """Metindeki bozuk-kodlama supheli parcalari dondurur. Bos liste = temiz.
+
+    Yakaladigi: mojibake (Ã¼, Ä±, â€ ...) ve Turkce harflerin soru isaretine
+    donusmesi ("Turkce kon??"). Yakalamadigi: DILBILGISI hatasi -- bu bir
+    kodlama butunlugu olcusudur, akicilik olcusu degil. Akiciligi Ahmet'in
+    kulagi degerlendirir (FAZ-T1 deseni).
+    """
+    found: list[str] = []
+    for line in (text or "").splitlines():
+        if "=" in line and "?" in line and not _MOJIBAKE.search(line):
+            # URL / query string satiri: '?' burada mesru.
+            continue
+        if _MOJIBAKE.search(line) or _QMARK.search(line):
+            found.append(line.strip()[:120])
+    return found
+
+
 # Evaluated in this order; the FIRST matching category wins. Order reflects
 # severity, most restrictive first -- not a claim that institution_internal
 # is "worse" than sensitive in the abstract, just a deterministic tie-break
