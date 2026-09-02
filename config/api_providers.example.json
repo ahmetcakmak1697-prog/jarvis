@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "notes": [
+    "Example provider config for JARVIS v6 APIExecutor.",
+    "Do not put real API keys in this file.",
+    "Use environment variables such as GEMINI_API_KEY, DEEPSEEK_API_KEY, COMMANDCODE_API_KEY.",
+    "Free/cheap providers are fuel, not the Jarvis core. Memory, audit, privacy and routing stay local."
+  ],
+  "providers": {
+    "gemini_flash_free": {
+      "provider": "gemini",
+      "model": "gemini/gemini-2.5-flash",
+      "role": "public_free_worker",
+      "allowed_privacy": ["PUBLIC", "REDACTED_LOW_RISK"],
+      "cost_gate": "GREEN",
+      "api_key_env": "GEMINI_API_KEY"
+    },
+    "deepseek_v4_flash": {
+      "provider": "deepseek",
+      "model": "deepseek/deepseek-chat",
+      "role": "cheap_primary_worker",
+      "allowed_privacy": ["PUBLIC", "REDACTED_LOW_RISK", "PERSONAL_REDACTED", "TECHNICAL", "CODE"],
+      "cost_gate": "GREEN",
+      "api_key_env": "DEEPSEEK_API_KEY"
+    },
+    "commandcode_provider": {
+      "provider": "openai_compatible",
+      "model": "commandcode/deepseek-v4-pro",
+      "role": "coding_provider_watchlist",
+      "allowed_privacy": ["PUBLIC", "TECHNICAL", "CODE"],
+      "cost_gate": "YELLOW",
+      "base_url": "https://api.commandcode.ai/provider/v1",
+      "api_key_env": "COMMANDCODE_API_KEY"
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "modes": [
+    {
+      "id": "development_mode",
+      "name": "Geliştirme Modu",
+      "description": "Jarvis coding, roadmap and test/commit workflow mode.",
+      "default_focus": [
+        "small_safe_patch",
+        "run_tests",
+        "commit",
+        "roadmap_update"
+      ]
+    },
+    {
+      "id": "maker_learning_mode",
+      "name": "Maker Öğrenme Modu",
+      "description": "Arduino, ESP32 and electronics learning mode.",
+      "default_focus": [
+        "understand_component",
+        "wire_safely",
+        "write_small_code",
+        "test_physical_result"
+      ]
+    },
+    {
+      "id": "show_progress_mode",
+      "name": "İlerleme Gösterme Modu",
+      "description": "Eşe veya aileye gösterilebilecek küçük ama somut Jarvis ilerlemeleri.",
+      "default_focus": [
+        "visible_demo",
+        "short_explanation",
+        "safe_status",
+        "pride_moment"
+      ]
+    }
+  ]
+}

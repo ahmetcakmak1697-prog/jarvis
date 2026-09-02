@@ -1,0 +1,500 @@
+{
+  "version": 1,
+  "project": "JARVIS",
+  "updated": "2026-06-18",
+  "note": "TEK DOĞRULUK KAYNAGI. Orchestrator sıradaki adımı buradan seçer; günlük rapor durumu buradan üretir. Adım otonom çalışsın istiyorsan: kind=implement/refactor, autonomy=auto, acceptance_criteria_machine dolu, acceptance_criteria_human BOŞ olmalı. Aksi halde adım otomatik olarak imza kapısına gider.",
+
+  "policy_defaults": {
+    "budget_usd": 5.0,
+    "max_repair_rounds": 4
+  },
+
+  "steps": [
+    {
+      "id": "FAZ-0",
+      "title": "Temel sistem (FastAPI + Ollama + RAG + memory)",
+      "phase": "0",
+      "kind": "implement",
+      "status": "done",
+      "depends_on": [],
+      "autonomy": "auto",
+      "acceptance_criteria_machine": ["pytest"],
+      "acceptance_criteria_human": [],
+      "allowed_paths": ["jarvis/**", "tests/**"],
+      "evidence": {"verdict": "PASS", "at": "2026-05"}
+    },
+    {
+      "id": "DEVOPS-verifier",
+      "title": "Deterministik verifier + auto-coder runner (dev otomasyon hattı)",
+      "phase": "infra",
+      "kind": "implement",
+      "status": "done",
+      "depends_on": ["FAZ-0"],
+      "autonomy": "auto",
+      "acceptance_criteria_machine": [
+        "pytest::tests/test_verifier_runner.py",
+        "verifier: minimum_pytest_collected guard çalışıyor"
+      ],
+      "acceptance_criteria_human": [],
+      "allowed_paths": ["scripts/**", "tests/**", "docs/templates/**", ".gitignore"],
+      "evidence": {"commit": "867b471b0", "verdict": "PASS", "at": "2026-06-17"}
+    },
+    {
+      "id": "FAZ-1B.13H",
+      "title": "Türkçe noktalı I (U+0130) folding düzeltmesi (_fold_tr)",
+      "phase": "1B",
+      "kind": "implement",
+      "status": "done",
+      "depends_on": ["FAZ-0"],
+      "autonomy": "auto",
+      "acceptance_criteria_machine": ["pytest::tests -k fold_tr"],
+      "acceptance_criteria_human": [],
+      "allowed_paths": ["jarvis/**assistant_executor*", "tests/**"],
+      "evidence": {"commit": "a99148f0d", "verdict": "PASS", "at": "2026-06-17"}
+    },
+    {
+      "id": "FAZ-1B.13-audit",
+      "title": "FAZ 1B.13 durum tespiti: sıradaki en küçük güvenli patch'i belirle",
+      "phase": "1B",
+      "kind": "spec",
+      "status": "done",
+      "depends_on": [
+        "FAZ-1B.13H",
+        "DEVOPS-verifier"
+      ],
+      "autonomy": "human_required",
+      "acceptance_criteria_machine": [],
+      "acceptance_criteria_human": [
+        "Audit çıktısı incelendi",
+        "Sıradaki implement adımı(ları) roadmap_state'e eklendi (machine criteria ile)"
+      ],
+      "allowed_paths": [],
+      "notes": "READ-ONLY. Çıktısı yeni implement adımlarına dönüşür. spec adımı = her zaman imza.",
+      "evidence": {
+        "audit_result": "Read-only audit completed. Main remaining gap: provider_decision.resolve_provider() exists but is not wired into AssistantExecutor._ask_inner().",
+        "human_review": "accepted",
+        "at": "2026-06-18"
+      }
+    },
+    {
+      "id": "FAZ-1B.13I-api-executor-routing",
+      "title": "Wire provider_decision.resolve_provider() into AssistantExecutor._ask_inner()",
+      "phase": "1B",
+      "kind": "implement",
+      "status": "done",
+      "depends_on": [
+        "FAZ-1B.13-audit"
+      ],
+      "autonomy": "auto",
+      "acceptance_criteria_machine": [
+        "py -3.11 -m pytest tests/test_assistant_executor.py -q --tb=short",
+        "py -3.11 -m pytest tests/test_provider_decision.py tests/test_provider_selector.py tests/test_provider_profiles.py tests/test_privacy_level_bridge.py tests/test_data_classifier.py -q --tb=short"
+      ],
+      "acceptance_criteria_human": [],
+      "allowed_paths": [
+        "agents/assistant_executor.py"
+      ],
+      "notes": "Audit accepted. Keep existing 13I id for dependency continuity, but replace the old nonexistent jarvis/executors paths. Implement source-only wiring: resolve provider after data_class is known, handle ProviderSelectionError/unexpected errors safely, and preserve local fallback behavior. Do not modify tests in this implement step.",
+      "evidence": {
+        "commit": "dacf2aeaf",
+        "verdict": "PASS",
+        "tests": [
+          "py -3.11 -m py_compile agents/assistant_executor.py",
+          "py -3.11 -m pytest tests/test_assistant_executor.py -q --tb=short -> 15 passed",
+          "py -3.11 -m pytest tests/test_provider_decision.py tests/test_provider_selector.py tests/test_provider_profiles.py tests/test_privacy_level_bridge.py tests/test_data_classifier.py -q --tb=short -> 126 passed"
+        ],
+        "at": "2026-06-18"
+      }
+    },
+
+    {
+      "id": "FAZ-2-D2",
+      "title": "Web research yeteneği",
+      "phase": "2",
+      "kind": "implement",
+      "status": "done",
+      "depends_on": [
+        "FAZ-1B.13I-api-executor-routing"
+      ],
+      "autonomy": "human_required",
+      "acceptance_criteria_machine": [
+        "py -3.11 -m pytest tests/test_d2_web_router_integration.py -q --tb=short",
+        "py -3.11 -m pytest tests/test_web_research_policy.py tests/test_assistant_executor.py -q --tb=short",
+        "python eval/run_d2_web_policy_eval.py --verbose",
+        "python tests/test_d2_lifecycle.py",
+        "python tests/test_d2_4_cache.py"
+      ],
+      "acceptance_criteria_human": [
+        "FAZ-2-D2 router bridge reviewed and accepted",
+        "Decision made before wiring live WebResearcher into AssistantExecutor",
+        "Live web calls remain disabled unless explicitly implemented and tested with fake/stub first"
+      ],
+      "allowed_paths": [
+        "agents/web_research_policy.py",
+        "agents/local_first_router.py",
+        "agents/assistant_executor.py",
+        "tools/web_research.py",
+        "eval/",
+        "tests/"
+      ],
+      "notes": "FAZ-2-D2 completed with safe default-off web research wiring. Turkish normalization fixed, web policy eval passed, router bridge added, AssistantExecutor WebResearcher injection added, and Telegram composition wiring added behind JARVIS_WEB_RESEARCH_ENABLED=0. Live web is not enabled by default. Future live smoke/activation requires explicit human opt-in by setting JARVIS_WEB_RESEARCH_ENABLED=1.",
+      "evidence": {
+        "audit": "FAZ-2-D2 read-only audit via jarvis_auto_task.ps1",
+        "verdict": "DONE_DEFAULT_OFF_LIVE_WEB_OPT_IN",
+        "at": "2026-06-18",
+        "reason": "stale allowed_paths and missing tests/test_web_research.py",
+        "roadmap_correction_commit": "365e4ac6f",
+        "normalize_fix_commit": "4d4162060",
+        "router_bridge_commit": "4cc9fce0b",
+        "validation": [
+          "tests/test_d2_web_research_composition.py + tests/test_d2_web_router_integration.py -> 23 passed",
+          "composition + router + assistant_executor + web_policy tests -> 41 passed",
+          "eval/run_d2_web_policy_eval.py --verbose -> 20/20 PASS, 0 sensitive leaks",
+          "git diff --check -> clean"
+        ],
+        "remaining": "Human approval/live smoke decision before marking FAZ-2-D2 done.",
+        "router_bridge_roadmap_commit": "851e49f48",
+        "web_researcher_injection_commit": "ae7305083",
+        "completed": [
+          "Corrected stale FAZ-2-D2 paths/tests",
+          "Fixed Turkish web policy normalization",
+          "Added web_research router bridge",
+          "Added AssistantExecutor WebResearcher dependency injection with fake/stub tests",
+          "Added default-off JARVIS_WEB_RESEARCH_ENABLED composition flag",
+          "Wired Telegram AssistantExecutor composition behind explicit flag",
+          "Moved D2 web policy gate before generic external budget gate"
+        ],
+        "web_researcher_injection_roadmap_commit": "4b47d3a02",
+        "composition_flag_commit": "cc2890a2f",
+        "done_at": "2026-06-18",
+        "final_roadmap_progress_commit": "a43528aea",
+        "human_decision": "Do not run live web smoke now; keep live web default-off and opt-in.",
+        "final_validation": [
+          "tests/test_d2_web_research_composition.py + tests/test_d2_web_router_integration.py -> 23 passed",
+          "composition + router + assistant_executor + web_policy tests -> 41 passed",
+          "eval/run_d2_web_policy_eval.py --verbose -> 20/20 PASS, 0 sensitive leaks",
+          "git diff --check -> clean"
+        ],
+        "live_activation_rule": "Only enable live web by explicitly setting JARVIS_WEB_RESEARCH_ENABLED=1."
+      }
+    },
+    {
+      "id": "FAZ-3-E1",
+      "title": "Proaktif davranış motoru",
+      "phase": "3",
+      "kind": "architectural",
+      "status": "in_progress",
+      "depends_on": [
+        "FAZ-2-D2"
+      ],
+      "autonomy": "human_required",
+      "acceptance_criteria_machine": [
+        "py -3.11 -m pytest tests/proactive_core_smoke.py tests/test_e1_2_proactive_profile.py tests/test_e1_3_proactive_alerts.py tests/test_e1_4A_ride_weather_risk.py tests/test_e1_4B_live_weather_bridge.py tests/test_e1_5A_telegram_brief.py tests/test_e1_5B_1_risk_visibility.py tests/test_e1_5B_2_system_health_threshold.py tests/test_e1_5B_3_brief_tone.py tests/test_e1_5B_telegram_brief_live.py tests/test_e1_5C_time_aware_brief.py -q --tb=short"
+      ],
+      "acceptance_criteria_human": [
+        "Proactive trigger policy reviewed",
+        "No automatic push/background behavior enabled blindly",
+        "Default-off JARVIS_PROACTIVE_ENABLED invariant accepted for any future push behavior",
+        "Cooldown/rate-limit and mute/opt-out design reviewed before delivery is enabled",
+        "Proactive behavior should help without becoming annoying or interruptive"
+      ],
+      "allowed_paths": [
+        "agents/proactive_core.py",
+        "agents/proactive_agent.py",
+        "tools/telegram_agent.py",
+        "tests/proactive_core_smoke.py",
+        "tests/test_e1_2_proactive_profile.py",
+        "tests/test_e1_3_proactive_alerts.py",
+        "tests/test_e1_4A_ride_weather_risk.py",
+        "tests/test_e1_4B_live_weather_bridge.py",
+        "tests/test_e1_5A_telegram_brief.py",
+        "tests/test_e1_5B_1_risk_visibility.py",
+        "tests/test_e1_5B_2_system_health_threshold.py",
+        "tests/test_e1_5B_3_brief_tone.py",
+        "tests/test_e1_5B_telegram_brief_live.py",
+        "tests/test_e1_5C_time_aware_brief.py",
+        "tests/test_proactive_policy.py",
+        "tests/test_proactive_delivery.py"
+      ],
+      "notes": "FAZ-3-E1 proactive audit corrected stale paths and confirmed current behavior is pull-based. ProactivePolicy was added in commit e94f77b98 as a policy/test-only step. It introduces JARVIS_PROACTIVE_ENABLED=0 default-off gating, muted/DND/cooldown/priority decisions, and no runtime delivery, scheduler, Telegram send, network, or background loop. Remaining work: design and test delivery integration with cooldown/rate-limit/mute/opt-out before any push behavior is enabled.",
+      "evidence": {
+        "verdict": "POLICY_ENGINE_DONE_DELIVERY_PENDING",
+        "at": "2026-06-18",
+        "stale_paths": [
+          "jarvis/proactive/**",
+          "tests/test_proactive.py"
+        ],
+        "actual_code_paths": [
+          "agents/proactive_core.py",
+          "agents/proactive_agent.py",
+          "tools/telegram_agent.py"
+        ],
+        "existing_tests": [
+          "tests/proactive_core_smoke.py",
+          "tests/test_e1_2_proactive_profile.py",
+          "tests/test_e1_3_proactive_alerts.py",
+          "tests/test_e1_4A_ride_weather_risk.py",
+          "tests/test_e1_4B_live_weather_bridge.py",
+          "tests/test_e1_5A_telegram_brief.py",
+          "tests/test_e1_5B_1_risk_visibility.py",
+          "tests/test_e1_5B_2_system_health_threshold.py",
+          "tests/test_e1_5B_3_brief_tone.py",
+          "tests/test_e1_5B_telegram_brief_live.py",
+          "tests/test_e1_5C_time_aware_brief.py"
+        ],
+        "architecture_status": "pull_based_no_background_push",
+        "next_safe_step": "policy/test-only; no live push; default-off JARVIS_PROACTIVE_ENABLED for any future delivery behavior",
+        "audit_commit": "991d0c65c",
+        "proactive_policy_commit": "e94f77b98",
+        "proactive_delivery_commit": "887420cf9",
+        "validation": [
+          "tests/test_proactive_policy.py -> 19 passed",
+          "proactive suite including E1.2-E1.5C + proactive_policy -> 19 passed, 2 pre-existing warnings",
+          "tests/test_proactive_delivery.py + proactive regression: 31 passed",
+          "governance + ContractPath suite: 91 passed"
+        ],
+        "completed": [
+          "Recorded FAZ-3-E1 audit and corrected stale roadmap paths",
+          "Added agents/proactive_policy.py",
+          "Added tests/test_proactive_policy.py",
+          "Added JARVIS_PROACTIVE_ENABLED=0 default-off flag",
+          "Implemented pure policy decisions: deliver/suppress/defer",
+          "Covered muted, DND, cooldown, low/normal/high/critical priority, and opt-in behavior",
+          "887420cf9 added test-only ProactiveDelivery planning layer (DeliveryPlan + create_delivery_plan) with no runtime send/wiring; validation: proactive delivery/regression 31 passed, governance 91 passed. Runtime delivery remains pending."
+        ],
+        "remaining": [
+          "E1-S6A-E: DONE (see individual E1-S6x steps below)",
+          "E1-S4: DONE — live Telegram smoke confirmed by Ahmet 2026-06-27"
+        ],
+        "e1_s4": {
+          "verdict": "DONE",
+          "at": "2026-06-27T22:51:38.969829+00:00",
+          "signed_by": "Ahmet (phone receipt confirmed)",
+          "command": "py -3.11 -m agents.proactive_runner --e1-s4-smoke",
+          "sent": true,
+          "message": "JARVIS E1-S4 live Telegram smoke test. If you received this, live delivery path works.",
+          "token_exposed": false,
+          "chat_id_exposed": false,
+          "messages_sent": 1,
+          "wiring_commit": "a39db4568",
+          "codex_pass_before_execution": true,
+          "notes": "Codex PASS on a39db4568 (33/33 wiring tests + 157/157 regression). One message sent. No scheduler, no retry, no background loop."
+        },
+        "safety_invariant": "No proactive push/background behavior is enabled by this step. Scheduler and background delivery remain future work requiring explicit approval.",
+        "e1_s5_decision": {
+          "verdict": "APPROVED",
+          "at": "2026-06-24",
+          "signed_by": "Ahmet",
+          "decision": "Windows Task Scheduler + one-shot proactive runner + default dry-run",
+          "decision_doc": "automation/SCHEDULER_DECISION.md",
+          "decomposition_doc": "automation/E1_S6_DECOMPOSITION.md"
+        }
+      }
+    },
+    {
+      "id": "E1-S6A",
+      "title": "proactive_runner.py dry-run CLI",
+      "phase": "3",
+      "kind": "implement",
+      "status": "done",
+      "depends_on": ["FAZ-3-E1"],
+      "autonomy": "auto",
+      "acceptance_criteria_machine": [
+        "py -3.11 -m pytest tests/test_e1_6a_proactive_runner.py -q --tb=short",
+        "py -3.11 -m agents.proactive_runner (module invocation exits 0, stdout is valid JSON)"
+      ],
+      "acceptance_criteria_human": [],
+      "allowed_paths": [
+        "agents/proactive_runner.py",
+        "tests/test_e1_6a_proactive_runner.py"
+      ],
+      "notes": "One-shot runner. Default dry-run. Supported invocation: py -3.11 -m agents.proactive_runner. --live always blocked until E1-S4 (raises RuntimeError regardless of env). argparse rejects unknown args and --dry-run+--live together. run_once(dry_run=False) also raises so every caller is protected. ProactivePolicy wired directly; ProactiveCore deferred.",
+      "evidence": {
+        "verdict": "PASS",
+        "at": "2026-06-27",
+        "signed_by": "Codex",
+        "commits": ["cc0072ac5", "c8eee9a84"],
+        "tests": "16/16 test_e1_6a_proactive_runner; 51/51 full acceptance suite",
+        "notes": "Initial impl (cc0072ac5) + Codex-BLOCKER fix (c8eee9a84). argparse, live gate moved inside run_once, subprocess test added, decomp updated."
+      }
+    },
+    {
+      "id": "E1-S6B",
+      "title": "Delivery result logging (DeliveryResult struct)",
+      "phase": "3",
+      "kind": "implement",
+      "status": "done",
+      "depends_on": ["E1-S6A"],
+      "autonomy": "auto",
+      "acceptance_criteria_machine": [
+        "py -3.11 -m pytest tests/test_e1_6b_delivery_result.py tests/test_proactive_delivery.py tests/test_proactive_runtime.py tests/test_e1_6a_proactive_runner.py -q --tb=short"
+      ],
+      "acceptance_criteria_human": [],
+      "allowed_paths": [
+        "agents/proactive_delivery.py",
+        "agents/proactive_runtime.py",
+        "agents/proactive_runner.py",
+        "tests/test_e1_6b_delivery_result.py",
+        "tests/test_proactive_delivery.py",
+        "tests/test_proactive_runtime.py",
+        "tests/test_e1_6a_proactive_runner.py"
+      ],
+      "notes": "DeliveryResult dataclass in deliver() and run_proactive_delivery(). runner run_once() preserves full DeliveryResult in output delivery key. deliver() precedence: not_ready before noop_no_sender.",
+      "evidence": {
+        "verdict": "PASS",
+        "at": "2026-06-27",
+        "signed_by": "Codex",
+        "commits": ["a53001577", "648b74455"],
+        "tests": "80/80 PASS",
+        "notes": "Initial impl (a53001577) + Codex-BLOCKER fix (648b74455). deliver() precedence corrected; full DeliveryResult in runner output; subprocess delivery field tests added."
+      }
+    },
+    {
+      "id": "E1-S6C",
+      "title": "Windows Task Scheduler docs + script template",
+      "phase": "3",
+      "kind": "implement",
+      "status": "done",
+      "depends_on": ["E1-S6A"],
+      "autonomy": "auto",
+      "acceptance_criteria_machine": [
+        "git diff --check",
+        "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/create_jarvis_task.ps1 (exits 0, print-only, no task created)"
+      ],
+      "acceptance_criteria_human": [],
+      "allowed_paths": [
+        "docs/scheduler_setup.md",
+        "scripts/create_jarvis_task.ps1"
+      ],
+      "notes": "Docs and print-only PowerShell template. No Task Scheduler task created. Preview mode calls no ScheduledTask cmdlets.",
+      "evidence": {
+        "verdict": "PASS",
+        "at": "2026-06-28",
+        "signed_by": "Codex",
+        "commits": ["3de2e1035", "4f6a5b6e0"],
+        "notes": "Initial impl (3de2e1035) + Codex-BLOCKER fix (4f6a5b6e0). -StopIfGoingOnBatteries $false -> -DontStopIfGoingOnBatteries. Preview exits 0, no scheduler side effects."
+      }
+    },
+    {
+      "id": "E1-S6D",
+      "title": "Live-mode guard (blocked until E1-S4)",
+      "phase": "3",
+      "kind": "implement",
+      "status": "done",
+      "depends_on": ["E1-S6A"],
+      "autonomy": "auto",
+      "acceptance_criteria_machine": [
+        "py -3.11 -m pytest tests/test_e1_6d_live_guard.py -q --tb=short"
+      ],
+      "acceptance_criteria_human": [],
+      "allowed_paths": [
+        "agents/proactive_runner.py",
+        "tests/test_e1_6d_live_guard.py"
+      ],
+      "notes": "Tests-only; live-mode guard was already implemented in E1-S6A. Dedicated regression suite locks the contract.",
+      "evidence": {
+        "verdict": "PASS",
+        "at": "2026-06-28",
+        "signed_by": "Codex",
+        "commits": ["b4670036b"],
+        "tests": "94/94 PASS (14 new in test_e1_6d_live_guard.py)",
+        "notes": "Tests-only commit. No code changes to runner. --live always exit 1 (with/without env), RuntimeError mentions E1-S4, AST import check."
+      }
+    },
+    {
+      "id": "E1-S6E",
+      "title": "Throttle / cooldown guard",
+      "phase": "3",
+      "kind": "implement",
+      "status": "done",
+      "depends_on": ["E1-S6A"],
+      "autonomy": "auto",
+      "acceptance_criteria_machine": [
+        "py -3.11 -m pytest tests/test_e1_6e_throttle_guard.py -q --tb=short"
+      ],
+      "acceptance_criteria_human": [],
+      "allowed_paths": [
+        "agents/proactive_runner.py",
+        "tests/test_e1_6e_throttle_guard.py"
+      ],
+      "notes": "Stateless cooldown guard in run_once(). State via state dict (last_delivery_ts, cooldown_seconds). Default 1800s. No file writes, no persistence.",
+      "evidence": {
+        "verdict": "PASS",
+        "at": "2026-06-28",
+        "signed_by": "Codex",
+        "commits": ["c9c7d75b3", "399587609"],
+        "tests": "124/124 PASS (30 throttle + 94 regression)",
+        "notes": "Initial impl (c9c7d75b3) + BLOCKER fix (399587609). math.isfinite() rejects NaN/±Infinity. Future ts returns cooldown_active. Stateless, no persistence."
+      }
+    },
+    {
+      "id": "FAZ-T1",
+      "title": "Türkçe kalite track'i",
+      "phase": "T",
+      "kind": "implement",
+      "status": "done",
+      "depends_on": ["FAZ-0"],
+      "autonomy": "human_required",
+      "acceptance_criteria_machine": ["pytest::tests/test_tr_quality.py (regresyon)"],
+      "acceptance_criteria_human": [
+        "Türkçe çıktı kalitesi senin kulağına doğru geliyor (subjektif -> imza)"
+      ],
+      "allowed_paths": ["jarvis/**", "tests/**"],
+      "notes": "Kalite subjektif; deterministik gate yalnızca regresyonu tutar, kaliteyi sen onaylarsın.",
+      "evidence": {
+        "verdict": "PASS",
+        "at": "2026-06-24",
+        "signed_by": "Ahmet",
+        "notes": "PASS with minor wording concerns (local llama3.1 style limitations, not blockers). Turkish chars correct, no mojibake, project context grounded after 9bbdab0c4 fix.",
+        "smoke_log": "automation/T1_S2_SMOKE_RESULTS.md",
+        "t1_s1_commit": "e4c9d8d50",
+        "grounding_commits": ["0b127e7cc", "926616582", "9bbdab0c4"]
+      }
+    },
+    {
+      "id": "FAZ-PHASE2-integration",
+      "title": "FAZ 2 entegrasyon kapısı (blokların birbiriyle çalıştığını doğrula)",
+      "phase": "2",
+      "kind": "integration",
+      "status": "done",
+      "depends_on": [
+        "FAZ-2-D2"
+      ],
+      "autonomy": "human_required",
+      "acceptance_criteria_machine": [
+        "py -3.11 -m pytest tests/test_faz_phase2_integration.py tests/test_d2_web_router_integration.py tests/test_d2_web_research_composition.py tests/test_cloud_pipeline_integration.py tests/test_y7_hardening.py tests/test_assistant_executor.py tests/test_web_research_policy.py -q --tb=short"
+      ],
+      "acceptance_criteria_human": [
+        "Phase 2 integration behavior reviewed",
+        "No live web/API call required for the integration gate",
+        "Default-off web research invariant preserved"
+      ],
+      "allowed_paths": [
+        "tests/test_faz_phase2_integration.py",
+        "tests/test_cloud_pipeline_integration.py"
+      ],
+      "notes": "FAZ-PHASE2 integration gate completed with test-only integration coverage. The integration test wires real WebResearchPolicy, real LocalFirstRouter, real AssistantExecutor, and fake WebResearcher without live network. Cloud pipeline integration test setup was made deterministic with a test-only router cost ledger so router budget gating does not block the API pipeline before the execution policy path. Default-off web research invariant remains preserved.",
+      "evidence": {
+        "verdict": "DONE_PHASE2_INTEGRATION_COVERED_NO_LIVE_NETWORK",
+        "done_at": "2026-06-18",
+        "integration_coverage_commit": "e39e7a6bb",
+        "depends_on_done": "FAZ-2-D2",
+        "validation": [
+          "tests/test_cloud_pipeline_integration.py -> 2 passed",
+          "Phase 2 integration batch -> 53 passed",
+          "D2 eval previously passed -> 20/20 PASS, 0 sensitive leaks",
+          "working tree clean after commit"
+        ],
+        "completed": [
+          "Added tests/test_faz_phase2_integration.py",
+          "Verified default-off builder preserves no-live-web behavior",
+          "Verified real WebResearchPolicy + LocalFirstRouter + AssistantExecutor + fake WebResearcher integration",
+          "Verified sensitive web query blocked without fake researcher call",
+          "Verified non-web question does not accidentally route to web research",
+          "Fixed cloud pipeline integration setup with test-only router cost ledger"
+        ],
+        "live_network_rule": "No live web/API calls are required or allowed for this integration gate."
+      }
+    }
+  ]
+}

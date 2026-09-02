@@ -1,0 +1,40 @@
+# JARVIS ses hatti — Esik 1 (legacy hat: edge-tts + faster-whisper + sounddevice)
+#
+# Bu dosya artik "aday liste" degil: asagidaki surumler 2026-08-31'de .venv'e
+# fiilen kuruldu ve dogrulandi (28 ses cihazi goruluyor, uctan uca smoke gecti).
+#
+#   .venv\Scripts\python.exe -m pip install -r requirements-voice.txt
+#
+# NEDEN BU YIGIN: denetim raporundaki Esik 1, en kisa yolun mevcut legacy hat
+# (voice/voice_interface.py + voice/voice_engine.py) oldugunu gosterdi.
+# RealtimeSTT/openWakeWord BILEREK kurulmadi — onlar J0B cephesi ve
+# automation/LOOP0D_J0B_SAFETY_CONTRACT.md ayri bir onay istiyor.
+
+# --- TTS ---
+# Bulut servisi. Metin Microsoft'a gider -> varsayilan KAPALI.
+# Acmak icin: JARVIS_J0_EDGE_TTS_ENABLED=1  (bkz. scripts/j0_tts_adapters.py)
+edge-tts==7.2.8
+
+# MP3 calma (edge-tts mp3 uretir). voice/voice_engine.py bunu kullanir.
+pygame==2.6.1
+
+# --- STT ---
+# Yerel ASR. Ag yok, model ilk kullanimda diske iner.
+faster-whisper==1.2.1
+
+# Mikrofon giris/cikis
+sounddevice==0.5.6
+
+# WAV okuma/yazma (sounddevice ile birlikte)
+soundfile==0.14.0
+
+# faster-whisper ve sounddevice'in ortak bagimliligi
+numpy>=2.0
+
+# --- KURULMADI (bilerek) ---
+# RealtimeSTT      : J0B cephesi — LOOP-0D onayi gerekiyor
+# openwakeword     : wake-word J0B kapsaminda
+# piper-tts        : pip paketi degil; ikili dosya olarak indirilir.
+#                    Bu makinede piper.exe ve .onnx ses modeli YOK; bu yuzden
+#                    PiperSubprocessAdapter kodu yazildi ama gercek ikiliyle
+#                    hic calistirilmadi. Bkz. docs/THIRD_PARTY_VOICE.md
