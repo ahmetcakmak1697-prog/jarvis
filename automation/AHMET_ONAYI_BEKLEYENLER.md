@@ -74,6 +74,36 @@ ile temizle (yedek zaten var: `jarvis-agent-auto-BACKUP-20260831-180827.bundle`)
 
 ---
 
+## A11 — Kalite takimi kosular arasi OYNAK (sahte regresyon riski)
+
+**Olculdu** (2026-09-01, llama3.1, `temperature=0.2`, ayni vakalar):
+grounding kategorisi uc kosuda **5/5, 5/5, 4/5** verdi. Diger kategoriler
+sabit kaldi ama grounding oynuyor -- cunku "uydurma mi, itiraf mi" sinirinda
+modelin kelime secimi degisiyor.
+
+**Sonucu:** takim su haliyle **sahte regresyon uretebilir.** Uc hafta sonra
+biri "63/64 idi, 62/64 oldu, bir sey bozuldu" diyip sebebini kodda arayabilir
+-- oysa sebep kodda degil, orneklemde olabilir. Bu not tam olarak o aramanin
+onune gecmek icin var.
+
+**Cozulmedi, bilerek.** Uc secenek gorunuyor:
+
+(a) **N kosu ortalamasi** -- her kosu N kez, ortalama raporlanir. Dogru ama
+    sureyi N katina cikarir (su an 64 vaka ~3 dakika).
+(b) **Tolerans bandi** -- taban +-1 vaka regresyon sayilmaz. Ucuz ama gercek
+    bir tek-vaka gerilemesini de gizler.
+(c) **Yalniz oynak kategoriyi tekrarla** -- grounding N kez, digerleri 1 kez.
+    Maliyeti dusuk, ama hangi kategorinin oynak oldugunu once olcmek gerekir.
+
+**Simdilik ne yapiliyor:** rapor basligina "tek kosu hukum degildir" uyarisi
+konuldu ve olculen 5/5-5/5-4/5 dizisi oraya yazildi. Yani takim kullanilabilir,
+ama sonucu okuyan kisi sinirini goruyor.
+
+**Gerekli olan:** (a)/(b)/(c) arasinda bir karar -- ya da "simdilik boyle
+kalsin".
+
+---
+
 ## A10 — Bu depo bir git WORKTREE (yedegi etkiler)
 
 `.git` bir dizin degil, dosya: asil git dizini
