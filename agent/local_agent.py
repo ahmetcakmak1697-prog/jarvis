@@ -4,7 +4,6 @@ Doğal sohbet + temiz yanıtlar
 """
 from __future__ import annotations
 import re
-import time
 from pathlib import Path
 from typing import Optional
 from rich.console import Console
@@ -418,7 +417,7 @@ class LocalJarvisAgent:
             if len(result) > 3500:
                 result = result[:3500]
             return result
-        except Exception as e:
+        except Exception:
             return ""
 
     def _ask_ollama(self, messages: list[dict], model: str) -> str:
@@ -539,10 +538,10 @@ class LocalJarvisAgent:
         console.print("[green]Geçmiş temizlendi.[/]")
 
     def show_stats(self):
-        console.print(f"\n[bold cyan]📊 İstatistikler[/]")
+        console.print("\n[bold cyan]📊 İstatistikler[/]")
         console.print(f"  Tur: {self.turn_count} | Araç: {self.tool_calls_total}")
         console.print(f"  Modeller: {', '.join(self.available_models[:3])}")
-        console.print(f"  Maliyet: [green]0₺[/]\n")
+        console.print("  Maliyet: [green]0₺[/]\n")
 
     def list_models(self):
         for m in self.available_models:

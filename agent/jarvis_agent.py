@@ -26,7 +26,7 @@ import anthropic
 from rich.console import Console
 
 from config import (
-    ANTHROPIC_API_KEY, JARVIS_MODEL, JARVIS_NAME,
+    ANTHROPIC_API_KEY, JARVIS_NAME,
     SYSTEM_PROMPT, MAX_AGENT_ITERATIONS
 )
 from memory.memory_manager import MemoryManager
@@ -262,7 +262,7 @@ class JarvisAgent:
         """Token ve maliyet istatistiklerini göster."""
         # Yaklaşık maliyet hesabı (Opus fiyatı baz)
         cost_usd = self.total_tokens * 0.000015
-        console.print(f"\n[bold]📊 İstatistikler[/]")
+        console.print("\n[bold]📊 İstatistikler[/]")
         console.print(f"Toplam tur: {self.turn_count}")
         console.print(f"Toplam token: ~{self.total_tokens:,}")
         console.print(f"Tahmini maliyet: ~${cost_usd:.4f}")

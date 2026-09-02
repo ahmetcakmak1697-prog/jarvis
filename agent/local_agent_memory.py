@@ -6,6 +6,7 @@ JSON dosyasında saklar, keyword + semantic search ile arar.
 from __future__ import annotations
 
 import json
+import re
 import time
 from pathlib import Path
 
@@ -103,7 +104,3 @@ class LocalMemory:
     def clear(self):
         self._data = []
         self._save()
-
-
-# re import
-import re
