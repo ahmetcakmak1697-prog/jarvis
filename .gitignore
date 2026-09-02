@@ -117,3 +117,21 @@ TASK_*.md
 
 # graphify uretilmis grafik artefaktlari (graphify update . her calistiginda degisir)
 graphify-out/
+
+# Ucuncu taraf skill'ler -- ayrica kurulabilir, depoyu sisirir
+# (graphify/superpowers/impeccable: `claude plugin install` ile geri gelir)
+.claude/skills/
+
+# Ham arac ciktisi -- ozetleyen raporlar izleniyor, ham hali degil.
+# Alt cizgi oneki bunlarin gecici oldugunu zaten soyluyor.
+automation/_ss_raw/
+automation/_model_bench_raw.json
+automation/_whisper_bench_raw.json
+
+# Codex denetim transkriptleri: TEK DOSYA ADI DEGIL, DESEN.
+# scripts/codex_denetle.ps1:68 ciktiyi codex_denetim_$zaman.txt olarak yazar,
+# yani her denetim yeni bir dosya uretir.
+automation/codex_denetim_*.txt
+
+# NOT: automation/KALITE_*.md ve .json BILEREK izleniyor -- onlar ham cikti
+# degil, sonraki kosularin karsilastirildigi taban olcumu.
