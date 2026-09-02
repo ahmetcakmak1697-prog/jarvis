@@ -139,14 +139,14 @@ onaylanmaz (§9).
   değil**, yalnızca mimari desen olarak referans alınabilir. Kalıcı
   çözüm için tek bir doğruluk kaynağı dokümanı güncellenmeli — bunu
   Ahmet ayrıca karara bağlamalı.
-- **HUMAN_NEEDED.md ↔ roadmap_state.json tutarsızlığı:** `automation/HUMAN_NEEDED.md`
-  hâlâ `[2026-06-24] [E1-S4]` maddesini "Pending" olarak listeliyor, ama
-  `roadmap_state.json`'daki `FAZ-3-E1.evidence.e1_s4` alanı bu maddeyi
-  `"verdict": "DONE"` (2026-06-27, Ahmet imzalı telefon onayı) olarak
-  gösteriyor. Ahmet 2026-09-01'de **kapatılmasına karar verdi** (kanıt
-  `roadmap_state.json`'da, imzalı); `HUMAN_NEEDED.md`'de Resolved bölümüne
-  taşınması işi henüz yapılmadı. İkisi de aynı prompt'u besliyor, yani model
-  şu an çelişkili iki olgu görüyor.
+- **~~HUMAN_NEEDED.md ↔ roadmap_state.json tutarsızlığı~~ — ÇÖZÜLDÜ (2026-09-03).**
+  `automation/HUMAN_NEEDED.md` `[2026-06-24] [E1-S4]` maddesini "Pending"
+  gösterirken `roadmap_state.json` aynı maddeyi `"verdict": "DONE"`
+  (2026-06-27, Ahmet imzalı telefon onayı) diye kaydediyordu. İkisi de
+  `_load_project_context()` üzerinden **aynı prompt'u** besliyordu, yani model
+  çelişkili iki olgu görüyordu. Madde, kanıtıyla birlikte (komut, imza, Codex
+  PASS commit'i `a39db4568`) Resolved bölümüne taşındı. **Pending bölümünde
+  artık gerçek madde yok.**
 - **~~HA/Wyoming adopt-vs-build kararı~~ — ÇÖZÜLDÜ (2026-09-01).**
   `automation/LOOP0D_J0B_SAFETY_CONTRACT.md` §6 üç seçeneği (A: ayrı,
   B: HA/Wyoming'e devir, C: hibrit) karara bağlanmamış olarak kaydetmişti.

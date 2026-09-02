@@ -23,7 +23,6 @@ are placeholders. Do not treat them as real blockers. Only lines starting with
 - [ ] [YYYY-MM-DD] [TASK-ID] What is needed and exactly why Claude cannot proceed.
 -->
 
-- [ ] [2026-06-24] [E1-S4] Live Telegram proactive smoke test. Ahmet sets JARVIS_PROACTIVE_ENABLED=1 in .env, triggers a proactive alert, and confirms Telegram message received on phone. Requires live token + .env edit + human judgment on cooldown/mute behavior.
 
 ---
 
@@ -33,6 +32,7 @@ are placeholders. Do not treat them as real blockers. Only lines starting with
 - [x] [YYYY-MM-DD] [TASK-ID] Description. Resolved: YYYY-MM-DD
 -->
 
+- [x] [2026-06-24] [E1-S4] Live Telegram proactive smoke test. Resolved: 2026-06-27. Ahmet ran `py -3.11 -m agents.proactive_runner --e1-s4-smoke` and confirmed phone receipt; signed "Ahmet (phone receipt confirmed)". One message sent, no scheduler/retry/background loop; token and chat_id not exposed. Codex PASS on wiring commit a39db4568 (33/33 wiring + 157/157 regression). Evidence: `roadmap_state.json` -> FAZ-3-E1.evidence.e1_s4.
 - [x] [2026-06-24] [T1-S2] Turkish quality subjective sign-off. Resolved: 2026-06-24. Ahmet ran python main.py (llama3.1 local), confirmed Turkish chars correct, no mojibake, project context grounded. PASS with minor wording concerns. See automation/T1_S2_SMOKE_RESULTS.md.
 - [x] [2026-06-24] [E1-S5] Scheduler architecture decision. Resolved: 2026-06-24. Ahmet approved: Windows Task Scheduler + one-shot runner + default dry-run. See automation/SCHEDULER_DECISION.md.
 
