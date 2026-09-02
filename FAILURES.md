@@ -38,6 +38,43 @@ eklenir:
   (Yoksa `YOK — açık borç` yazılır, uydurulmaz.)
 ```
 
+## DESEN — "YEŞİL" ile "ÖLÇÜLDÜ" aynı şey değildir
+
+> Bu bölüm tek bir olayı değil, **bir aileyi** kaydeder. Aşağıdaki üç tuzak
+> aynı gün (2026-09-01/02) bulundu ve üçünde de aynı şey oldu: bir şey
+> **başarılı görünüyordu ve aslında hiçbir şey ölçülmüyordu.**
+
+| # | Nerede | "Yeşil" görünen şey | Gerçekte olan |
+|---|---|---|---|
+| 1 | `voice/stt.py` | Ses akışı açıldı, hata yok | Akış **sıfır** döndürüyordu; DirectSound'da 9600 örneğin 9600'ü tam sıfır |
+| 2 | `tests/test_local_agent_grounding.py` | 4 test yeşil | Testler gerçek fonksiyonu değil, testin içine yazılmış **replikayı** ölçüyordu — gerçek fonksiyon silinse yeşil kalırlardı |
+| 3 | `tests/test_j0_spike_b_latency_probe.py` | Test haftalardır yeşil | İddia bir `if` içindeydi, koşul hiç sağlanmıyordu; test **hiçbir şey kontrol etmiyordu** |
+
+**Ortak yapı:** üçünde de bir *başarı sinyali* vardı (akış açıldı / test geçti)
+ve o sinyal, altındaki işin yapıldığını **kanıtlamıyordu**. Sinyal ile kanıt
+arasındaki boşlukta hata sessizce bekledi.
+
+**Ortak bedel:** üçü de ancak uzun bir arama sonucu görüldü. Mikrofon bir saat,
+replika bir denetim turu, boş test bir tam süit soruşturması. Sessiz
+başarısızlığın maliyeti bulunduğu anda değil, **bulunana kadar geçen sürede**
+birikir.
+
+**Ortak kural — bir sinyali kabul etmeden önce sor:**
+
+1. **Bu sinyal ne kanıtlıyor?** "Açıldı" ≠ "veri geldi". "Geçti" ≠ "ölçtü".
+2. **Ölçülen şey gerçek mi, kopyası mı?** Test, üretimdeki nesnenin ta
+   kendisini mi çağırıyor, yoksa ona benzeyen bir şeyi mi?
+3. **İddia her koşuda çalışıyor mu?** Koşula bağlıysa, koşulun sağlandığı da
+   ayrıca iddia edilmeli.
+4. **Ucuz karşı-kanıt var mı?** Üç vakada da vardı ve bakılmamıştı: tam-sıfır
+   örnek sayısı, dosya süresi (8,7s → 0,9s), ve replikanın gerçek fonksiyondan
+   *eksik* olduğu satırlar.
+
+**Uygulama:** yeni bir "başarılı" yol yazarken, o yolun **başarısız olduğunda
+nasıl görüneceği** de yazılır. İkisi ayırt edilemiyorsa sinyal işe yaramıyordur.
+
+---
+
 ## Kayıtlar
 
 ### [2026-09-01] Bir worktree klasörünü kopyalamak yedek değildir
