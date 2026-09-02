@@ -74,6 +74,44 @@ ile temizle (yedek zaten var: `jarvis-agent-auto-BACKUP-20260831-180827.bundle`)
 
 ---
 
+## A12 — ruff taban cizgisi 293 -> 300 (kapsam buyudu, kalite dusmedi)
+
+`.gitignore`'dan `agent/` kaldirilinca (borc maddesi 3) ruff o dizini
+**taramaya basladi** -- ruff varsayilan olarak `.gitignore`'a uyar, yani
+`agent/` yillardir hic linte girmemisti.
+
+**7 yeni bulgu, hepsi onceden var:**
+
+```
+agent/jarvis_agent.py:29    F401  JARVIS_MODEL imported but unused
+agent/jarvis_agent.py:265   F541  f-string without placeholders
+agent/local_agent.py:7      F401  time imported but unused
+agent/local_agent.py:421    F841  local variable 'e' never used
+agent/local_agent.py:542    F541  f-string without placeholders
+agent/local_agent.py:545    F541  f-string without placeholders
+agent/local_agent_memory.py:109  E402  import not at top of file
+```
+
+Dogrulandi: `import time` bu oturumdan ONCE de kullanilmiyordu
+(`2be8863b2~1`'de `time.` kullanimi sifir). Yani hicbiri bu oturumda
+uretilmedi. CLAUDE.md 3 geregi dokunulmadi: "onceden var olan dead code'a
+dokunma -- gor, soyle, silme."
+
+**Sayi neden onemli:** kapi kurali "ruff artamaz" diyor. Bu artis bir
+gerileme DEGIL, olcum kapsaminin genislemesi. Ama sayiyi sessizce kabul
+etmek, kuralin anlamini asindirir -- o yuzden burada yaziyor.
+
+**Gerekli olan:** taban cizgisi **300** olarak mi guncellensin, yoksa 7
+bulgu duzeltilip **293**'e mi donulsun? Altisi `--fix` ile otomatik
+duzelebilir; `E402` elle bakilmali.
+
+**Duzeltme notu:** `d464b7a5f` commit mesaji "ruff check . -> 293,
+unchanged" diyor. **Bu yanlis.** Sayiyi commit'ten sonra gordum. Gecmis
+yeniden yazilmadigi icin mesaj oldugu gibi duruyor; dogrusu burada ve bir
+sonraki commit mesajinda kayitli.
+
+---
+
 ## A11 — Kalite takimi kosular arasi OYNAK (sahte regresyon riski)
 
 **Olculdu** (2026-09-01, llama3.1, `temperature=0.2`, ayni vakalar):
