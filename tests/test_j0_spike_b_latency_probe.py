@@ -765,21 +765,84 @@ def test_unicode_null_sample_without_warning_would_fail():
 # BLOCKER 6 — t0_definition on ALL early-return paths
 # ===========================================================================
 
-def test_missing_sounddevice_early_return_has_t0_definition():
-    """sounddevice_not_installed early return must include t0_definition."""
-    # Temporarily hide sounddevice to trigger the ImportError path
-    saved = sys.modules.pop("sounddevice", None)
-    try:
-        result = _real_probe(phrases=["nerede kaldık"], n_runs=1)
-        # Either sounddevice was already loaded (not None), or early-exit was triggered
-        if result.get("ok") is False and result.get("error") == "sounddevice_not_installed":
-            assert result.get("t0_definition") in _VALID_T0_DEFINITIONS, (
-                f"t0_definition missing on sounddevice_not_installed path: "
-                f"{result.get('t0_definition')!r}"
-            )
-    finally:
-        if saved is not None:
-            sys.modules["sounddevice"] = saved
+def _force_sounddevice_import_error(monkeypatch):
+    """`import sounddevice` ImportError firlatsin -- deterministik.
+
+    `sys.modules[ad] = None` yazmak, Python'un o adi import etmeye
+    calistiginda ImportError firlatmasina yol acar; belgelenmis davranistir.
+    `sys.modules.pop(...)` ise YETMEZ: paket diskte kurulu oldugu icin
+    yeniden import edilir ve yol hic tetiklenmez.
+    """
+    monkeypatch.setitem(sys.modules, "sounddevice", None)
+
+
+def test_missing_sounddevice_early_return_has_t0_definition(monkeypatch):
+    """sounddevice_not_installed erken donusu t0_definition tasimali.
+
+    ESKI SURUM BU SEYI OLCMUYORDU. `sys.modules.pop("sounddevice")` ile
+    modulu "gizlemeye" calisiyordu, ama paket bu makinede KURULU: `_real_probe`
+    onu yeniden import ediyor, `ok=True` donuyor ve iddia bir `if` icinde
+    kaldigi icin HIC CALISMIYORDU. Olculdu: error=None, ok=True.
+
+    Daha kotusu, testi bos gecirmenin bedeli sessiz degildi -- iddia
+    calismadiginda `_real_probe` GERCEK ses donanimi yoluna giriyordu ve
+    zamanlamaya bagli olarak yaklasik 10 kosuda 1 kez kaliyordu. Yani test
+    hem iddiasini olcmuyor hem de sahte alarm uretiyordu
+    (bkz. FAILURES.md, 2026-08-31 FLAKY kaydi).
+
+    Artik ImportError enjekte ediliyor: yol her kosuda tetikleniyor, donanima
+    hic dokunulmuyor.
+    """
+    _force_sounddevice_import_error(monkeypatch)
+
+    result = _real_probe(phrases=["nerede kaldık"], n_runs=1)
+
+    assert result.get("ok") is False
+    assert result.get("error") == "sounddevice_not_installed", (
+        f"ImportError yolu tetiklenmedi; test yine bos geciyor: {result!r}"
+    )
+    assert result.get("t0_definition") in _VALID_T0_DEFINITIONS, (
+        f"t0_definition missing on sounddevice_not_installed path: "
+        f"{result.get('t0_definition')!r}"
+    )
+
+
+def test_missing_sounddevice_case_measures_nothing(monkeypatch):
+    """Erken donus HICBIR olcum yapmis gibi gorunmemeli.
+
+    Oynakligin kaynagi buydu: iddia calismayinca `_real_probe` gercek ses
+    yoluna girip olcum yapmaya calisiyordu. Import basarisizken hicbir
+    gecikme alani doldurulmamali -- olculmemis bir degeri 0 diye raporlamak
+    yanlis bir iddia olurdu (ayni disiplin: TTSResult.first_audio_hint_ms).
+    """
+    _force_sounddevice_import_error(monkeypatch)
+
+    result = _real_probe(phrases=["test"], n_runs=1)
+
+    assert result["measurement_valid"] is False
+    assert result["t0_to_first_text_ms"] is None
+    assert result["t0_to_first_audio_ms"] is None
+    assert "runs" not in result or not result.get("runs")
+
+
+def test_missing_sounddevice_case_is_fast(monkeypatch):
+    """Donanima dokunmadigi icin ANINDA donmeli.
+
+    Duzeltmeden once bu dosya izole 8,7 saniye suruyordu; sonrasinda 0,85.
+    Fark, gercek ses yoluna girilmemesi. Esik cömert tutuldu: amac hiz
+    olcmek degil, donanim yolunun geri gelmesini yakalamak.
+    """
+    import time
+
+    _force_sounddevice_import_error(monkeypatch)
+
+    t0 = time.perf_counter()
+    _real_probe(phrases=["test"], n_runs=1)
+    gecen = time.perf_counter() - t0
+
+    assert gecen < 1.0, (
+        f"erken donus {gecen:.2f}s surdu -- donanim yoluna girilmis olabilir"
+    )
 
 
 def test_all_injected_early_failures_have_t0_definition():

@@ -217,10 +217,52 @@ modele gerçek kayıt beslemektir (Eşik 3). Bu **açık madde**.
   `pytest_collectstart` koruması artık *savunma katmanı* olarak duruyor:
   kök neden gitti ama biri yeniden `sys.path`'e düz dizin eklerse yakalar.
 
-### [2026-08-31] FLAKY — `test_missing_sounddevice_early_return_has_t0_definition`
+### [2026-09-02] Boşuna geçen test, sahte alarm üretir — flake'in kök nedeni
+
+- **Alan:** J0 ses hattı, `tests/test_j0_spike_b_latency_probe.py`
+- **Şiddet:** BLOCKER (bir gün önceki CONCERN kaydının çözümü — aşağıda)
+- **Tuzak:** `test_missing_sounddevice_early_return_has_t0_definition` yaklaşık
+  10 koşuda 1 kez kalıyordu ve tekrar üretilemiyordu. Bir gün "flaky test"
+  diye kaydedildi, kök neden `[EMİN DEĞİLİM]` bırakıldı.
+- **Kök neden — test iddiasını hiç çalıştırmıyordu.** Test `sounddevice`'ı
+  `sys.modules.pop()` ile "gizlemeye" çalışıyordu, ama paket bu makinede
+  **kurulu**: `_real_probe` onu yeniden import ediyor, `ok=True` dönüyordu.
+  İddia bir `if result.get("error") == "sounddevice_not_installed"` bloğunun
+  içindeydi, o koşul hiç sağlanmıyordu. Ölçüldü: `error=None`, `ok=True`.
+
+  Boş geçmenin bedeli sessiz değildi. İddia çalışmayınca `_real_probe`
+  **gerçek ses donanımı yoluna** giriyor, zamanlamaya bağlı davranıyor ve
+  ara sıra kalıyordu. Yani test hem ölçmesi gerekeni ölçmüyor, hem de
+  ölçmediği şey yüzünden sahte alarm üretiyordu. Kanıt: düzeltmeden sonra
+  dosya izole **8,71s → 0,85s** düştü — o 8 saniye gerçek ses yoluydu.
+
+- **Kural:**
+  1. **`if` içine saklanmış iddia, iddia değildir.** Bir testin gövdesi
+     çalışma zamanı koşuluna bağlıysa, o koşulun **sağlandığı da ayrıca
+     iddia edilmelidir** — yoksa test yeşil kalırken hiçbir şey ölçmez.
+  2. **Bir bağımlılığı "gizlemek" için `sys.modules.pop()` yetmez;** paket
+     kuruluysa yeniden import edilir. `sys.modules[ad] = None` yazılır —
+     bu, import'un ImportError fırlatmasına yol açar (belgelenmiş davranış).
+  3. **Testte "kurulu olabilir de olmayabilir de" dallanması varsa, o test
+     iki makinede iki farklı şeyi ölçüyordur.** Bağımlılık enjekte edilir.
+  4. Bir test beklenenden **uzun sürüyorsa** bunun sebebi aranır: süre,
+     gizli bir donanım/ağ yolunun en ucuz göstergesidir.
+
+- **Kanıt:** `error=None, ok=True` ölçümü; dosya süresi 8,71s → 0,92s;
+  düzeltme sonrası 3 tam süit koşusu (2 alfabetik + 1 ters) yeşil.
+  Yeni testler: iddianın **çalıştığını** doğrulayan `error` kontrolü,
+  hiçbir ölçüm yapılmadığını doğrulayan `measurement_valid` kontrolü ve
+  donanım yolunun geri gelmesini yakalayan süre eşiği.
+- **Regresyon testi:** `test_missing_sounddevice_early_return_has_t0_definition`
+  (artık gerçekten çalışıyor), `test_missing_sounddevice_case_measures_nothing`,
+  `test_missing_sounddevice_case_is_fast`.
+
+---
+
+#### Kapatılan önceki kayıt — [2026-08-31] FLAKY (aynı test)
 
 - **Alan:** J0 ses hattı, `tests/test_j0_spike_b_latency_probe.py:768`
-- **Şiddet:** CONCERN — **açık, çözülmedi**
+- **Şiddet:** ~~CONCERN — açık~~ → **ÇÖZÜLDÜ 2026-09-02** (yukarıdaki kayıt)
 - **Tuzak:** Tam süit **ters sırada** çalıştırıldığında bu test 5 koşunun
   1'inde başarısız oldu; sonraki 4 ters-sıra koşusunda ve her alfabetik
   koşuda geçti. Tek başına 48/48 geçiyor.
