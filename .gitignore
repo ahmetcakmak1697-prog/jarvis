@@ -80,11 +80,12 @@ rag/__pycache__/
 voice/__pycache__/
 
 # Legacy / experimental folders
-agent/
-jarvis_yeni/
-
-# Legacy / experimental folders
-agent/
+#
+# DIKKAT: buraya 'agent/' YAZMAYIN. agent/ altinda dort dosya izleniyor
+# (local_agent.py dahil, main.py onsuz calismaz). Izlenen dosya ignore'u
+# gecersiz kilar, bu yuzden kural yillarca sorun cikarmadi -- ama biri
+# 'git rm --cached' yapip geri eklemeye kalkarsa dosyalar SESSIZCE
+# kaybolurdu. Onbellek zaten yukarida 'agent/__pycache__/' ile kapsandi.
 jarvis_yeni/
 reports/
 memory/audit_log.jsonl
