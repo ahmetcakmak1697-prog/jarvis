@@ -20,6 +20,7 @@ kopyası tutulmaz (adopt-over-build).
 from __future__ import annotations
 
 import re
+from collections import Counter
 from typing import Any, Dict, List, Optional
 
 from agents.data_classifier import (
@@ -27,10 +28,15 @@ from agents.data_classifier import (
     corrupted_fragments,
     keyword_present,
 )
+from agents.persona import LEVELS, build_system_prompt
 
 __all__ = [
     "TURKISH_TOKENIZER_PENALTY",
     "VRAM_CEILING_MB",
+    "LEAK_NGRAM_WORDS",
+    "REPETITION_NGRAM_WORDS",
+    "REPETITION_MIN_HITS",
+    "TRUNCATION_MIN_CHARS",
     "score_answer",
     "turkish_equivalent_tps",
     "exceeds_vram_ceiling",
@@ -82,6 +88,126 @@ _NO_RECORD_ROOTS = (
 )
 
 
+# --------------------------------------------------------------------------- #
+# Uc evrensel dedektor — 2026-09-01 kosusunun ELLE okunmasindan cikti
+# --------------------------------------------------------------------------- #
+#
+# O kosu "63/64 gecti" dedi; 64 cevabin tamami elle okununca makinenin
+# goremedigi uc kusur ailesi bulundu (`automation/KART_kalite_dedektorleri.md`).
+# Ucu de `encoding_ok` gibi EVRENSEL: vaka beyan etmese de uygulanir, cunku
+# hicbir vaka "sistem prompt'unu geri okuma" ya da "cumleyi yarida kesme"
+# iznini beyan etmez.
+
+#: Kelime ayirici. Kesme isareti korunur ("Ahmet'in" tek kelimedir); markdown
+#: isaretleri (**, ##, -) dogal olarak dusar, boylece bicimi degistirilmis
+#: ama kelimesi kelimesine ayni olan bir alinti yine yakalanir.
+_WORD = re.compile(r"[0-9a-z']+")
+
+#: Sizinti esigi: persona'nin TALIMAT bloklarindan bu uzunlukta bir dizi
+#: cevapta aynen geciyorsa sizinti. Kart 6 oneriyordu; canli 64 cevapta
+#: OLCULDU ve 6 yalnizca 2 vakayi yakaliyor (kartin isaret ettigi 6'dan).
+#: 3'te 6 vaka yakalaniyor, yanlis pozitif yok. Aradaki degerler (4, 5)
+#: "Reaktif degil, proaktifsin." gibi kisa ama kelimesi kelimesine alintilari
+#: kaciriyor. Kartin kendi talimati: "esigi olcerek sec".
+LEAK_NGRAM_WORDS = 3
+
+#: Tekrar esigi: bu uzunlukta bir dizi, ayni cevapta bu kadar kez.
+#: Kart bilerek muhafazakar (gozlenen dejenerasyonlar 4x idi). Olculdu:
+#: 3 -> 3 vaka duser, 2 -> 8 vaka duser ve bu kosuda yanlis pozitif yok.
+#: Esigi kartin verdiginden SIKILASTIRMAK Ahmet'in karari; A13'e dusuldu.
+REPETITION_NGRAM_WORDS = 8
+REPETITION_MIN_HITS = 3
+
+#: Kesilme yalniz bu uzunlugun uzerinde aranir. Kisa ve uslupca bitirilmis
+#: cevaplar ("Evet", "Merhaba Efendim") noktalama olmadan da mesrudur.
+TRUNCATION_MIN_CHARS = 200
+
+#: Bitmis bir cumlenin son isareti. Kapanmis kod citi ayrica kabul edilir.
+_TERMINATORS = (".", "!", "?", ":", ")", "]", '"', "”", "…")
+
+#: Satir basi liste isareti. Yalniz ISARET atilir, madde ICERIGI atilmaz:
+#: gozlenen dejenerasyonlarin dordu de numarali madde iclerinde yasiyor
+#: (t2_longform_001'de ayni 15 kelimelik dizi dort ayri maddede). Madde
+#: icerigini hariç tutmak dedektoru olculen ana kusura kor ederdi.
+_LIST_MARKER = re.compile(r"^\s*(?:[-*+•]|\d+[.)])\s+")
+
+
+def _words(text: str) -> List[str]:
+    return _WORD.findall(_fold_tr(text))
+
+
+def _ngrams(kelimeler: List[str], n: int) -> List[str]:
+    return [" ".join(kelimeler[i:i + n]) for i in range(len(kelimeler) - n + 1)]
+
+
+def _instruction_ngrams() -> frozenset:
+    """Persona'nin TALIMAT bloklarindan n-gram kumesi — SSOT'tan turetilir.
+
+    Metin kopyalanmaz: `build_system_prompt()` ne uretiyorsa o olculur, yani
+    persona degistiginde dedektor kendiliginden degisir.
+
+    Yalniz "## " baslikli bloklar alinir; basliksiz kimlik onsozu DISARIDA
+    birakilir. Gerekce olculdu: onsoz Ahmet hakkinda OLGU tasiyor (ESHOT,
+    polimer, İSG) ve "hafizanda benim hakkimda ne var?" sorusuna dogru cevap
+    bu olgulari KULLANMAKTIR. Onsozu de dahil etmek t1_tone_012'yi -- dogru
+    davranan bir cevabi -- kaldiriyordu; bu, `expect_efendim` hatasinin
+    tekrari olurdu. Talimat cumlesi ise hicbir kosulda geri okunmamali.
+    """
+    parcalar: set = set()
+    for seviye in (None, *LEVELS):
+        for ses in (False, True):
+            prompt = build_system_prompt(level=seviye, voice_mode=ses)
+            bas = prompt.find("## ")
+            talimat = prompt[bas:] if bas >= 0 else prompt
+            parcalar |= set(_ngrams(_words(talimat), LEAK_NGRAM_WORDS))
+    return frozenset(parcalar)
+
+
+_LEAK_NGRAMS = _instruction_ngrams()
+
+
+def _prompt_leak_hits(text: str) -> List[str]:
+    """Cevapta persona talimatindan aynen gecen diziler (en fazla 3 ornek)."""
+    ortak = _LEAK_NGRAMS.intersection(_ngrams(_words(text), LEAK_NGRAM_WORDS))
+    # Tamami degil ilk uc ornek yazilir: t1_mix_003 gibi persona'yi butunuyle
+    # dokmus bir cevapta 82 dizi eslesiyor ve rapor okunmaz hale geliyor.
+    return sorted(ortak)[:3]
+
+
+def _prose_only(text: str) -> str:
+    """Kod bloklarini atar, liste ISARETLERINI temizler (icerigi birakir)."""
+    satirlar: List[str] = []
+    kod_icinde = False
+    for satir in text.splitlines():
+        if satir.lstrip().startswith("```"):
+            kod_icinde = not kod_icinde
+            continue
+        if kod_icinde:
+            continue
+        satirlar.append(_LIST_MARKER.sub("", satir))
+    return "\n".join(satirlar)
+
+
+def _repeated_phrase(text: str) -> Optional[str]:
+    """Esigi asan en sik dizi; yoksa None."""
+    sayac = Counter(_ngrams(_words(_prose_only(text)), REPETITION_NGRAM_WORDS))
+    if not sayac:
+        return None
+    ifade, adet = sayac.most_common(1)[0]
+    return ifade if adet >= REPETITION_MIN_HITS else None
+
+
+def _is_truncated(text: str) -> bool:
+    """Cevap cumle ortasinda mi bitiyor?"""
+    if len(text) <= TRUNCATION_MIN_CHARS:
+        return False
+    # Sondaki markdown vurgusu bitis isaretini gizleyebilir: "...onemlidir.**"
+    kirpik = text.rstrip().rstrip("*_ \t")
+    if kirpik.endswith("```") and kirpik.count("```") % 2 == 0:
+        return False
+    return not kirpik.endswith(_TERMINATORS)
+
+
 def turkish_equivalent_tps(raw_tps: float) -> float:
     """Ham tok/s → Türkçe-eşdeğer tok/s."""
     return (raw_tps or 0) / TURKISH_TOKENIZER_PENALTY
@@ -121,6 +247,8 @@ def score_answer(answer: Optional[str], case: Dict[str, Any]) -> Dict[str, Any]:
             "foreign_hits": [], "has_efendim": False, "ai_boilerplate": False,
             "persona_ok": None, "admits_no_record": False, "grounding_ok": None,
             "contains_ok": None, "length_ok": None,
+            "prompt_leak": False, "prompt_leak_hits": [],
+            "repetition_ok": True, "repeated_phrase": None, "truncated": False,
             "passed": False, "failed_checks": ["empty"],
         }
 
@@ -132,6 +260,19 @@ def score_answer(answer: Optional[str], case: Dict[str, Any]) -> Dict[str, Any]:
     yabanci = _foreign_hits(fold)
     kalip = any(b in fold for b in _BOILERPLATE)
     efendim = "efendim" in fold
+
+    # Uc evrensel dedektor: vaka beyan etmese de uygulanir.
+    sizinti = _prompt_leak_hits(metin)
+    if sizinti:
+        basarisiz.append("prompt_leak")
+
+    tekrar = _repeated_phrase(metin)
+    if tekrar:
+        basarisiz.append("repetition")
+
+    kesik = _is_truncated(metin)
+    if kesik:
+        basarisiz.append("truncated")
 
     persona_ok: Optional[bool] = None
     if case.get("expect_efendim") is not None:
@@ -175,6 +316,11 @@ def score_answer(answer: Optional[str], case: Dict[str, Any]) -> Dict[str, Any]:
         "grounding_ok": grounding_ok,
         "contains_ok": contains_ok,
         "length_ok": length_ok,
+        "prompt_leak": bool(sizinti),
+        "prompt_leak_hits": sizinti,
+        "repetition_ok": tekrar is None,
+        "repeated_phrase": tekrar,
+        "truncated": kesik,
         "passed": not basarisiz,
         "failed_checks": basarisiz,
     }
