@@ -40,15 +40,16 @@ eklenir:
 
 ## DESEN — "YEŞİL" ile "ÖLÇÜLDÜ" aynı şey değildir
 
-> Bu bölüm tek bir olayı değil, **bir aileyi** kaydeder. Aşağıdaki üç tuzak
-> aynı gün (2026-09-01/02) bulundu ve üçünde de aynı şey oldu: bir şey
-> **başarılı görünüyordu ve aslında hiçbir şey ölçülmüyordu.**
+> Bu bölüm tek bir olayı değil, **bir aileyi** kaydeder. İlk üç tuzak aynı
+> gün (2026-09-01/02) bulundu, dördüncüsü iki gün sonra; dördünde de aynı şey
+> oldu: bir şey **başarılı görünüyordu ve aslında hiçbir şey ölçülmüyordu.**
 
 | # | Nerede | "Yeşil" görünen şey | Gerçekte olan |
 |---|---|---|---|
 | 1 | `voice/stt.py` | Ses akışı açıldı, hata yok | Akış **sıfır** döndürüyordu; DirectSound'da 9600 örneğin 9600'ü tam sıfır |
 | 2 | `tests/test_local_agent_grounding.py` | 4 test yeşil | Testler gerçek fonksiyonu değil, testin içine yazılmış **replikayı** ölçüyordu — gerçek fonksiyon silinse yeşil kalırlardı |
 | 3 | `tests/test_j0_spike_b_latency_probe.py` | Test haftalardır yeşil | İddia bir `if` içindeydi, koşul hiç sağlanmıyordu; test **hiçbir şey kontrol etmiyordu** |
+| 4 | `eval/quality_scorer.py` (2026-09-03) | Kalite koşusu **63/64** | 64 cevap elle okununca 15'i kusurluydu: model sistem prompt'unu geri okuyor, cümleyi yarıda kesiyor, aynı diziyi 4 kez yazıyor. Puanlayıcı bunların **hiçbirine bakmıyordu**; aynı cevaplar yeni dedektörlerle **49/64** |
 
 **Ortak yapı:** üçünde de bir *başarı sinyali* vardı (akış açıldı / test geçti)
 ve o sinyal, altındaki işin yapıldığını **kanıtlamıyordu**. Sinyal ile kanıt
@@ -66,9 +67,11 @@ birikir.
    kendisini mi çağırıyor, yoksa ona benzeyen bir şeyi mi?
 3. **İddia her koşuda çalışıyor mu?** Koşula bağlıysa, koşulun sağlandığı da
    ayrıca iddia edilmeli.
-4. **Ucuz karşı-kanıt var mı?** Üç vakada da vardı ve bakılmamıştı: tam-sıfır
-   örnek sayısı, dosya süresi (8,7s → 0,9s), ve replikanın gerçek fonksiyondan
-   *eksik* olduğu satırlar.
+4. **Ucuz karşı-kanıt var mı?** Dört vakada da vardı ve bakılmamıştı: tam-sıfır
+   örnek sayısı, dosya süresi (8,7s → 0,9s), replikanın gerçek fonksiyondan
+   *eksik* olduğu satırlar, ve raporun kendi satırı: 64 vakanın yalnız 14'ü
+   beyan edilmiş bir iddia taşıyordu — yani 50 vaka için "geçti" demek
+   "boş değildi" demekten fazlasını söylemiyordu.
 
 **Uygulama:** yeni bir "başarılı" yol yazarken, o yolun **başarısız olduğunda
 nasıl görüneceği** de yazılır. İkisi ayırt edilemiyorsa sinyal işe yaramıyordur.

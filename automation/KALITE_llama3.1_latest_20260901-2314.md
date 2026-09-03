@@ -1,5 +1,13 @@
 # Türkçe Kalite Koşusu — `llama3.1:latest`
 
+> **ESKİ PUANLAYICI — aşağıdaki 63/64 artık geçerli bir taban değildir.**
+> 2026-09-03'te üç evrensel dedektör (sistem prompt'u sızıntısı, tekrar,
+> kesilme) eklendi ve uydurma kapsamı `technical` kategorisine genişletildi.
+> **Aynı cevaplar, yeni puanlayıcı: 49/64.** Aradaki fark model değil ölçüm;
+> kusurlar o gün de vardı, makine göremiyordu.
+> Ayrıntı: `automation/KALITE_TABAN_2026-09-03.md`.
+> Bu dosyanın gövdesi o koşunun kaydıdır, silinmedi ve düzeltilmedi.
+
 Damga: `20260901-2314` · Makine okunur: `KALITE_llama3.1_latest_20260901-2314.json`
 
 > Bu tablo **regresyon** ölçer, akıcılık değil. Türkçe akıcılığı

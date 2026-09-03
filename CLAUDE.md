@@ -203,14 +203,22 @@ daha toplama (collection) aşamasında patlar; kök dizindeki `voice_test.py`
 `edge_tts` istediği için tam kök taraması toplama hatası verir, bu yüzden kapı
 `tests` dizinine daraltılmıştır.
 
-**Bilinen taban çizgisi (2026-08-30, `auto/opencode-deepseek`):**
-`pytest tests` → **1351 geçti / 0 başarısız**; `ruff check .` → **296 bulgu**.
+**Bilinen taban çizgisi (2026-09-03, `auto/opencode-deepseek`):**
+`pytest tests` → **1681 geçti / 0 başarısız**; `ruff check .` → **293 bulgu**.
 
 Test hattı **yeşildir**; bu artık bir hedef değil, korunması gereken bir
 durumdur. Yeni bir başarısızlık eklemek doğrudan DoD ihlalidir.
 
-Lint borcu (296 bulgu) hâlâ açıktır ve kapatılmamıştır. `ruff check .`
+Lint borcu (293 bulgu) hâlâ açıktır ve kapatılmamıştır. `ruff check .`
 sayısının **artmaması** zorunludur; azaltmak ayrı bir karttır.
+
+**Türkçe kalite takımı — ayrı bir taban (2026-09-03):** `llama3.1:latest`,
+64 vaka, **49/64**. Bu sayı `pytest` gibi bir kapı DEĞİL; kalite regresyon
+tabanıdır ve koşular arası oynaklık taşır (A11). Daha önce 63/64 yazıyordu:
+model aynı, **ölçüm değişti** — sistem prompt'u sızıntısı, tekrar ve
+kesilme dedektörleri eklendi, uydurma kapsamı `technical`'a genişletildi.
+Eski sayıyla karşılaştırma yapılamaz. Ayrıntı ve eşik gerekçeleri:
+`automation/KALITE_TABAN_2026-09-03.md`.
 
 **Sıra bağımsızlığı kuralı:** Bir testin tek başına geçmesi onu geçmiş
 saymaz. Kapı **tam süit** üzerinde çalıştırılır. Yeşil hat iddiası, süit
