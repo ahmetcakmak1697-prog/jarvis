@@ -36,6 +36,7 @@ __all__ = [
     "LEAK_NGRAM_WORDS",
     "REPETITION_NGRAM_WORDS",
     "REPETITION_MIN_HITS",
+    "REPETITION_REPORT_MIN_HITS",
     "TRUNCATION_MIN_CHARS",
     "score_answer",
     "turkish_equivalent_tps",
@@ -114,9 +115,24 @@ LEAK_NGRAM_WORDS = 3
 #: Tekrar esigi: bu uzunlukta bir dizi, ayni cevapta bu kadar kez.
 #: Kart bilerek muhafazakar (gozlenen dejenerasyonlar 4x idi). Olculdu:
 #: 3 -> 3 vaka duser, 2 -> 8 vaka duser ve bu kosuda yanlis pozitif yok.
-#: Esigi kartin verdiginden SIKILASTIRMAK Ahmet'in karari; A13'e dusuldu.
 REPETITION_NGRAM_WORDS = 8
 REPETITION_MIN_HITS = 3
+
+#: RAPORLANAN ikinci esik -- puanlanmaz (`has_efendim` ile ayni sinif).
+#:
+#: A13, 2026-09-04, Ahmet: puanlanan esik 3'te KALIR. Gerekce: 2x'in
+#: "yanlis pozitif yok" olcumu TEK modelin 64 cevabi uzerinde yapildi.
+#: Bu takimin varlik sebebi modelleri kiyaslamak; llama3.1'de temiz olan
+#: esik baska modelde, paralel kurulmus bir listede tokezleyebilir --
+#: dedektor liste ISARETINI atip ICERIGINI biraktigi icin (ki bu dogru
+#: karardir, gozlenen dejenerasyonlarin dordu de madde iclerindeydi).
+#: Asimetri `_NO_RECORD_ROOTS`'un notuyla ayni: iyi bir cevabi haksiz yere
+#: dusurmek olcumun kendisini curutur.
+#:
+#: Sayi yine de kaybolmasin diye yazilir: ikinci bir model olculdugunde
+#: "esik 2 olsaydi ne olurdu" sorusuna takimi yeniden kosturmadan cevap
+#: verilebilsin.
+REPETITION_REPORT_MIN_HITS = 2
 
 #: Kesilme yalniz bu uzunlugun uzerinde aranir. Kisa ve uslupca bitirilmis
 #: cevaplar ("Evet", "Merhaba Efendim") noktalama olmadan da mesrudur.
@@ -188,13 +204,16 @@ def _prose_only(text: str) -> str:
     return "\n".join(satirlar)
 
 
-def _repeated_phrase(text: str) -> Optional[str]:
-    """Esigi asan en sik dizi; yoksa None."""
+def _top_repeat(text: str) -> tuple[Optional[str], int]:
+    """En sik gecen dizi ve kac kez gectigi. Metin cok kisaysa ``(None, 0)``.
+
+    Iki esik ayni sayimdan turer: biri puanlanir, biri yalniz raporlanir.
+    """
     sayac = Counter(_ngrams(_words(_prose_only(text)), REPETITION_NGRAM_WORDS))
     if not sayac:
-        return None
+        return None, 0
     ifade, adet = sayac.most_common(1)[0]
-    return ifade if adet >= REPETITION_MIN_HITS else None
+    return ifade, adet
 
 
 def _is_truncated(text: str) -> bool:
@@ -248,7 +267,8 @@ def score_answer(answer: Optional[str], case: Dict[str, Any]) -> Dict[str, Any]:
             "persona_ok": None, "admits_no_record": False, "grounding_ok": None,
             "contains_ok": None, "length_ok": None,
             "prompt_leak": False, "prompt_leak_hits": [],
-            "repetition_ok": True, "repeated_phrase": None, "truncated": False,
+            "repetition_ok": True, "repeated_phrase": None,
+            "repeated_phrase_2x": None, "truncated": False,
             "passed": False, "failed_checks": ["empty"],
         }
 
@@ -266,9 +286,12 @@ def score_answer(answer: Optional[str], case: Dict[str, Any]) -> Dict[str, Any]:
     if sizinti:
         basarisiz.append("prompt_leak")
 
-    tekrar = _repeated_phrase(metin)
+    en_sik, tekrar_adedi = _top_repeat(metin)
+    tekrar = en_sik if tekrar_adedi >= REPETITION_MIN_HITS else None
     if tekrar:
         basarisiz.append("repetition")
+    # Raporlanan esik `basarisiz`'a GIRMEZ: olculur, yazilir, puanlanmaz.
+    tekrar_2x = en_sik if tekrar_adedi >= REPETITION_REPORT_MIN_HITS else None
 
     kesik = _is_truncated(metin)
     if kesik:
@@ -320,6 +343,7 @@ def score_answer(answer: Optional[str], case: Dict[str, Any]) -> Dict[str, Any]:
         "prompt_leak_hits": sizinti,
         "repetition_ok": tekrar is None,
         "repeated_phrase": tekrar,
+        "repeated_phrase_2x": tekrar_2x,
         "truncated": kesik,
         "passed": not basarisiz,
         "failed_checks": basarisiz,

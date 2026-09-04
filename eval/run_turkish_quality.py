@@ -184,6 +184,11 @@ def _summarise(sonuclar: List[Dict[str, Any]],
         "prompt_leaks": sum(1 for r in sonuclar if r["score"]["prompt_leak"]),
         "repetitions": sum(
             1 for r in sonuclar if not r["score"]["repetition_ok"]),
+        # Esik 2 olsaydi kac vaka duserdi -- RAPORLANIR, puanlanmaz (A13).
+        # Ikinci bir model olculdugunde takim yeniden kosturulmadan
+        # karsilastirilabilsin diye tutulur.
+        "repetitions_2x": sum(
+            1 for r in sonuclar if r["score"]["repeated_phrase_2x"]),
         "truncations": sum(1 for r in sonuclar if r["score"]["truncated"]),
         "foreign_leaks": sum(1 for r in sonuclar if r["score"]["foreign_hits"]),
         "ai_boilerplate": sum(
@@ -271,6 +276,7 @@ def write_report(sonuc: Dict[str, Any], out_dir: Path | str = DEFAULT_OUT,
         f"| Bozuk kodlama | {s['encoding_failures']} |",
         f"| Sistem prompt'u sızıntısı | {s['prompt_leaks']} |",
         f"| Tekrar (dejenerasyon) | {s['repetitions']} |",
+        f"| Tekrar 2× (raporlanır, puanlanmaz) | {s['repetitions_2x']}/{s['total']} |",
         f"| Kesilmiş cevap | {s['truncations']} |",
         f"| Yabancı kelime sızıntısı | {s['foreign_leaks']} |",
         f"| Yapay zekâ kalıbı | {s['ai_boilerplate']} |",

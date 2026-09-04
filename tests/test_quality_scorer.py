@@ -29,6 +29,9 @@ def puanla(cevap, vaka=None, **kw):
 _CANLI_KOSU = (Path(__file__).resolve().parents[1] / "automation"
                / "KALITE_llama3.1_latest_20260901-2314.json")
 
+_VAKALAR = (Path(__file__).resolve().parents[1] / "eval"
+            / "turkish_quality_cases.json")
+
 
 @pytest.fixture(scope="module")
 def gercek_cevap():
@@ -345,15 +348,58 @@ def test_repetition_flags_the_second_degenerate_longform(gercek_cevap):
 
 
 def test_two_occurrences_are_tolerated(gercek_cevap):
-    """t1_tr_005 bir paragrafi IKI kez tekrarliyor -- esik bilerek 3.
+    """t1_tr_005 bir paragrafi IKI kez tekrarliyor -- esik 3'te KALIR.
 
-    Kart (`automation/KART_kalite_dedektorleri.md` A2) esigi muhafazakar
-    seciyor: gozlenen dejenerasyonlar 4x idi. 2x'e inmek bu kosuda 3 vaka
-    yerine 8 vaka dusururdu ve olculen yanlis pozitif yoktu; ama esigi
-    kartin verdiginden sikilastirmak Ahmet'in karari, benim degil.
-    Not `automation/AHMET_ONAYI_BEKLEYENLER.md`'ye dusuldu.
+    Karara baglandi: A13, 2026-09-04, Ahmet. 2x'in "yanlis pozitif yok"
+    olcumu TEK modelin 64 cevabi uzerinde yapildi; bu takimin varlik sebebi
+    modelleri kiyaslamak, ve llama3.1'de temiz olan esik baska modelde
+    paralel kurulu bir listede tokezleyebilir. Iyi bir cevabi haksiz yere
+    dusurmek olcumun kendisini curutur (`_NO_RECORD_ROOTS` notuyla ayni
+    asimetri). 2x sayisi yine de kaybolmasin diye RAPORLANIR:
+    bkz. `test_two_times_repetition_is_reported_but_not_scored`.
     """
     assert puanla(gercek_cevap("t1_tr_005"))["repetition_ok"] is True
+
+
+def test_two_times_repetition_is_reported_but_not_scored(gercek_cevap):
+    """A13: 2x olculur ve yazilir, ama vakayi DUSURMEZ.
+
+    `has_efendim` / `ai_boilerplate` ile ayni siniftadir. Amaci sayiyi
+    kaybetmemek: ikinci bir model olculdugunde "esik 2 olsaydi ne olurdu"
+    sorusuna, takimi yeniden kosturmadan cevap verilebilsin.
+    """
+    s = puanla(gercek_cevap("t1_mix_002"))
+    assert s["repeated_phrase_2x"] is not None
+    assert s["repetition_ok"] is True
+    assert "repetition" not in s["failed_checks"]
+    assert s["passed"] is True
+
+
+def test_three_times_repetition_is_both_reported_and_scored(gercek_cevap):
+    """Raporlanan esik puanlananin ust kumesidir: 4x olan 2x'i de asar."""
+    s = puanla(gercek_cevap("t2_longform_001"))
+    assert s["repeated_phrase_2x"] is not None
+    assert s["repetition_ok"] is False
+
+
+@pytest.mark.parametrize("id_", ["t1_tr_001", "t1_tr_010", "t1_tone_001"])
+def test_clean_answers_have_nothing_to_report(gercek_cevap, id_):
+    assert puanla(gercek_cevap(id_))["repeated_phrase_2x"] is None
+
+
+def test_repetition_thresholds_are_locked():
+    """A13'un karari koda kilitlenir: puanlanan 3, raporlanan 2.
+
+    Sayiyi degistirmek bir sozlesme degisikligidir (CLAUDE.md 13.1) --
+    ne asagi ne yukari, Ahmet'e sorulmadan.
+    """
+    from eval.quality_scorer import (
+        REPETITION_MIN_HITS,
+        REPETITION_REPORT_MIN_HITS,
+    )
+
+    assert REPETITION_MIN_HITS == 3
+    assert REPETITION_REPORT_MIN_HITS == 2
 
 
 def test_repetition_ignores_code_block_content():
@@ -448,3 +494,43 @@ def test_vram_ceiling_flag():
 
     assert exceeds_vram_ceiling(6880) is True    # mistral-nemo, olculdu
     assert exceeds_vram_ceiling(5386) is False   # qwen2.5:7b, olculdu
+
+
+# --------------------------------------------------------------------------- #
+# 12. Taban kilidi — kayitli kosu, kayitli sayi
+# --------------------------------------------------------------------------- #
+
+def test_the_recorded_run_still_scores_49_of_64():
+    """Puanlayici v2 + 2026-09-01 cevaplari = 49/64. Taban budur.
+
+    Bu test bir REGRESYON KAPISI degil, bir SOZLESME kilididir: puanlamaya
+    dokunan her degisiklik burada gorunur. Yeni bir dedektor eklemek ya da
+    bir esigi oynatmak bu sayiyi degistirir -- o zaman sayi bilerek, kanitla
+    ve `automation/KALITE_TABAN_*.md`'ye yazilarak guncellenir. Sessizce
+    kaymasi yasak (CLAUDE.md 13.1).
+
+    Cevaplar sabit ve repoda kayitli oldugu icin modelin oynakligi (A11) bu
+    olcume karismaz: burada olculen model degil, PUANLAYICI.
+    """
+    from eval.quality_scorer import score_answer
+
+    kosu = json.loads(_CANLI_KOSU.read_text(encoding="utf-8"))
+    vakalar = {c["id"]: c
+               for c in json.loads(_VAKALAR.read_text(encoding="utf-8"))["cases"]}
+    gecen = sum(1 for r in kosu["results"]
+                if score_answer(r.get("answer") or "", vakalar[r["id"]])["passed"])
+    assert gecen == 49
+
+
+def test_passing_threshold_block_records_a_baseline_not_a_target():
+    """A14, 2026-09-04, Ahmet: hedef sayi YAZILMAZ, alan taban kaydi olur.
+
+    Blogu hicbir Python kodu okumuyor; insan icin bir yorum. Eski hedefleri
+    (`">=57/64"`) yeni hedeflerle degistirmek "sayiyi tutturmaya oynama"
+    baskisini geri getirirdi. Bu yuzden hedef sozdizimi hic kalmaz: blok
+    yalnizca OLCULMUS tabani tasir.
+    """
+    blok = json.loads(_VAKALAR.read_text(encoding="utf-8"))["passing_threshold"]
+    hedefler = sorted(k for k, v in blok.items() if ">=" in str(v))
+    assert hedefler == [], f"hedef sozdizimi kalmis: {hedefler}"
+    assert "49/64" in blok["overall_v2"]
