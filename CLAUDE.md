@@ -203,8 +203,8 @@ daha toplama (collection) aşamasında patlar; kök dizindeki `voice_test.py`
 `edge_tts` istediği için tam kök taraması toplama hatası verir, bu yüzden kapı
 `tests` dizinine daraltılmıştır.
 
-**Bilinen taban çizgisi (2026-09-03, `auto/opencode-deepseek`):**
-`pytest tests` → **1681 geçti / 0 başarısız**; `ruff check .` → **293 bulgu**.
+**Bilinen taban çizgisi (2026-09-04, `auto/opencode-deepseek`):**
+`pytest tests` → **1689 geçti / 0 başarısız**; `ruff check .` → **293 bulgu**.
 
 Test hattı **yeşildir**; bu artık bir hedef değil, korunması gereken bir
 durumdur. Yeni bir başarısızlık eklemek doğrudan DoD ihlalidir.

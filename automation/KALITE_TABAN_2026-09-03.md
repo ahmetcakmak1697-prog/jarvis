@@ -77,8 +77,10 @@ hatasının birebir tekrarı olurdu.
 
 **`repetition` — 8 kelimelik dizi, 3 veya daha fazla kez.**
 Kartın verdiği eşik aynen uygulandı. Ölçüm: 3 → 3 vaka düşüyor, 2 → 8 vaka
-düşüyor ve bu koşuda 2'nin de yanlış pozitifi yok. Eşiği karttan
-**sıkılaştırmak** Ahmet'in kararı, benim değil → A13.
+düşüyor ve bu koşuda 2'nin de yanlış pozitifi yok. **Karara bağlandı
+(A13, 2026-09-04, Ahmet): eşik 3'te kalır, 2× ayrıca raporlanır ama
+puanlanmaz** — 2×'in temizliği tek modelde ölçüldü ve bu takım modelleri
+kıyaslamak için var.
 
 **`truncated` — 200 karakterden uzun ve bitiş işareti yok.**
 Kartın kuralı aynen. 7 vaka yakalanıyor, yanlış pozitif yok. `min_chars`
@@ -92,13 +94,30 @@ yalnız asgari uzunluğa bakıyordu, kesilmeyi göremiyordu.
   ulaşamaz. Bu vakayı yakalamak anlamsal bir ölçü gerektirir; kart yalnız
   deterministik hat için yazıldı.
 - **İki kez tekrarlanan paragraflar** (`t1_tr_005`, `t1_tr_006`, `t1_tr_011`,
-  `t1_mix_002`) eşik 3 olduğu için düşmüyor. Kartın kasıtlı tercihi.
+  `t1_mix_002`) eşik 3 olduğu için düşmüyor. Kartın kasıtlı tercihi; artık
+  düşmeden **sayılıyorlar** (aşağı bak).
+
+## Kapandı — 2026-09-04
+
+- **A13 kapandı:** eşik **3'te kalır**. 2× eşiği ayrıca ölçülüp raporlanır
+  ama **puanlanmaz** (`has_efendim` ile aynı sınıf). Bu koşuda **8/64**,
+  bunların 3'ü puanlanan eşikte de düşüyor. Amaç sayıyı kaybetmemek: ikinci
+  bir model ölçüldüğünde eşiği yeniden koşturmadan karar verilebilsin.
+  Gerekçe: 2×'in temizliği **tek** modelin cevapları üzerinde ölçüldü;
+  dedektör liste işaretini atıp içeriğini bıraktığı için başka bir modelin
+  paralel kurulu listesinde tökezleyebilir.
+- **A14 kapandı:** `passing_threshold` bloğu **taban kaydına** dönüştü.
+  Yeni hedef sayı yazılmadı; `overall_v2: "taban 49/64"`, kategoriler aynı
+  mantıkla (`technical: "taban 5/10"`, `longform: "taban 0/4"` …). Eski
+  hedeflerin hepsi eski puanlayıcıya kalibreydi, dolayısıyla hepsi düzeltildi.
+  Anahtar adları korundu. Bloğu hiçbir Python kodu okumuyor.
+
+**Uygulamanın kilidi:** `tests/test_quality_scorer.py` içinde
+`test_the_recorded_run_still_scores_49_of_64` — kayıtlı cevaplar + güncel
+puanlayıcı = 49/64. A13/A14 puanlanan hiçbir şeye dokunmadı ve sayı
+kıpırdamadı; ileride kıpırdarsa bu test görünür kılar.
 
 ## Açık kalan — Ahmet'e
 
-1. **Tekrar eşiği 3 mü 2 mi?** (A13)
-2. **`eval/turkish_quality_cases.json` → `passing_threshold.overall_v2`
-   hâlâ `">=57/64"` yazıyor.** Kod bunu okumuyor (yalnız belge), ama artık
-   yanlış bir hedef. Yeni hedefi belirlemek ölçüm değil karar; dokunmadım.
-3. **50 vakanın kulakla değerlendirilmesi** hâlâ bekliyor (FAZ-T1 deseni:
+1. **50 vakanın kulakla değerlendirilmesi** hâlâ bekliyor (FAZ-T1 deseni:
    deterministik kapı yalnız regresyonu tutar, akıcılığı Ahmet onaylar).

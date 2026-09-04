@@ -1,16 +1,17 @@
 {
   "schema_version": 2,
-  "description": "T1 Turkce Kalite + JARVIS Persona Eval Seti. Her model/prompt/routing degisikliginde kosturulur. v2 (2026-09-01): hafiza geri cagirma, zemin (uydurma testi) ve uzun anlatim siniflari eklendi; yeni vakalar makine-okunur alanlar tasir. Eski 50 vaka ve esikleri DEGISMEDI.",
+  "description": "T1 Turkce Kalite + JARVIS Persona Eval Seti. Her model/prompt/routing degisikliginde kosturulur. v2 (2026-09-01): hafiza geri cagirma, zemin (uydurma testi) ve uzun anlatim siniflari eklendi; yeni vakalar makine-okunur alanlar tasir. Eski 50 vaka ve esikleri DEGISMEDI. (2026-09-04 eki: `passing_threshold` blogu artik hedef degil TABAN KAYDIDIR — A14.)",
   "passing_threshold": {
-    "overall": ">=45/50",
-    "tone": ">=18/20",
-    "turkish": ">=13/15",
-    "technical": ">=8/10",
-    "mixed": ">=4/5",
-    "memory": ">=4/5",
-    "grounding": "5/5",
-    "longform": ">=3/4",
-    "overall_v2": ">=57/64"
+    "note": "Bu blok bir KAPI degil, bir TABAN KAYDIDIR (A14, 2026-09-04, Ahmet kararı). Sayılar llama3.1:latest'in 2026-09-01 cevaplarının puanlayıcı v2 ile 2026-09-03'te yeniden puanlanmasıdır. Yeni bir hedef sayı bilerek YAZILMADI: hedef yazmak 'sayıyı tutturmaya oynama' baskısını geri getirir. Regresyonun tanımı: aynı model + aynı puanlayıcı ile bu sayıların altı. Hiçbir Python kodu bu bloğu okumaz. Ayrıntı: automation/KALITE_TABAN_2026-09-03.md",
+    "overall": "taban 40/50 (v1 alt kümesi: tone+turkish+technical+mixed)",
+    "tone": "taban 19/20",
+    "turkish": "taban 13/15",
+    "technical": "taban 5/10",
+    "mixed": "taban 3/5",
+    "memory": "taban 5/5",
+    "grounding": "taban 4/5",
+    "longform": "taban 0/4",
+    "overall_v2": "taban 49/64"
   },
   "cases": [
     {

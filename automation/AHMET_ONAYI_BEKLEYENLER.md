@@ -22,44 +22,28 @@ Açıldı: 2026-09-01, gözetimsiz oturum.
 
 ---
 
-## A13 — Tekrar dedektörü eşiği: 3 mü, 2 mi? (ölçüldü, karar senin)
+## KARARLANMIŞ (2026-09-04)
 
-`automation/KART_kalite_dedektorleri.md` §A2 tekrar eşiğini **3 kez** olarak
-verdi ve gerekçesini yazdı: "eşik bilerek muhafazakâr, gözlenen kusurlar 4×
-idi". Aynen uyguladım. Ama ölçüm eşiği düşürmenin bedava olabileceğini
-gösteriyor — 2026-09-01 koşusunun 64 cevabında, 8 kelimelik dizi için:
-
-| eşik | düşen vaka | yanlış pozitif (temiz/hafıza/zemin) |
-|---|---|---|
-| **3 kez** (uygulanan) | 3 | 0 |
-| 2 kez | 8 | 0 |
-
-2'ye inmek `t1_tr_005`, `t1_tr_006`, `t1_tr_014`, `t1_mix_002`, `t1_mix_004`
-vakalarını da düşürürdü; hepsi bir paragrafı iki kez tekrarlıyor ve kartın
-§2'si dördünü zaten kusur olarak sayıyor.
-
-**Neden kendim yapmadım:** kartın verdiği eşiği sıkılaştırmak da gevşetmek
-kadar bir sözleşme değişikliğidir; tek koşuluk yanlış-pozitif ölçümü
-("bu koşuda 0") ikinci bir koşuyla doğrulanmadı. 2× tekrar bazı meşru
-metinlerde (tanım tekrarı, özet cümlesi) olabilir.
-
-**Gerekli olan:** "3 kalsın" ya da "2'ye indir" — tek kelime yeter.
-
----
-
-## A14 — `passing_threshold.overall_v2` artık yanlış hedef gösteriyor
-
-`eval/turkish_quality_cases.json` içindeki `passing_threshold` bloğu
-`"overall_v2": ">=57/64"` diyor. Ölçümün tanımı 2026-09-03'te değişti;
-aynı cevaplar artık 49/64 veriyor. Bu blok **kod tarafından okunmuyor**
-(yalnız belge), ama okuyan insanı yanlış yönlendiriyor.
-
-Dokunmadım: yeni bir geçme hedefi belirlemek ölçüm değil karar. Kategori
-hedefleri de (`technical: ">=8/10"`, `longform: ">=3/4"`) aynı durumda —
-şu an `technical` 5/10, `longform` 0/4.
-
-**Gerekli olan:** yeni hedefler mi yazılsın, yoksa blok tamamen mi kalksın
-(taban zaten `CLAUDE.md` §13.2 ve `KALITE_TABAN_2026-09-03.md`'de yazılı)?
+- **A13** Tekrar dedektörü eşiği → **3'te KALIR.** 2× eşiği ayrıca ölçülüp
+  **raporlanır ama puanlanmaz** (`has_efendim` ile aynı sınıf).
+  *Gerekçe:* 2×'in "yanlış pozitif yok" ölçümü **tek** modelin 64 cevabı
+  üzerinde yapıldı. Bu takımın varlık sebebi modelleri kıyaslamak;
+  llama3.1'de temiz olan eşik başka modelde, paralel kurulmuş bir listede
+  tökezleyebilir — dedektör liste **işaretini** atıp **içeriğini** bıraktığı
+  için (ki bu doğru karardır: gözlenen dejenerasyonların dördü de madde
+  içlerindeydi). Asimetri `_NO_RECORD_ROOTS` notundakiyle aynı: iyi bir
+  cevabı haksız yere düşürmek ölçümün kendisini çürütür.
+  *Uygulandı:* `REPETITION_REPORT_MIN_HITS = 2`, `repeated_phrase_2x` alanı,
+  raporda `Tekrar 2× (raporlanır, puanlanmaz)` satırı. Ölçülen: **8/64**
+  (bunların 3'ü zaten puanlanan eşikte de düşüyor). Skor **49/64** değişmedi.
+- **A14** `passing_threshold` bloğu → **taban kaydına dönüştü.** Yeni bir
+  hedef sayı **yazılmadı** (">=47" vb. yasak — az önce kurtulduğumuz "sayıyı
+  tutturmaya oynama" baskısını geri getirirdi). Blok artık ölçülmüş tabanı
+  taşıyor: `overall_v2: "taban 49/64"`, kategoriler aynı mantıkla. Eski
+  hedeflerin hepsi eski puanlayıcıya kalibreydi (`technical ">=8/10"` iken
+  şimdi 5/10, `longform ">=3/4"` iken 0/4), o yüzden hepsi düzeltildi.
+  Anahtar adları korundu (gereksiz kırılma yok). Bloğu hiçbir Python kodu
+  okumuyor; bu bir insan yorumudur.
 
 ---
 
