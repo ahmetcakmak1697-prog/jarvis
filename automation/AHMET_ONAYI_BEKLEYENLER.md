@@ -162,6 +162,22 @@ onune gecmek icin var.
 konuldu ve olculen 5/5-5/5-4/5 dizisi oraya yazildi. Yani takim kullanilabilir,
 ama sonucu okuyan kisi sinirini goruyor.
 
+**EK ÖLÇÜM (2026-09-04) — kararı hâlâ değiştirmiyor ama sayılar geldi.**
+Tam takım (64 vaka) `llama3.1` ile canlı koşturuldu ve **kayıtlı** 09-01
+cevaplarının aynı puanlayıcıyla puanlanmasıyla karşılaştırıldı. Model aynı,
+puanlayıcı aynı, değişen yalnız koşu:
+
+| | kayıtlı | canlı | oynama |
+|---|---|---|---|
+| Toplam | 49/64 | 48/64 | ±1 (%1,6) |
+| Düşen vakaların kimliği | 15 vaka | 16 vaka | **3 vaka yer değiştirdi (%4,7)** |
+| Neden dağılımı | sızıntı 6 / tekrar 3 / kesilme 7 / uydurma 5 | 8 / 5 / 5 / 4 | **bir nedende ±2** |
+
+Yani **toplam sanıldığı kadar oynak değil; oynayan şey neden dağılımı ve
+hangi vakanın düştüğü.** Bu, (b) tolerans bandını toplam için makul,
+kategori/neden iddiaları için yetersiz kılıyor — 4-5 vakalık kategorilerde
+bir vaka %20-25 demek. Ayrıntı: `automation/MODEL_KIYASI_2026-09-04.md` §6.
+
 **Gerekli olan:** (a)/(b)/(c) arasinda bir karar -- ya da "simdilik boyle
 kalsin".
 
