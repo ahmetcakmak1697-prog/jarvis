@@ -122,6 +122,17 @@ graphify-out/
 # (graphify/superpowers/impeccable: `claude plugin install` ile geri gelir)
 .claude/skills/
 
+# Ayni gerekce, baska ajan kosumlari icin. `graphify install` 2026-09-05'te
+# makinede buldugu HER kosuma kendini kurdu ve bu iki dizini uretti:
+#   .agents/skills/graphify/  -> .claude/skills/'dekiyle ayni skill (v0.9.52)
+#   .codex/hooks.json + config.toml -> graphify kancalari + telemetri kapatma
+# Insan eliyle yazilmis icerik yok, hepsi arac ciktisi; `graphify install`
+# ile geri gelir. Icerik SILINMEDI -- kancalar calisiyor olabilir.
+# NOT: ayni kurulumun urettigi AGENTS.md BILEREK izleniyor, buraya
+# eklenmedi -- gerekcesi dosyanin kendi icinde yazili.
+.agents/
+.codex/
+
 # Ham arac ciktisi -- ozetleyen raporlar izleniyor, ham hali degil.
 # Alt cizgi oneki bunlarin gecici oldugunu zaten soyluyor.
 automation/_ss_raw/
