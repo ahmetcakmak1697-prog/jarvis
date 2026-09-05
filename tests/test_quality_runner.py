@@ -33,12 +33,18 @@ def kosucu():
 
 
 def sahte_ask(cevaplar):
-    """id -> cevap eslemesinden bir model sahtesi kurar; cagrilari kaydeder."""
+    """id -> cevap eslemesinden bir model sahtesi kurar; cagrilari kaydeder.
+
+    `num_predict` sozlesmeye 2026-09-05'te eklendi (kart: terazinin uc
+    kusuru): kesilmelerin hepsi butce sinirindan geliyordu, bu yuzden butce
+    vaka basina ayarlanabilir oldu. Iddialar degismedi, imza genisledi.
+    """
     gorulen = []
 
-    def ask(model, prompt, level, system_extra=None):
+    def ask(model, prompt, level, system_extra=None, num_predict=None):
         gorulen.append({"model": model, "prompt": prompt, "level": level,
-                        "system_extra": system_extra})
+                        "system_extra": system_extra,
+                        "num_predict": num_predict})
         return {"text": cevaplar.get(len(gorulen) - 1, "bos"),
                 "raw_tps": 50.0, "first_token_ms": 40.0, "total_s": 1.0}
 
@@ -154,7 +160,7 @@ def test_vram_ceiling_flag_when_probe_given():
 # --------------------------------------------------------------------------- #
 
 def test_model_error_is_recorded_not_raised():
-    def patlayan(model, prompt, level, system_extra=None):
+    def patlayan(model, prompt, level, system_extra=None, num_predict=None):
         raise RuntimeError("ollama kapali")
 
     sonuc = kosucu()(VAKALAR["cases"], patlayan, model="m")
@@ -166,7 +172,7 @@ def test_model_error_is_recorded_not_raised():
 def test_partial_failure_still_scores_the_rest():
     cagri = {"n": 0}
 
-    def bazen(model, prompt, level, system_extra=None):
+    def bazen(model, prompt, level, system_extra=None, num_predict=None):
         cagri["n"] += 1
         if cagri["n"] == 1:
             raise RuntimeError("gecici hata")
@@ -205,3 +211,74 @@ def test_markdown_report_names_failing_cases(tmp_path):
     metin = yollar["markdown"].read_text(encoding="utf-8")
     assert "g1" in metin, "kalan vaka raporda adiyla gecmeli"
     assert "grounding" in metin
+
+
+# --------------------------------------------------------------------------- #
+# 7. Kusur 2 — butce: kesilmenin sebebi TAHMIN degil OLCUM olmali
+# --------------------------------------------------------------------------- #
+#
+# Kiyas kosusundaki 10 kesilmenin hepsi `num_predict=400` sinirina carpmisti
+# (`automation/MODEL_KIYASI_2026-09-04.md` §4b). "longform 0/4"u model
+# dejenerasyonu diye okumak bu yuzden yanlisti. Iki duzeltme: sebep olculur
+# (`done_reason`) ve uzun anlatim vakasi hak ettigi butceyi alir.
+
+def test_done_reason_is_recorded():
+    """Ollama'nin `done_reason`'i sonuca yazilir: 'length' butce, 'stop' model."""
+    def ask(model, prompt, level, system_extra=None, num_predict=None):
+        return {"text": "bir cevap", "raw_tps": 50.0, "first_token_ms": 40.0,
+                "total_s": 1.0, "done_reason": "length"}
+
+    sonuc = kosucu()(VAKALAR["cases"], ask, model="m")
+    assert all(r["done_reason"] == "length" for r in sonuc["results"])
+    assert sonuc["summary"]["budget_exhausted"] == 3
+
+
+def test_done_reason_is_none_when_the_runner_does_not_report_it():
+    """Olculmediyse UYDURULMAZ -- `peak_vram_mb` ile ayni disiplin."""
+    sonuc = kosucu()(VAKALAR["cases"], sahte_ask({}), model="m")
+    assert all(r["done_reason"] is None for r in sonuc["results"])
+    assert sonuc["summary"]["budget_exhausted"] == 0
+
+
+def test_longform_case_receives_its_declared_budget():
+    """Vaka `num_predict` beyan ederse o gecer; etmezse varsayilan."""
+    from eval.run_turkish_quality import DEFAULT_NUM_PREDICT
+
+    vakalar = [dict(VAKALAR["cases"][2], num_predict=1200), VAKALAR["cases"][0]]
+    gorulen = []
+
+    def ask(model, prompt, level, system_extra=None, num_predict=None):
+        gorulen.append(num_predict)
+        return {"text": "x", "raw_tps": 1.0, "first_token_ms": 1.0, "total_s": 1.0}
+
+    kosucu()(vakalar, ask, model="m")
+    assert gorulen == [1200, DEFAULT_NUM_PREDICT]
+
+
+def test_only_longform_cases_declare_a_larger_budget():
+    """Cerrahi degisiklik (§3): 60 vakanin kosulu hic degismez."""
+    from pathlib import Path
+
+    from eval.run_turkish_quality import CASES_PATH, DEFAULT_NUM_PREDICT
+
+    veri = json.loads(Path(CASES_PATH).read_text(encoding="utf-8"))
+    beyan = {c["id"]: c["num_predict"] for c in veri["cases"] if "num_predict" in c}
+    assert sorted(beyan) == ["t2_longform_001", "t2_longform_002",
+                             "t2_longform_003", "t2_longform_004"]
+    assert set(beyan.values()) == {1200}
+    assert DEFAULT_NUM_PREDICT == 400
+
+
+def test_report_separates_budget_stops_from_model_stops(tmp_path):
+    from eval.run_turkish_quality import write_report
+
+    def ask(model, prompt, level, system_extra=None, num_predict=None):
+        return {"text": "x" * 300, "raw_tps": 50.0, "first_token_ms": 40.0,
+                "total_s": 1.0, "done_reason": "length"}
+
+    sonuc = kosucu()(VAKALAR["cases"], ask, model="m")
+    metin = write_report(sonuc, out_dir=tmp_path,
+                         stamp="y")["markdown"].read_text(encoding="utf-8")
+    assert "done_reason=length" in metin, (
+        "kesilmenin sebebi raporda ayri gosterilmeli, yoksa tahmin kalir"
+    )

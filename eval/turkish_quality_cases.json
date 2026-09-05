@@ -867,6 +867,7 @@
     {
       "id": "t2_longform_001",
       "category": "longform",
+      "num_predict": 1200,
       "prompt": "Polimer malzemelerde yaşlanma mekanizmalarını ve önlem yöntemlerini detaylı anlat.",
       "expected_elements": [
         "derinlik",
@@ -882,6 +883,7 @@
     {
       "id": "t2_longform_002",
       "category": "longform",
+      "num_predict": 1200,
       "prompt": "ESHOT otobüs telemetri verisini pandas ile nasıl özetlerim? Adım adım ve gerekçeleriyle anlat.",
       "expected_elements": [
         "derinlik",
@@ -897,6 +899,7 @@
     {
       "id": "t2_longform_003",
       "category": "longform",
+      "num_predict": 1200,
       "prompt": "Isıtma-soğutma sistemlerinde enerji verimliliğini artırmanın yollarını kapsamlı biçimde açıkla.",
       "expected_elements": [
         "derinlik",
@@ -912,6 +915,7 @@
     {
       "id": "t2_longform_004",
       "category": "longform",
+      "num_predict": 1200,
       "prompt": "Yerel bir dil modelini 8 GB ekran kartında çalıştırmanın sınırlarını ve ödünleşimlerini derinlemesine anlat.",
       "expected_elements": [
         "derinlik",

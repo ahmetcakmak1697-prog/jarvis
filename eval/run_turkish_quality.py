@@ -40,11 +40,21 @@ from eval.quality_scorer import (  # noqa: E402
     turkish_equivalent_tps,
 )
 
-__all__ = ["run_suite", "write_report", "load_cases", "build_grounding"]
+__all__ = ["run_suite", "write_report", "load_cases", "build_grounding",
+           "DEFAULT_NUM_PREDICT"]
 
 REPORT_SCHEMA_VERSION = 1
 CASES_PATH = _REPO / "eval" / "turkish_quality_cases.json"
 DEFAULT_OUT = _REPO / "automation"
+
+#: Cevap butcesi (token). Vaka `num_predict` beyan ederse o gecerlidir.
+#:
+#: 2026-09-04 kiyasinda 10 kesilmenin **hepsi** bu sinira carpmisti; kesilme
+#: modelin karari degil butcenin bitmesiydi ve "longform 0/4" bu yuzden
+#: yaniltiyordu. Vaka "detayli anlat" derken kosucunun 400 token vermesi bir
+#: olcum kusuruydu. Yalniz 4 longform vakasi daha genis butce beyan eder;
+#: diger 60 vakanin kosulu hic degismedi (CLAUDE.md §3).
+DEFAULT_NUM_PREDICT = 400
 
 #: Kategori -> persona seviyesi. Kısa turlar L1, teknik L2, uzun anlatım L3.
 _CATEGORY_LEVEL = {
@@ -111,17 +121,24 @@ def run_suite(
         seviye = _CATEGORY_LEVEL.get(vaka.get("category", ""), "L2")
         zemin = grounding_builder(vaka.get("seed_memory"))
 
+        butce = int(vaka.get("num_predict") or DEFAULT_NUM_PREDICT)
+
         kayit: Dict[str, Any] = {
             "id": vaka.get("id"),
             "category": vaka.get("category"),
             "prompt": vaka.get("prompt"),
             "level": seviye,
             "grounded": bool(zemin.strip()),
+            "num_predict": butce,
+            # Ollama'nin durma sebebi: "length" butce bitti, "stop" model
+            # kendi durdu. Olculmediyse None kalir -- uydurulmaz.
+            "done_reason": None,
             "error": None,
         }
 
         try:
-            cevap = ask(model, vaka["prompt"], seviye, system_extra=zemin)
+            cevap = ask(model, vaka["prompt"], seviye, system_extra=zemin,
+                        num_predict=butce)
         except Exception as exc:  # noqa: BLE001 - koşu durmaz, kayda geçer
             kayit["error"] = f"{type(exc).__name__}: {exc}"
             kayit["answer"] = ""
@@ -134,6 +151,7 @@ def run_suite(
         kayit["raw_tps"] = (cevap or {}).get("raw_tps")
         kayit["first_token_ms"] = (cevap or {}).get("first_token_ms")
         kayit["total_s"] = (cevap or {}).get("total_s")
+        kayit["done_reason"] = (cevap or {}).get("done_reason")
         kayit["score"] = score_answer(metin, vaka)
         sonuclar.append(kayit)
 
@@ -190,6 +208,15 @@ def _summarise(sonuclar: List[Dict[str, Any]],
         "repetitions_2x": sum(
             1 for r in sonuclar if r["score"]["repeated_phrase_2x"]),
         "truncations": sum(1 for r in sonuclar if r["score"]["truncated"]),
+        # Kesilmenin SEBEBI artik tahmin degil olcum: "length" = butce bitti.
+        "budget_exhausted": sum(
+            1 for r in sonuclar if r.get("done_reason") == "length"),
+        "truncations_budget": sum(
+            1 for r in sonuclar
+            if r["score"]["truncated"] and r.get("done_reason") == "length"),
+        # Kusur 3: ikisi de artik PUANLANIYOR, sayilari yine de gorunur kalir.
+        "foreign_sentences": sum(
+            1 for r in sonuclar if not r["score"]["foreign_ok"]),
         "foreign_leaks": sum(1 for r in sonuclar if r["score"]["foreign_hits"]),
         "ai_boilerplate": sum(
             1 for r in sonuclar if r["score"]["ai_boilerplate"]),
@@ -278,8 +305,12 @@ def write_report(sonuc: Dict[str, Any], out_dir: Path | str = DEFAULT_OUT,
         f"| Tekrar (dejenerasyon) | {s['repetitions']} |",
         f"| Tekrar 2× (raporlanır, puanlanmaz) | {s['repetitions_2x']}/{s['total']} |",
         f"| Kesilmiş cevap | {s['truncations']} |",
-        f"| Yabancı kelime sızıntısı | {s['foreign_leaks']} |",
-        f"| Yapay zekâ kalıbı | {s['ai_boilerplate']} |",
+        f"| — bütçesi biten (done_reason=length) | {s['truncations_budget']} |",
+        f"| — model kendi durdu | {s['truncations'] - s['truncations_budget']} |",
+        f"| Bütçesi biten cevap (kesik olsun olmasın) | {s['budget_exhausted']} |",
+        f"| İngilizce cümle sızıntısı (puanlanır) | {s['foreign_sentences']} |",
+        f"| Yabancı kelime (raporlanır, puanlanmaz) | {s['foreign_leaks']} |",
+        f"| Yapay zekâ kalıbı (puanlanır) | {s['ai_boilerplate']} |",
         f"| 'Efendim' hitabı (raporlanır, puanlanmaz) | {s['efendim_rate']}/{s['total']} |",
     ]
 
@@ -312,7 +343,8 @@ def _bayrak(deger) -> str:
 # --------------------------------------------------------------------------- #
 
 def _ollama_ask(model: str, prompt: str, level: str,
-                system_extra: Optional[str] = None) -> Dict[str, Any]:
+                system_extra: Optional[str] = None,
+                num_predict: int = DEFAULT_NUM_PREDICT) -> Dict[str, Any]:
     import urllib.request
 
     from agents.persona import build_system_prompt
@@ -325,7 +357,8 @@ def _ollama_ask(model: str, prompt: str, level: str,
     govde = json.dumps({
         "model": model, "prompt": prompt, "system": system, "stream": False,
         "keep_alive": "5m",
-        "options": {"temperature": 0.2, "num_predict": 400, "num_ctx": 4096},
+        "options": {"temperature": 0.2, "num_predict": num_predict,
+                    "num_ctx": 4096},
     }).encode("utf-8")
     istek = urllib.request.Request(
         "http://localhost:11434/api/generate", data=govde,
@@ -343,6 +376,8 @@ def _ollama_ask(model: str, prompt: str, level: str,
         "raw_tps": sayi / (sure_ns / 1e9) if sure_ns else 0.0,
         "first_token_ms": (d.get("prompt_eval_duration") or 0) / 1e6,
         "total_s": toplam,
+        # "length" = num_predict bitti, "stop" = model kendi durdu.
+        "done_reason": d.get("done_reason"),
     }
 
 
