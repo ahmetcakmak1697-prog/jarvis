@@ -1,5 +1,13 @@
 # Kalite tabanı yeniden tanımlandı — 2026-09-03
 
+> **2026-09-05 eki: taban hâlâ 49/64 — terazinin üç kusuru düzeltildi ve sayı
+> kıpırdamadı.** Sızıntı korpusundan persona'nın tırnaklı örnekleri çıkarıldı,
+> yapay zekâ kalıbı ve İngilizce cümle sızıntısı puanlanır oldu, uzun anlatım
+> vakaları 1200 token bütçe aldı. Kayıtlı llama koşusunun **hiçbir vakası** yer
+> değiştirmedi: o koşuda 0 kalıp, 0 İngilizce cümle vardı ve 6 sızıntısının
+> hepsi tırnaksız talimat metnindendi. Aşağıdaki tüm sayılar geçerliliğini
+> korur. Ayrıntı: `automation/TERAZI_DUZELTMELERI_2026-09-05.md`.
+
 **Kaynak kart:** `automation/KART_kalite_dedektorleri.md`
 **Değişen:** ölçüm. **Değişmeyen:** model, prompt, routing, vaka metinleri.
 

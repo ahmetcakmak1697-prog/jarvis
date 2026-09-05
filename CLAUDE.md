@@ -203,8 +203,8 @@ daha toplama (collection) aşamasında patlar; kök dizindeki `voice_test.py`
 `edge_tts` istediği için tam kök taraması toplama hatası verir, bu yüzden kapı
 `tests` dizinine daraltılmıştır.
 
-**Bilinen taban çizgisi (2026-09-04, `auto/opencode-deepseek`):**
-`pytest tests` → **1689 geçti / 0 başarısız**; `ruff check .` → **293 bulgu**.
+**Bilinen taban çizgisi (2026-09-05, `auto/opencode-deepseek`):**
+`pytest tests` → **1706 geçti / 0 başarısız**; `ruff check .` → **293 bulgu**.
 
 Test hattı **yeşildir**; bu artık bir hedef değil, korunması gereken bir
 durumdur. Yeni bir başarısızlık eklemek doğrudan DoD ihlalidir.
@@ -219,6 +219,12 @@ model aynı, **ölçüm değişti** — sistem prompt'u sızıntısı, tekrar ve
 kesilme dedektörleri eklendi, uydurma kapsamı `technical`'a genişletildi.
 Eski sayıyla karşılaştırma yapılamaz. Ayrıntı ve eşik gerekçeleri:
 `automation/KALITE_TABAN_2026-09-03.md`.
+
+Terazinin üç kusuru 2026-09-05'te kapatıldı (sızıntı korpusundan persona'nın
+tırnaklı örnekleri çıktı; yapay zekâ kalıbı ve İngilizce cümle sızıntısı artık
+puanlanıyor; uzun anlatım vakaları 1200 token bütçe alıyor). **Taban 49/64
+değişmedi** — düzeltmeler kayıtlı llama koşusunun hiçbir vakasına dokunmadı.
+Ölçümler: `automation/TERAZI_DUZELTMELERI_2026-09-05.md`.
 
 **Sıra bağımsızlığı kuralı:** Bir testin tek başına geçmesi onu geçmiş
 saymaz. Kapı **tam süit** üzerinde çalıştırılır. Yeşil hat iddiası, süit

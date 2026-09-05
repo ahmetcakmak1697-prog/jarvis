@@ -1,5 +1,14 @@
 # Türkçe Model Kıyası — 2026-09-04 · `llama3.1:latest` vs `qwen2.5:7b`
 
+> **TERAZİ SONRADAN DÜZELTİLDİ — aşağıdaki qwen sayısı artık geçerli değil.**
+> Bu belgenin §4'ü terazinin üç kusurunu listelemişti; üçü de 2026-09-05'te
+> kapatıldı. Düzeltilmiş terazide **llama3.1 48/64 (değişmedi), qwen2.5:7b
+> 41/64** (49 değil). Fark yeni bir kusur bulunması değil: zaten ölçülen iki
+> kusurun (yapay zekâ kalıbı 11, İngilizce cümle 2) artık **puanlanıyor**
+> olması, eksi çift sayılan 4 sızıntı.
+> Ayrıntı ve ölçümler: `automation/TERAZI_DUZELTMELERI_2026-09-05.md`.
+> Bu belgenin gövdesi o günün kaydıdır, silinmedi ve düzeltilmedi.
+
 **Kazanan ilan edilmedi. `config/runtime_profiles.json`'a dokunulmadı.**
 Bu belge kanıt üretir; `local_main` kararı Ahmet'e aittir (CLAUDE.md §9,
 DANIŞMAN MODU).
