@@ -52,32 +52,29 @@ Açıldı: 2026-09-01, gözetimsiz oturum.
 
 ---
 
-## A15 — `FOREIGN_RUN_WORDS = 6` bir şarkı adını yakaladı (yeni yanlış pozitif)
+## KARARLANMIŞ (2026-09-05)
 
-İngilizce cümle dedektörünün eşiği 192 cevap üzerinde ölçülmüştü; o veride
-en uzun **meşru** İngilizce dizi 3 kelimeydi (AC/DC albüm adları), gerçek
-sızıntı ise 7+ kelimeydi. Eşik 6, ikisinin ortasına konmuştu.
-
-2026-09-05 koşusunda ilk kez **6 kelimelik bir özel isim** çıktı:
-`t1_tone_014`'te llama3.1 *"you shook me all night long"* yazdı — bir AC/DC
-şarkısı. Dedektör bunu İngilizce cümle sızıntısı saydı ve vakayı düşürdü.
-Maliyeti: llama3.1 **49/64 yerine 50/64** olurdu.
-
-**Düzeltmedim:** kart puanlayıcıyı dondurdu ("üç koşu da aynı puanlayıcıyı
-kullanacak, yoksa kıyas anlamsızlaşır") — ortasında eşik oynatmak üç koşuyu
-kıyaslanamaz kılardı.
-
-Görünen seçenekler (hiçbiri ölçülmedi, karar senin):
-
-(a) **Eşiği 7'ye çıkar.** En ucuzu. Ama `t1_tone_017`'deki gerçek sızıntı
-    (*"i can switch to english for you"*) tam 7 kelimeydi — sınıra oturur.
-(b) **Kalın/başlık biçimli parçaları hariç tut.** Şarkı ve albüm adları
-    çoğunlukla `**...**` içinde ya da Baş Harfleri Büyük yazılıyor. Daha
-    doğru ama daha çok kod.
-(c) **Kalsın.** Yanlış pozitif oranı hâlâ düşük (256 cevapta 1) ve dedektör
-    iki gerçek kusuru yakalıyor.
-
-**Gerekli olan:** (a)/(b)/(c) — ya da "şimdilik kalsın".
+- **A15** `FOREIGN_RUN_WORDS = 6` bir şarkı adını yakaladı → **seçenek (c):
+  KALSIN.** Eşik 6'da kalır, düzeltme yapılmadı.
+  *Bulgu:* `t1_tone_014`'te llama3.1 *"you shook me all night long"* yazdı —
+  altı kelimelik bir AC/DC şarkı adı. Dedektör bunu İngilizce cümle sızıntısı
+  saydı. Eşik 192 cevap üzerinde ölçülmüştü; o veride en uzun **meşru**
+  İngilizce dizi 3 kelimeydi (albüm adları), gerçek sızıntı 7+ kelimeydi ve 6
+  ikisinin ortasına konmuştu. 6 kelimelik bir özel isim ilk kez çıktı.
+  *Gerekçe:* yanlış pozitif oranı 256 cevapta 1 ve dedektör iki gerçek kusuru
+  yakalıyor. Seçenek (a) — eşiği 7'ye çıkarmak — `t1_tone_017`'deki gerçek
+  sızıntıyı (*"i can switch to english for you"*, **tam 7 kelime**) sınıra
+  oturturdu: ucuz ama kırılgan. Seçenek (b) (kalın/başlık biçimli parçaları
+  hariç tutmak) daha doğru ama daha çok kod.
+  **Bilinen maliyet, kayda geçsin:** llama3.1'in 2026-09-05 koşusundaki
+  **kayıtlı skoru 49/64, ölçülen gerçeği 50/64.** Bu tek vakalık fark
+  bilerek kabul edildi; ileride bir sayı karşılaştırılırken hatırlanmalı.
+  Ayrıntı: `automation/MODEL_KIYASI_TURKCE_2026-09-05.md` §6a.
+- **`local_main` kararı** (A1'in devamı) → **llama3.1:latest DEĞİŞMEDİ.**
+  Üç model ölçüldü; Turkish-Gemma toplamda önde (54/64) ama zeminde (3/5) ve
+  donanımda (tepe VRAM 7076 MB, tavan 6144) eleniyor, Turkcell hafıza/zeminde
+  kullanılamaz. Gerekçe `config/runtime_profiles.json` → `rtx3070.notes`
+  içine de yazıldı: benchmark koşuldu ve sonucu **değiştirmemek** oldu.
 
 ---
 

@@ -75,8 +75,18 @@ bant genişliği fiziği. **Sesli asistan için parti numarası.**
 | GLM-4.6V-Flash | Q4_K_M | 6,17 GB | 17,4 tok/s | 32K'da taşıyor |
 | Gemma 3 12B | Q4_K_M | 7,30 GB | **4,3 tok/s** | ⚠️ "sığıyor" ama KV cache patlatıyor |
 
-> **8 GB kartta pratik tavan ~6 GB model dosyası.** 7,3 GB'lık model sığmış
-> görünüp katman katman RAM'e taşar ve 4,3 tok/s'ye düşer.
+> **8 GB kartta pratik tavan ~6 GB — ama TEPE VRAM'in, dosya boyutunun
+> değil.** 7,3 GB'lık model sığmış görünüp katman katman RAM'e taşar ve
+> 4,3 tok/s'ye düşer.
+>
+> **Dosya boyutu yalnızca kaba bir vekildir ve yanıltır.** Çalışırken
+> tüketilen şey dosya + KV cache + hesap tamponlarıdır; yukarıdaki tablonun
+> "Dosya" sütunu tavanla doğrudan karşılaştırılamaz. Ölçülmüş karşı örnek:
+> **Turkish-Gemma-9b-v0.1** dosya olarak 5,8 GB (tavanın altında) ama tepe
+> VRAM **7076 MB** — tavanın üstünde (§4). Aynı tuzağın ikinci örneği bu
+> tablodaki Gemma 3 12B satırı. Kod tarafında ölçüt zaten tepe VRAM'dir:
+> `eval/quality_scorer.py` → `VRAM_CEILING_MB = 6144`, `nvidia-smi`'nin
+> okuduğu değerle karşılaştırılır.
 
 ### MoE + `--n-cpu-moe` — 2026'nın gerçek değişimi
 Uzman katmanları RAM'e, attention + KV cache GPU'da:
@@ -93,7 +103,38 @@ Bu, "ara sıra ağır iş" senaryon için fazlasıyla yeterli.
 
 ## 4. 🇹🇷 TÜRKÇE — YENİ VE ÖNEMLİ BULGU
 
-### Turkish-Gemma-9b-T1 (YTÜ COSMOS) — 9B, 8 GB'a sığar
+### Turkish-Gemma-9b (YTÜ COSMOS) — kalitesi yüksek, **8 GB'a sığmıyor**
+
+> **DÜZELTME (2026-09-05, ölçüldü).** Bu başlık daha önce *"9B, 8 GB'a
+> sığar"* diyordu. **Yanlıştı** ve bir sonraki oturumu yanılttı: ölçüme
+> güvenilerek Gemma "sığıyor" diye önerildi, ölçüm tersini gösterdi.
+>
+> **Hatanın kökü: dosya boyutu ile tepe VRAM aynı sanıldı.** Dosya ~5,5 GB
+> (Q4_K_M, gerçekte 5,8 GB) — bu doğru. Ama çalışırken tüketilen şey dosya
+> değil, **dosya + KV cache + hesap tamponları**. Gemma mimarisi KV cache
+> açısından pahalıdır ve fark tam buradan çıkar.
+>
+> | Ölçüm (temiz koşul, 64 vaka, `num_ctx=4096`) | Değer |
+> |---|---|
+> | Dosya (Q4_K_M) | 5,8 GB |
+> | Ollama'nın modele verdiği | 5506 MB |
+> | **Tepe VRAM (masaüstü dahil)** | **7076 MB** |
+> | Masaüstü yükü (751 MB) çıkarılınca | 6325 MB |
+> | §3'teki pratik tavan | 6144 MB → **AŞIYOR** |
+> | Decode | 32,3 tok/s (llama3.1: 78,8 — **2,4 kat yavaş**) |
+> | İlk token (TTFT) | **420,8 ms** (llama3.1: 30,5 ms) |
+>
+> TTFT tek başına §1'in bütçesindeki **100–400 ms** LLM bandının tamamını
+> aşıyor — 1,5 saniyelik PUSULA hedefi için tek başına belirleyici.
+>
+> Ölçülen sürüm **v0.1**, T1 değil (T1'in düşünme blokları bütçeyi yer,
+> §5.3). Bulgu ortak Gemma-2-9B omurgasına aittir; T1 daha uzun ürettiği
+> için KV cache'i **en az bunun kadar** pahalı olur. [VARSAYIM]
+>
+> Kalite tarafı ayrı bir konu ve iyi: aynı koşuda 64 vakalık Türkçe takımda
+> **54/64** ile en yüksek puanı aldı (llama3.1 49, Turkcell-LLM-7b 46).
+> Tam tablo: `automation/MODEL_KIYASI_TURKCE_2026-09-05.md`.
+
 İnsan değerlendirmesi, 1450 soru, 18 değerlendirici:
 
 | Model | Kazanma oranı |
@@ -235,13 +276,18 @@ Sağlıklı bir JARVIS çalışma seti sadece **~36 GB**:
 ```
 Qwen3.5-9B Q4_K_M         5,7 GB   (ses hattı, VRAM'de)
 Qwen3.6-35B-A3B Q4       ~20 GB   (ağır iş, --n-cpu-moe)
-Turkish-Gemma-9b-T1 Q4    ~5,5 GB  (Türkçe karşılaştırma)
+Turkish-Gemma-9b Q4       ~5,5 GB  (Türkçe karşılaştırma) *
 Qwen3.5-2B Q4             ~1,5 GB  (router/sınıflandırıcı)
 Whisper small             ~3 GB
 Piper Türkçe sesler       ~0,1 GB
 ```
 500 GB bunu rahat alır. Gerçek sorun **biriktirme** — aynı modelin 6 farklı
 kuantizasyonu 100 GB'ı bir haftada yer.
+
+> `*` **Bu liste DİSK içindir, VRAM için değil.** Turkish-Gemma satırındaki
+> ~5,5 GB doğru bir dosya boyutudur, ama model **çalışırken 8 GB kartın
+> pratik tavanını aşar** (tepe 7076 MB, ölçüldü 2026-09-05 — §3 ve §4).
+> Buradaki bir sayıyı "VRAM'e sığar" diye okuma.
 
 ### 🔴 ASLA İZİN VERME
 Model RAM'e sığmadığı an llama.cpp mmap sayfa hatalarını SSD'den karşılamaya
