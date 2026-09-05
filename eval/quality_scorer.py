@@ -37,6 +37,7 @@ __all__ = [
     "REPETITION_NGRAM_WORDS",
     "REPETITION_MIN_HITS",
     "REPETITION_REPORT_MIN_HITS",
+    "FOREIGN_RUN_WORDS",
     "TRUNCATION_MIN_CHARS",
     "score_answer",
     "turkish_equivalent_tps",
@@ -134,12 +135,46 @@ REPETITION_MIN_HITS = 3
 #: verilebilsin.
 REPETITION_REPORT_MIN_HITS = 2
 
+#: Yabanci dil sizintisi PUANLANIRKEN aranan sey tek kelime degil, ardisik
+#: bir Ingilizce dizisi. Gerekce olculdu (3 kosu, 192 cevap): `_FOREIGN`
+#: listesi oldugu gibi puanlansaydi 5 eslesmenin 3'u yanlis pozitif olurdu --
+#: AC/DC albüm adlari ("The Razors Edge"), Python anahtar kelimesi
+#: (`with open(...)`), Turkce ek almis ozel isim ("Rock and roll'un").
+#: Karti "listeyi daralt" diyordu; olculdu, daraltmak yetmiyor: yanlis
+#: pozitifleri ureten " and " ayni zamanda TEK gercek vakayi da yakalayan
+#: isaretci. Ayrim kelimede degil UZUNLUKTA: gercek sizinti 7+ kelimelik bir
+#: cumle, yanlis pozitifler en fazla 3 kelimelik ozel isim.
+#:
+#: Esik 4-7 araliginda ayni sonucu veriyor (2 vaka, 0 yanlis pozitif); 6
+#: bilerek ortadan secildi. Raporlanan `foreign_hits` degismedi -- tek
+#: kelime hala GORULUR, yalnizca puanlanmaz.
+FOREIGN_RUN_WORDS = 6
+
+#: Turkce'ye ozgu harfler: bir kelimede varsa o kelime Ingilizce dizisini keser.
+_TR_LETTERS = frozenset("çğıöşü")
+
+_TOKEN_SPLIT = re.compile(r"([^\w']+)")
+
 #: Kesilme yalniz bu uzunlugun uzerinde aranir. Kisa ve uslupca bitirilmis
 #: cevaplar ("Evet", "Merhaba Efendim") noktalama olmadan da mesrudur.
 TRUNCATION_MIN_CHARS = 200
 
 #: Bitmis bir cumlenin son isareti. Kapanmis kod citi ayrica kabul edilir.
 _TERMINATORS = (".", "!", "?", ":", ")", "]", '"', "”", "…")
+
+#: Persona'nin talimat metnindeki TIRNAKLI parcalar. Olculdu (2026-09-05):
+#: talimat bolumunde 13 tirnakli parca var ve **hicbiri talimat degil** --
+#: ya yasak kalip ornegi ("Size yardimci olmaktan mutluluk duyarim"), ya
+#: modelin SOYLEMESI istenen cumle ("bu konusmanin kaydina erisimim yok",
+#: "bilmiyorum"), ya uslup ornegi. Ucu de modelin uretmesi beklenen ya da
+#: yasaklanan METINDIR; geri okundu diye sizinti sayilamaz.
+#:
+#: Bedeli olculmustu: qwen'in 6 "sizintisinin" 4'u tek bir yasak kalipti ve
+#: ayni kusur `ai_boilerplate` sutununda ikinci kez sayiliyordu. Daha
+#: sinsisi: persona modele "bu konusmanin kaydina erisimim yok de" diyor --
+#: model dogru davranip bunu deseydi sizinti yiyecekti, hem de tam zemin
+#: kategorisinde. Kimlik onsozunun disarida birakilmasiyla ayni mantik.
+_QUOTED_EXAMPLE = re.compile(r'"[^"\n]*"')
 
 #: Satir basi liste isareti. Yalniz ISARET atilir, madde ICERIGI atilmaz:
 #: gozlenen dejenerasyonlarin dordu de numarali madde iclerinde yasiyor
@@ -162,12 +197,16 @@ def _instruction_ngrams() -> frozenset:
     Metin kopyalanmaz: `build_system_prompt()` ne uretiyorsa o olculur, yani
     persona degistiginde dedektor kendiliginden degisir.
 
-    Yalniz "## " baslikli bloklar alinir; basliksiz kimlik onsozu DISARIDA
-    birakilir. Gerekce olculdu: onsoz Ahmet hakkinda OLGU tasiyor (ESHOT,
-    polimer, İSG) ve "hafizanda benim hakkimda ne var?" sorusuna dogru cevap
-    bu olgulari KULLANMAKTIR. Onsozu de dahil etmek t1_tone_012'yi -- dogru
-    davranan bir cevabi -- kaldiriyordu; bu, `expect_efendim` hatasinin
-    tekrari olurdu. Talimat cumlesi ise hicbir kosulda geri okunmamali.
+    Iki sey DISARIDA birakilir, ikisi de olcumle:
+
+    1. **Basliksiz kimlik onsozu.** Ahmet hakkinda OLGU tasiyor (ESHOT,
+       polimer, İSG) ve "hafizanda benim hakkimda ne var?" sorusuna dogru
+       cevap bu olgulari KULLANMAKTIR. Onsozu dahil etmek t1_tone_012'yi --
+       dogru davranan bir cevabi -- kaldiriyordu.
+    2. **Tirnakli ornekler** (`_QUOTED_EXAMPLE` notuna bak). Talimat degil,
+       ornektirler; modelin uretmesi beklenen ya da yasaklanan metindir.
+
+    Geriye kalan sey talimat cumlesidir ve hicbir kosulda geri okunmamali.
     """
     parcalar: set = set()
     for seviye in (None, *LEVELS):
@@ -175,6 +214,10 @@ def _instruction_ngrams() -> frozenset:
             prompt = build_system_prompt(level=seviye, voice_mode=ses)
             bas = prompt.find("## ")
             talimat = prompt[bas:] if bas >= 0 else prompt
+            # Silmek degil AYIRICI ile degistirmek: silinseydi tirnagin iki
+            # yanindaki kelimeler birlesip persona'da HIC gecmeyen bir dizi
+            # uretirdi ve dedektor olmayan bir cumleyi arardi.
+            talimat = _QUOTED_EXAMPLE.sub("\n", talimat)
             parcalar |= set(_ngrams(_words(talimat), LEAK_NGRAM_WORDS))
     return frozenset(parcalar)
 
@@ -250,6 +293,59 @@ def _foreign_hits(fold: str) -> List[str]:
     return bulunan
 
 
+def _non_turkish_runs(text: str) -> List[List[str]]:
+    """Ardisik "Turkce gorunmeyen" kelime dizileri.
+
+    Diziyi KESEN sey: Turkce'ye ozgu harf, kesme isareti (Turkce ek almis
+    ozel isim: "roll'un"), rakam, noktalama ve satir sonu.
+    """
+    diziler: List[List[str]] = []
+    simdiki: List[str] = []
+    for parca in _TOKEN_SPLIT.split(text):
+        if not parca.strip():
+            if "\n" in parca and simdiki:
+                diziler.append(simdiki)
+                simdiki = []
+            continue
+        katlanmis = _fold_tr(parca)
+        keser = ("'" in parca
+                 or any(c in _TR_LETTERS for c in parca.lower())
+                 or not katlanmis.isalpha())
+        if keser:
+            if simdiki:
+                diziler.append(simdiki)
+            simdiki = []
+        else:
+            simdiki.append(katlanmis)
+    if simdiki:
+        diziler.append(simdiki)
+    return diziler
+
+
+def _is_english_prompt(prompt: Optional[str]) -> bool:
+    """Soru Ingilizce mi? Persona: "Ahmet İngilizce yazarsa İngilizce yanıt
+    verirsin." Oyleyse Ingilizce cevap kusur degil, KURALA UYMAKTIR.
+
+    Vaka setindeki tek ornek `t1_mix_001` ("hey can you check the system
+    status?"). Bu koruma olmasa persona'sina uyan model dusurulurdu.
+    """
+    if not prompt:
+        return False
+    metin = str(prompt)
+    if any(c in _TR_LETTERS for c in metin.lower()):
+        return False
+    return bool(_foreign_hits(" " + _fold_tr(metin) + " "))
+
+
+def _foreign_run(text: str) -> Optional[str]:
+    """Turkce metne yapistirilmis Ingilizce CUMLE; yoksa None."""
+    for dizi in _non_turkish_runs(_prose_only(text)):
+        if (len(dizi) >= FOREIGN_RUN_WORDS
+                and _foreign_hits(" " + " ".join(dizi) + " ")):
+            return " ".join(dizi)
+    return None
+
+
 def score_answer(answer: Optional[str], case: Dict[str, Any]) -> Dict[str, Any]:
     """Tek bir cevabı puanlar.
 
@@ -263,7 +359,8 @@ def score_answer(answer: Optional[str], case: Dict[str, Any]) -> Dict[str, Any]:
     if not metin:
         return {
             "answer_chars": 0, "encoding_broken": [], "encoding_ok": False,
-            "foreign_hits": [], "has_efendim": False, "ai_boilerplate": False,
+            "foreign_hits": [], "foreign_ok": True, "foreign_run": None,
+            "has_efendim": False, "ai_boilerplate": False,
             "persona_ok": None, "admits_no_record": False, "grounding_ok": None,
             "contains_ok": None, "length_ok": None,
             "prompt_leak": False, "prompt_leak_hits": [],
@@ -280,6 +377,18 @@ def score_answer(answer: Optional[str], case: Dict[str, Any]) -> Dict[str, Any]:
     yabanci = _foreign_hits(fold)
     kalip = any(b in fold for b in _BOILERPLATE)
     efendim = "efendim" in fold
+
+    # Persona kalibi ADIYLA yasakliyor; bu, kodlama bozuklugu kadar nesnel
+    # bir kusurdur. 192 cevapta olculdu, yanlis pozitif yok.
+    if kalip:
+        basarisiz.append("boilerplate")
+
+    # Ingilizce CUMLE sizintisi. Soru Ingilizce ise puanlanmaz: persona
+    # "Ahmet İngilizce yazarsa İngilizce yanıt verirsin" diyor.
+    yabanci_dizi = (None if _is_english_prompt(case.get("prompt"))
+                    else _foreign_run(metin))
+    if yabanci_dizi:
+        basarisiz.append("foreign")
 
     # Uc evrensel dedektor: vaka beyan etmese de uygulanir.
     sizinti = _prompt_leak_hits(metin)
@@ -332,6 +441,8 @@ def score_answer(answer: Optional[str], case: Dict[str, Any]) -> Dict[str, Any]:
         "encoding_broken": bozuk,
         "encoding_ok": encoding_ok,
         "foreign_hits": yabanci,
+        "foreign_ok": yabanci_dizi is None,
+        "foreign_run": yabanci_dizi,
         "has_efendim": efendim,
         "ai_boilerplate": kalip,
         "persona_ok": persona_ok,

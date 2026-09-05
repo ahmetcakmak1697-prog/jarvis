@@ -33,14 +33,25 @@ _VAKALAR = (Path(__file__).resolve().parents[1] / "eval"
             / "turkish_quality_cases.json")
 
 
+#: 2026-09-04 kiyas kosusunun iki ciktisi. Terazinin uc kusuru bu iki
+#: dosyanin elle okunmasindan cikti (`automation/MODEL_KIYASI_2026-09-04.md`).
+_KOSULAR = {
+    "llama-0901": _CANLI_KOSU,
+    "llama-0904": _CANLI_KOSU.with_name("KALITE_llama3.1_latest_20260904-2053.json"),
+    "qwen-0904": _CANLI_KOSU.with_name("KALITE_qwen2.5_7b_20260904-2057.json"),
+}
+
+
 @pytest.fixture(scope="module")
 def gercek_cevap():
-    """id -> o vakada modelin GERCEKTEN verdigi cevap."""
-    veri = json.loads(_CANLI_KOSU.read_text(encoding="utf-8"))
-    kayit = {r["id"]: r.get("answer") or "" for r in veri["results"]}
+    """(id[, kosu]) -> o vakada modelin GERCEKTEN verdigi cevap."""
+    onbellek: dict = {}
 
-    def al(vaka_id: str) -> str:
-        return kayit[vaka_id]
+    def al(vaka_id: str, kosu: str = "llama-0901") -> str:
+        if kosu not in onbellek:
+            veri = json.loads(_KOSULAR[kosu].read_text(encoding="utf-8"))
+            onbellek[kosu] = {r["id"]: r.get("answer") or "" for r in veri["results"]}
+        return onbellek[kosu][vaka_id]
 
     return al
 
@@ -98,6 +109,66 @@ def test_turkish_words_are_not_mistaken_for_english():
     assert s["foreign_hits"] == []
 
 
+# --- Kusur 3a: yabanci sizinti artik PUANLANIYOR -------------------------- #
+#
+# `foreign_hits` olculuyor ama puanlanmiyordu. Kiyasta bedeli gorulmustu:
+# qwen `t2_memory_002`'de Turkce cumlenin ortasina bosluksuz bir Ingilizce
+# cumle yapistirdi ve vaka GECTI. Ama listeyi oldugu gibi puanlamak da
+# olmuyor: 192 cevapta 5 eslesmenin 3'u yanlis pozitifti (albüm adlari,
+# Python anahtar kelimesi). Puanlanan sey bu yuzden tek kelime degil,
+# ARDISIK Ingilizce DIZISI.
+
+def test_an_english_sentence_spliced_into_turkish_fails(gercek_cevap):
+    """qwen `t2_memory_002` -- kartin gosterdigi vaka. Onceden GECIYORDU."""
+    s = puanla(gercek_cevap("t2_memory_002", "qwen-0904"))
+    assert s["foreign_ok"] is False
+    assert "foreign" in s["failed_checks"]
+
+
+def test_a_whole_english_answer_to_a_turkish_prompt_fails(gercek_cevap):
+    """qwen `t1_tone_017`: soru Turkce, cevabin tamami Ingilizce."""
+    vaka = {"prompt": "Seni İngilizce konuş diye eğitmek istiyorum"}
+    assert puanla(gercek_cevap("t1_tone_017", "qwen-0904"), vaka)["foreign_ok"] is False
+
+
+def test_english_proper_nouns_are_not_a_foreign_leak(gercek_cevap):
+    """llama `t1_tone_014`: AC/DC albüm adlari. OLCULEN yanlis pozitif.
+
+    Eski kural ' the ' ve ' and ' parcalariyla bu cevabi isaretliyordu;
+    "Highway to Hell", "The Razors Edge" ozel isimdir ve persona
+    "GEREKMEDIKCE Ingilizce karistirmazsin" diyor -- burada gerekli.
+    """
+    assert puanla(gercek_cevap("t1_tone_014", "llama-0904"))["foreign_ok"] is True
+
+
+def test_english_inside_a_code_block_is_not_a_foreign_leak(gercek_cevap):
+    """qwen `t1_tech_005`: `with open(...)` -- Python anahtar kelimesi.
+
+    Kod blogu tekrar dedektorunde zaten haric tutuluyordu; ayni ayrim
+    burada da gecerli (adopt-over-build, `_prose_only`).
+    """
+    assert puanla(gercek_cevap("t1_tech_005", "qwen-0904"))["foreign_ok"] is True
+
+
+def test_english_answer_to_an_english_prompt_is_allowed():
+    """Persona: "Ahmet İngilizce yazarsa İngilizce yanıt verirsin."
+
+    `t1_mix_001` vaka setindeki tek Ingilizce prompt. Ingilizce cevabi
+    kusur saymak, personanin kendi kuralina uyan modeli dusurmek olurdu --
+    `expect_efendim` hatasinin ucuncu tekrari.
+    """
+    vaka = {"prompt": "hey can you check the system status?"}
+    cevap = "Sure, I can check the system status for you right now, sir."
+    assert puanla(cevap, vaka)["foreign_ok"] is True
+
+
+def test_foreign_is_not_scored_below_the_run_threshold():
+    """Tek bir Ingilizce kelime cumle sizintisi degildir; raporlanir."""
+    s = puanla("Efendim, bu bir okay durumu değil; ölçümü tekrarlayalım.")
+    assert s["foreign_hits"], "raporlanan sinyal kaybolmamali"
+    assert s["foreign_ok"] is True
+
+
 # --------------------------------------------------------------------------- #
 # 3. Persona uyumu
 # --------------------------------------------------------------------------- #
@@ -116,6 +187,27 @@ def test_efendim_is_detected_case_insensitively():
 ])
 def test_ai_boilerplate_is_flagged(cevap, bekle):
     assert puanla(cevap)["ai_boilerplate"] is bekle
+
+
+# --- Kusur 3b: kalip artik PUANLANIYOR ------------------------------------ #
+
+def test_ai_boilerplate_now_fails_the_case():
+    """Persona kalibi ACIKCA yasakliyor; olculuyor ama puanlanmiyordu.
+
+    Kiyasta bedeli: qwen 11/64 vakada kalip kullandi ve hepsi gecti
+    (llama 0/64). 192 cevapta olculdu, yanlis pozitif YOK -- 11 eslesmenin
+    hepsi persona'nin adiyla yasakladigi ifadeler.
+    """
+    s = puanla("Merhaba, nasıl yardımcı olabilirim?")
+    assert s["ai_boilerplate"] is True
+    assert "boilerplate" in s["failed_checks"]
+    assert s["passed"] is False
+
+
+def test_a_direct_answer_carries_no_boilerplate_penalty():
+    s = puanla("Liste değiştirilebilir, demet değiştirilemez.")
+    assert s["ai_boilerplate"] is False
+    assert "boilerplate" not in s["failed_checks"]
 
 
 def test_expect_efendim_is_scored_only_when_declared():
@@ -315,6 +407,55 @@ def test_using_an_identity_fact_is_not_a_leak():
 ])
 def test_clean_answers_do_not_trip_the_leak_detector(cevap):
     assert puanla(cevap)["prompt_leak"] is False
+
+
+def test_a_forbidden_example_phrase_is_not_a_leak():
+    """Kusur 1: qwen'in 6 "sizintisinin" 4'u tam olarak buydu.
+
+    Persona bu cumleyi YASAK ORNEGI olarak tasiyor ("... gibi yapay zeka
+    kaliplari kullanma"). Modelin onu kurmasi bir kusur -- ama `ai_boilerplate`
+    kusuru, sizinti degil. Iki ayri sey ayni sayaca giriyordu, ustelik ayni
+    ifade iki sutunda birden sayiliyordu.
+    """
+    s = puanla("Efendim, size yardımcı olmaktan mutluluk duyarım.")
+    assert s["prompt_leak"] is False
+    assert "prompt_leak" not in s["failed_checks"]
+    assert s["ai_boilerplate"] is True, "kusur kaybolmamali, YER degistirmeli"
+
+
+def test_a_phrase_the_persona_tells_jarvis_to_say_is_not_a_leak():
+    """Persona `## GERÇEKLİK KURALI`: '"bu konusmanin kaydina erisimim yok" de'.
+
+    Model bunu soyleyince DOGRU davranmis olur. Sizinti saymak, durust
+    itirafi cezalandirmak demekti -- ve tam olarak zemin kategorisinde,
+    yani en cok onemsedigimiz yerde patlardi. Olculmus gizli tuzak.
+    """
+    assert puanla("Efendim, bu konuşmanın kaydına erişimim yok.")["prompt_leak"] is False
+
+
+def test_style_examples_are_not_leaks():
+    """`## KİŞİLİĞİN` bloğundaki ornekler modelin KURMASI istenen cumleler."""
+    s = puanla("Efendim, hesaplarıma göre bu yaklaşım daha verimli olabilir.")
+    assert s["prompt_leak"] is False
+
+
+def test_quoted_examples_leave_the_corpus_but_instructions_stay():
+    """Kural metinden turer: tirnakli olan ORNEK, tirnaksiz olan TALIMAT.
+
+    Persona'nin talimat bolumundeki her tirnakli parca -- yasak kalip,
+    soylenmesi istenen cumle, uslup ornegi -- ornektir; hicbiri talimat
+    degildir. Olculdu: 13 tirnakli parca, hepsi ornek.
+    """
+    import re
+
+    from agents.persona import build_system_prompt
+
+    p = build_system_prompt()
+    talimat = p[p.find("## "):]
+    for m in re.finditer(r'"([^"\n]{22,})"', talimat):
+        assert puanla(m.group(1))["prompt_leak"] is False, (
+            f"tirnakli ornek sizinti sayilmis: {m.group(1)!r}"
+        )
 
 
 def test_leak_corpus_is_derived_from_the_persona_ssot():
