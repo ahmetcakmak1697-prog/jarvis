@@ -12,6 +12,11 @@ Açıldı: 2026-09-01, gözetimsiz oturum.
 - **A1** Turkish-Gemma indirme → **HAYIR** (şimdilik). Önce mistral-nemo
   çıkışının kulakla etkisi görülecek; ölçülmemiş iyileştirmenin üstüne yeni
   değişken eklenmeyecek. 8K bağlam sınırı da gerçek risk.
+  **→ 2026-09-05'te AÇILDI:** o etki dinlendi, terazi de düzeldi. Ahmet
+  ölçümü onayladı; `Turkish-Gemma-9b-v0.1` (T1 değil) ve
+  `Turkcell-LLM-7b-v1` indirilip ölçüldü. 8K bağlam öngörüsü doğru çıktı
+  (`ctx 8192`), asıl sürpriz VRAM oldu: tepe 7076 MB, tavanın üstünde.
+  Sonuç: `automation/MODEL_KIYASI_TURKCE_2026-09-05.md`.
 - **A2** `runtime_profiles.json` → **EVET**: `local_main` → `llama3.1`,
   `local_small` → `qwen2.5:7b` (değişmiyor). Profil değişikliği tek başına
   dursun diye **en son, ayrı commit'te** uygulanıyor.
@@ -44,6 +49,35 @@ Açıldı: 2026-09-01, gözetimsiz oturum.
   şimdi 5/10, `longform ">=3/4"` iken 0/4), o yüzden hepsi düzeltildi.
   Anahtar adları korundu (gereksiz kırılma yok). Bloğu hiçbir Python kodu
   okumuyor; bu bir insan yorumudur.
+
+---
+
+## A15 — `FOREIGN_RUN_WORDS = 6` bir şarkı adını yakaladı (yeni yanlış pozitif)
+
+İngilizce cümle dedektörünün eşiği 192 cevap üzerinde ölçülmüştü; o veride
+en uzun **meşru** İngilizce dizi 3 kelimeydi (AC/DC albüm adları), gerçek
+sızıntı ise 7+ kelimeydi. Eşik 6, ikisinin ortasına konmuştu.
+
+2026-09-05 koşusunda ilk kez **6 kelimelik bir özel isim** çıktı:
+`t1_tone_014`'te llama3.1 *"you shook me all night long"* yazdı — bir AC/DC
+şarkısı. Dedektör bunu İngilizce cümle sızıntısı saydı ve vakayı düşürdü.
+Maliyeti: llama3.1 **49/64 yerine 50/64** olurdu.
+
+**Düzeltmedim:** kart puanlayıcıyı dondurdu ("üç koşu da aynı puanlayıcıyı
+kullanacak, yoksa kıyas anlamsızlaşır") — ortasında eşik oynatmak üç koşuyu
+kıyaslanamaz kılardı.
+
+Görünen seçenekler (hiçbiri ölçülmedi, karar senin):
+
+(a) **Eşiği 7'ye çıkar.** En ucuzu. Ama `t1_tone_017`'deki gerçek sızıntı
+    (*"i can switch to english for you"*) tam 7 kelimeydi — sınıra oturur.
+(b) **Kalın/başlık biçimli parçaları hariç tut.** Şarkı ve albüm adları
+    çoğunlukla `**...**` içinde ya da Baş Harfleri Büyük yazılıyor. Daha
+    doğru ama daha çok kod.
+(c) **Kalsın.** Yanlış pozitif oranı hâlâ düşük (256 cevapta 1) ve dedektör
+    iki gerçek kusuru yakalıyor.
+
+**Gerekli olan:** (a)/(b)/(c) — ya da "şimdilik kalsın".
 
 ---
 

@@ -261,7 +261,15 @@ gibi davranır.
 3. Sesli hatta `/no_think`
 4. İlk cümleyi Piper'a stream et
 5. Qwen3.5-9B → ses hattı; Qwen3.6-35B-A3B `--n-cpu-moe` → ağır iş; **ölç**
-6. Turkish-Gemma-9b-T1 GGUF'unu Türkçe kalite karşılaştırmasına sok
+6. ~~Turkish-Gemma-9b-T1 GGUF'unu Türkçe kalite karşılaştırmasına sok~~
+   **YAPILDI (2026-09-05).** T1 yerine **v0.1** ölçüldü (T1'in düşünme
+   blokları bütçeyi yiyor, §5.3). 64 vakalık takımda `Turkish-Gemma-9b-v0.1`
+   **54/64** ile en yüksek puanı aldı; ama tepe VRAM **7076 MB** — §3'teki
+   6144 MB tavanının **üstünde** — ve ilk token 420,8 ms (llama3.1'de 30,5).
+   `Turkcell-LLM-7b-v1` de ölçüldü: genişletilmiş Türkçe tokenizer iddiası
+   **doğrulandı ama küçük çıktı** (%5,8 daha az token; §4'teki 1,9 katsayısını
+   kaldırmıyor). Karar verilmedi, `runtime_profiles.json` değişmedi.
+   Tam tablo: `automation/MODEL_KIYASI_TURKCE_2026-09-05.md`.
 
 **~10.000 TL:**
 7. 2 TB SATA SSD
