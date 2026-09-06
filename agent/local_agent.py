@@ -252,18 +252,28 @@ class LocalJarvisAgent:
             return {}
 
     def _proje_ctx_imzasi(self, root: Path) -> tuple:
-        """Proje durumunun kaynaklarindan ucuz bir parmak izi (B06).
+        """Proje durumunun kaynaklarindan ucuz bir parmak izi (B06 / A-06).
 
-        Yalniz `stat()` yapar -- alt surec yok, dosya okumasi yok. Amac her
-        turda "degisti mi?" sorusunu bedelsiz cevaplamak.
+        Neredeyse yalniz `stat()` yapar -- alt surec yok. Tek istisna `.git`
+        isaretcisi, `commondir` ve `HEAD`: uculu de birkac onlarca baytlik
+        metin dosyasidir ve nereye bakilacagini soylerler.
 
-        `.git` bir DOSYA olabilir (worktree isaretcisi); o durumda gercek
-        gitdir cozulur, yoksa commit'ler goruncmez ve tazeleme calismaz --
-        bu repo bir worktree oldugu icin onemli.
+        Izlenen kumenin `_load_project_context`'in OKUDUGU kumeyle ayni
+        olmasi zorunludur; okunup izlenmeyen bir kaynak sessizce bayatlar.
+
+        Git tarafi A-06'da duzeltildi. Eskiden yalniz `HEAD` izleniyordu ama
+        `HEAD` sembolik bir referanstir (`ref: refs/heads/<dal>`): commit
+        atildiginda ne icerigi ne mtime'i degisir -- degisen `refs/heads/...`
+        dosyasidir. Refler paketlenmisse degisen `packed-refs` olur. Bagli
+        bir worktree'de her ikisi de ORTAK dizinde durur, worktree'nin kendi
+        gitdir'inde degil.
         """
+        import os
+
         hedefler: list[Path] = [
             root / "roadmap_state.json",
             root / "automation" / "HUMAN_NEEDED.md",
+            root / "automation" / "T1_S2_FAIL_LOG.md",
         ]
 
         git = root / ".git"
@@ -271,8 +281,27 @@ class LocalJarvisAgent:
             if git.is_file():
                 icerik = git.read_text(encoding="utf-8").strip()
                 if icerik.startswith("gitdir:"):
-                    git = Path(icerik.split(":", 1)[1].strip())
+                    ham = Path(icerik.split(":", 1)[1].strip())
+                    # Goreli isaretci CALISMA dizinine gore degil, depo
+                    # KOKUNE gore cozulur; baska bir worktree'de kirilirdi.
+                    git = ham if ham.is_absolute() else root / ham
+
+            ortak = git
+            commondir = git / "commondir"
+            if commondir.is_file():
+                ham = Path(commondir.read_text(encoding="utf-8").strip())
+                ortak = ham if ham.is_absolute() else git / ham
+
             hedefler.append(git / "HEAD")
+            hedefler.append(ortak / "packed-refs")
+
+            head = (git / "HEAD").read_text(encoding="utf-8").strip()
+            if head.startswith("ref:"):
+                ref = head.split(":", 1)[1].strip()
+                # Ref ya worktree'ye ozel ya ortak dizindedir; ikisi de
+                # izlenir, olmayani zaten (yol, None, None) olarak gecer.
+                hedefler.append(git / ref)
+                hedefler.append(ortak / ref)
         except Exception:
             pass
 
@@ -283,6 +312,13 @@ class LocalJarvisAgent:
                 imza.append((str(p), st.st_mtime_ns, st.st_size))
             except OSError:
                 imza.append((str(p), None, None))
+
+        # Dosya degil ama baglami degistiriyor: yukleyici bu bayragi okuyup
+        # "Calisma Modu" bolumunu ona gore yaziyor.
+        imza.append(
+            ("env:JARVIS_PROACTIVE_ENABLED",
+             os.getenv("JARVIS_PROACTIVE_ENABLED"), None)
+        )
         return tuple(imza)
 
     def _proje_ctx_guncel(self, root: Path | None = None) -> str:
