@@ -47,6 +47,16 @@ import pytest
     "Dun ne okudum hatirliyor musun",
     "İNCELE ŞUNU",
     "Son durumu analiz eder misin",
+    # A-07: `.md`/`.txt` uzantisi belge istegi degildir. Bu bir kod deposu;
+    # README.md ve requirements.txt gunluk kod sorularinin konusu.
+    "README.md nedir?",
+    "requirements.txt nedir?",
+    "CLAUDE.md dosyasinda ne yaziyor",
+    # A-07: "belge" koku tek basina istek degildir -- sozluk sorusu ve
+    # "belgesel" (bambaska bir kelime) buraya dusuyordu.
+    "belge ne demek?",
+    "belgesel oner",
+    "Dun belgesel izledim",
 ])
 def test_genel_istek_pdf_yoluna_sapmaz(mesaj):
     from agent.local_agent import _pdf_istegi_mi
@@ -69,6 +79,12 @@ def test_genel_istek_pdf_yoluna_sapmaz(mesaj):
     "rapor.pdf dosyasini ac",
     "belgeyi oku",
     "PDF'İ İNCELE",
+    # A-07: "pdf" kisa bir koktur ve kelime siniri Turkce ekleri kesiyordu.
+    # Turkce sondan eklemelidir; acik bir PDF istegi kacirilmamali.
+    "PDFyi oku",
+    "PDFleri incele",
+    "pdfyi ozetle",
+    "pdf'leri tara",
 ])
 def test_acik_belge_istegi_pdf_yolunu_tetikler(mesaj):
     from agent.local_agent import _pdf_istegi_mi

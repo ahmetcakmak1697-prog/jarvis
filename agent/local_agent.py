@@ -90,16 +90,36 @@ def _yerel_kal_istendi(message: str) -> bool:
 #:
 #: Asimetri bilerek: yanlis negatif ucuz (kullanici "pdf oku" der, calisir),
 #: yanlis pozitif pahali (kod sorusu rastgele bir PDF'e sapar).
-_BELGE_ISARETLERI: tuple[str, ...] = (
-    "pdf", "dokuman", "makale", "belge",
-)
 
 #: Dosya adi uzantisi -- "rapor.pdf" gibi acik bir hedef de gecerli isarettir.
-_BELGE_UZANTISI = re.compile(r"\.(pdf|docx?|txt|md|epub)\b", re.IGNORECASE)
+#: `.md` ve `.txt` A-07'de CIKARILDI: burasi bir kod deposu, "README.md nedir?"
+#: ve "requirements.txt nedir?" gunluk kod sorulari -- ikisi de rastgele bir
+#: PDF aciyordu.
+_BELGE_UZANTISI = re.compile(r"\.(pdf|docx?|epub)\b", re.IGNORECASE)
+
+#: "pdf" tek basina yeter: acik ve tek anlamli bir hedeftir. Kelime siniri
+#: KULLANILMAZ -- Turkce sondan eklemelidir ve `keyword_present` bu kadar kisa
+#: bir kokte "pdfyi", "pdfleri" gibi cekimleri kesiyordu (A-07). Ozellikle
+#: kesme isareti uretmeyen ses dokumleri bu yuzden kaciyordu.
+_PDF_KOKU = re.compile(r"\bpdf")
+
+#: Genel belge adlari. Bunlar TEK BASLARINA istek degildir: "belge ne demek?"
+#: bir sozluk sorusu, "belgesel" bambaska bir kelime (A-07).
+_BELGE_ADLARI: tuple[str, ...] = ("dokuman", "makale", "belge")
+
+#: Fiiller yine tek baslarina hicbir sey tetiklemez -- B07 tam bu yuzden
+#: vardi. Yalnizca yukaridaki genel bir belge adini NITELERLER: "belgeyi oku"
+#: bir istek, "belge ne demek" degil.
+_BELGE_FIILLERI: tuple[str, ...] = (
+    "oku", "incele", "analiz", "ozetle", "yukle", "goster", "tara",
+)
 
 
 def _pdf_istegi_mi(message: str) -> bool:
     """Kullanici ACIKCA bir belge istedi mi?
+
+    Uc gecerli isaret var, giderek daha temkinli:
+    belge uzantisi > "pdf" koku > genel belge adi + belge fiili.
 
     `_fold_tr` + `keyword_present` kullanir, duz `.lower()` DEGIL: Turkce'de
     `"İ".lower()` birlesik noktali bir karakter uretir ve "incele" ile
@@ -111,7 +131,11 @@ def _pdf_istegi_mi(message: str) -> bool:
     if _BELGE_UZANTISI.search(message):
         return True
     fold = _fold_tr(message)
-    return any(keyword_present(fold, k) for k in _BELGE_ISARETLERI)
+    if _PDF_KOKU.search(fold):
+        return True
+    if any(keyword_present(fold, ad) for ad in _BELGE_ADLARI):
+        return any(keyword_present(fold, fiil) for fiil in _BELGE_FIILLERI)
+    return False
 
 
 def _is_greeting(message: str) -> bool:
