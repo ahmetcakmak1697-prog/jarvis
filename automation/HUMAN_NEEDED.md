@@ -19,6 +19,8 @@ are placeholders. Do not treat them as real blockers. Only lines starting with
 
 ## Pending Items
 
+- [ ] [2026-09-06] [CODEX-A-20260906] A denetimi BLOCKER/CONCERN bulgulari acik: [rapor](CODEX_A_DOGRULAMA_2026-09-06.md). V2-HANDOFF: Ahmet KART_CODEX_B08_B10_v2.md ile devam iznini ve B08 eski girisin emekliligini onayladi. A-01/A-02/A-04/A-06/A-07 Claude'da; A-03/A-05 ve B08-B10 Codex'te. Bu madde artik B uygulamasinin izin engeli degil; kalan A duzeltmelerinin takibidir.
+
 <!-- Add real items below this comment as they arise. Format:
 - [ ] [YYYY-MM-DD] [TASK-ID] What is needed and exactly why Claude cannot proceed.
 -->
