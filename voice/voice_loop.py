@@ -28,6 +28,21 @@ _BAGLANTI = re.compile(r"\[([^\]]+)\]\([^)]*\)")
 _COKLU_BOSLUK = re.compile(r"\n{3,}")
 
 
+def _hassas_mi(text: str) -> bool:
+    """Metin hassas veri tasiyor mu? (B05)
+
+    Ayri bir fonksiyon olmasinin sebebi test edilebilirlik: `say()` icine
+    gomulu bir `try` blogunu disaridan bozup "ariza aninda ne oluyor"
+    sorusunu sinamak mumkun olmazdi.
+
+    `RedactionGuard` repoda zaten var ve baska yollarda kullaniliyor;
+    burada yeniden yazilmadi (CLAUDE.md 9, adopt-over-build).
+    """
+    from agents.redaction_guard import RedactionGuard
+
+    return RedactionGuard().contains_sensitive_data(text)
+
+
 def speech_text(text: Optional[str]) -> str:
     """Markdown'ı seslendirilebilir düz metne çevirir.
 
@@ -129,6 +144,30 @@ class VoiceIO:
         konusulacak = speech_text(text)
         if not konusulacak:
             return
+
+        # B05 -- veri sinifi kapisi. Denetim `speech_text` SONRASI yapilir:
+        # sentezleyiciye giden NIHAI metin neyse o denetlenir.
+        #
+        # Edge TTS cevrimici bir servistir; seslendirilen her cumle disari
+        # cikar. Yerel oldugunu beyan eden bir adaptor (ornegin Piper) icin
+        # kisitlama gereksizdir -- `is_local` bayragi o durumu acar. Bayrak
+        # yeni bir cephe acmaz, yalnizca kapinin dogru yerde durmasini saglar.
+        if not getattr(self._speaker, "is_local", False):
+            try:
+                hassas = _hassas_mi(konusulacak)
+            except Exception as exc:  # noqa: BLE001
+                # Sinif belirlenemiyorsa metin disari CIKMAZ. Codex B10
+                # router'da bunun tersini buldu: guard hatasi yutulup dis
+                # cagri yine de yapiliyordu.
+                self._duyur(f"[ses] icerik sinifi belirlenemedi, seslendirmedim: {exc}")
+                return
+            if hassas:
+                self._duyur(
+                    "[ses] Bu cevap hassas veri iceriyor; bulut sentezine "
+                    "gondermedim, ekranda birakiyorum."
+                )
+                return
+
         try:
             sonuc = self._speaker.speak(konusulacak)
         except Exception as exc:  # noqa: BLE001
