@@ -38,6 +38,47 @@ _SELAMLAR: tuple[str, ...] = (
 #: selamlama degildir: "Merhaba, su konuyu uzun uzun anlat..." gercek bir istek.
 _SELAM_MAX_UZUNLUK = 60
 
+#: Veriyi BU MAKINEDEN CIKARAN araclar ve sorguyu tasiyan argumanlarinin adi.
+#:
+#: B03 (Codex denetimi, 2026-09-06): bu yol `WebResearchPolicy`'den gecmiyordu.
+#: `parola=...` iceren bir sorgu arama saglayicisina AYNEN gidiyordu, ve
+#: kullanicinin acik "internete cikma" yasagi hicbir yerde okunmuyordu.
+#:
+#: Kapi `_run_tool`'da, `_detect_tool`'da DEGIL: sinir niyet tahmininde degil
+#: yurutme kodunda uygulanir (OWASP LLM01 -- disaridan gelen icerik model
+#: talimatina donusebilir, o yuzden prompt seviyesi koruma yetmez).
+_EGRESS_ARACLARI: dict[str, str] = {
+    "web_search": "query",
+    "deep_research": "topic",
+}
+
+#: Kullanicinin ACIK "disari cikma" talimati. Kokler yazilir, ekleri
+#: `keyword_present` karsilar (CLAUDE.md 6: Turkce sondan eklemelidir ve
+#: duz `.lower()` "İ" tuzagina duser).
+#:
+#: Bu kontrol politikadan ONCE calisir cunku CLAUDE.md 7 boyle emrediyor:
+#: "Human override her katmandan ustun: kullanici her an dur/iptal/unut/
+#: yerel-kal diyebilir." Politikanin "bu sorgu guncel bilgi gerektiriyor"
+#: karari, kullanicinin acik yasagini gecersiz kilamaz.
+#:
+#: Yanlis pozitif tarafi bilerek secildi: yanlislikla yerel kalirsak cevap
+#: zayiflar, yanlislikla disari cikarsak veri sizar. Asimetri lehimize.
+_YEREL_KAL_KOKLERI: tuple[str, ...] = (
+    "internete cikma", "internete girme", "internete baglanma",
+    "webe cikma", "web'e cikma", "aga cikma",
+    "disari cikma", "disariya cikma",
+    "yerel kal", "lokal kal", "offline kal",
+    "arama yapma", "arastirma yapma", "google'lama", "googlelama",
+)
+
+
+def _yerel_kal_istendi(message: str) -> bool:
+    """Kullanici aciktan disari cikilmamasini istedi mi?"""
+    if not message:
+        return False
+    fold = _fold_tr(message)
+    return any(keyword_present(fold, k) for k in _YEREL_KAL_KOKLERI)
+
 
 def _is_greeting(message: str) -> bool:
     """Mesaj bir selamlama/nezaket ifadesi mi?
@@ -406,10 +447,79 @@ class LocalJarvisAgent:
 
         return None
 
-    def _run_tool(self, tool_name: str, args: dict) -> str:
+    def _egress_kapisi(self, tool_name: str, args: dict,
+                       original_message: str = "") -> Optional[str]:
+        """Disari cikan arac icin izin karari. Engel varsa SEBEBI doner.
+
+        Iki katman, bu sirayla:
+
+        1. **Kullanicinin acik yasagi.** Politikadan once gelir; insan
+           gecersiz kilmasi her katmandan ustundur (CLAUDE.md 7).
+        2. **`WebResearchPolicy`.** Zaten var ve Telegram yolunda
+           kullaniliyor; burada yeniden yazilmadi, baglandi (9,
+           adopt-over-build). Izin verirse sorgu politikanin
+           `sanitized_query`'siyle DEGISTIRILIR -- ham sorgu disari cikmaz.
+
+        Engel sessiz olmaz: bos string yerine sebep doner, cunku
+        `_run_tool` hata yolunda "" donduruyor ve kullanici o farki
+        goremezdi.
+        """
+        arg_adi = _EGRESS_ARACLARI[tool_name]
+        sorgu = str(args.get(arg_adi) or "")
+
+        if _yerel_kal_istendi(original_message) or _yerel_kal_istendi(sorgu):
+            return (
+                "Yerel kalmami istediginiz icin disari cikmadim efendim. "
+                "Bu soruyu elimdeki bilgiyle yanitlayacagim."
+            )
+
+        # Karar ORIJINAL cumle uzerinden verilir, kirpilmis sorgu uzerinden
+        # degil. Olculdu (2026-09-06): `_detect_tool` "son haberler nedir"
+        # cumlesinden "haber" kelimesini cikarip geriye "son ler nedir"
+        # birakiyor; politika bu bozuk metne haklı olarak "guncel bilgi
+        # ihtiyaci yok" diyor ve mesru bir sorgu engelleniyordu. Politikanin
+        # isi niyeti yargilamak, kirpma artigini degil.
+        #
+        # [AYRI KUSUR, DUZELTILMEDI] Bozuk sorgu arama saglayicisina o haliyle
+        # gidiyor. Bu bir kalite hatasi, guvenlik hatasi degil; B03'un kapsami
+        # disinda -- gorulup soylendi, dokunulmadi (CLAUDE.md 3).
+        try:
+            from agents.web_research_policy import WebResearchPolicy
+            karar = WebResearchPolicy().decide(original_message or sorgu)
+        except Exception as exc:
+            # Guard arizasi disari cikmayi ACMAZ, KAPATIR. Codex B10 tam
+            # bunun tersini buldu: router redaction hatasini `except: pass`
+            # ile gecip disari cikiyordu.
+            return f"Web politikasi calistirilamadi, disari cikmadim: {exc}"
+
+        if not getattr(karar, "allow", False):
+            return (
+                f"Bu sorguyu disari gondermedim efendim. "
+                f"Neden: {getattr(karar, 'reason', 'politika reddetti')}"
+            )
+
+        # Karar orijinal cumleye bakti; ama DISARI CIKAN metin `sorgu`.
+        # O yuzden `karar.sanitized_query` (orijinalin temizlenmisi) degil,
+        # gercekten gidecek olan sorgu temizlenir.
+        try:
+            args[arg_adi] = WebResearchPolicy().sanitize(sorgu)
+        except Exception:
+            # Temizleyici calismadiysa ham sorgu disari CIKMAZ.
+            return "Sorgu temizlenemedi, disari cikmadim efendim."
+        return None
+
+    def _run_tool(self, tool_name: str, args: dict,
+                  original_message: str = "") -> str:
         fn = self._tools.get(tool_name)
         if not fn:
             return ""
+
+        # Egress kapisi -- arac CALISMADAN once.
+        if tool_name in _EGRESS_ARACLARI:
+            engel = self._egress_kapisi(tool_name, args, original_message)
+            if engel:
+                return engel
+
         try:
             console.print(f"[dim]🔧 {tool_name}...[/]")
             result = str(fn(**args))
@@ -465,7 +575,7 @@ class LocalJarvisAgent:
         if tool_detection:
             tool_name, tool_args = tool_detection
             console.print(f"[cyan]🔧 {tool_name}[/]")
-            tool_data = self._run_tool(tool_name, tool_args)
+            tool_data = self._run_tool(tool_name, tool_args, user_message)
 
         # System prompt: kimlik/sadakat/kisilik/uslup/zemin SSOT'tan gelir.
         system = build_system_prompt(level=_TIER_TO_LEVEL[tier])
