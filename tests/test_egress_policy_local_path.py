@@ -154,6 +154,38 @@ def test_sir_hicbir_arguman_icinde_disari_cikmaz(ajan):
 
 
 # --------------------------------------------------------------------------- #
+# 2b. A-04: kirpma, ORIJINALDE OLMAYAN hassas bir dizi uretebiliyor
+# --------------------------------------------------------------------------- #
+
+def test_kirpilmis_nihai_sorgu_da_veri_sinifi_denetiminden_gecer(ajan):
+    """Codex'in kaniti: girdi masum, DISARI CIKAN hali degil.
+
+    `_detect_tool` web sorgusunu kurarken "ara " ve "haber" parcalarini
+    siliyor. "paara rola ... son haberler" cumlesinden geriye
+    "parola ... son ler" kaliyor -- hassas desen kirpmanin KENDISI
+    tarafindan uretiliyor.
+
+    Karar orijinal cumleye bakiyordu (dogru: politikanin isi niyeti
+    yargilamak, kirpma artigini degil); ama disari cikan metin kirpilmis
+    sorgu. Ikisinin ayrilmasi kapiyi eksik biraktı: olculdu 2026-09-06,
+    sahte web aracina 1 cagri ulasti.
+    """
+    casus = _casusla(ajan, "web_search")
+    mesaj = f"paara rola {SIR} son haberler"
+
+    ad, cikti = _tam_yol(ajan, mesaj)
+
+    assert ad == "web_search", (
+        f"on kosul: bu cumle web aramasi secmeli, gelen {ad}"
+    )
+    assert casus.cagri_sayisi == 0, (
+        f"kirpilmis hassas sorgu araca ulasti: {casus.gelen}"
+    )
+    assert SIR not in str(casus.gelen), "ham isaretci arguman icinde cikti"
+    assert cikti, "engel sessiz olmamali -- kullaniciya sebep donmeli"
+
+
+# --------------------------------------------------------------------------- #
 # 3. Mesru sorgu calismaya devam etmeli -- kapi her seyi kesmemeli
 # --------------------------------------------------------------------------- #
 

@@ -661,10 +661,33 @@ class LocalJarvisAgent:
         # O yuzden `karar.sanitized_query` (orijinalin temizlenmisi) degil,
         # gercekten gidecek olan sorgu temizlenir.
         try:
-            args[arg_adi] = WebResearchPolicy().sanitize(sorgu)
+            nihai = WebResearchPolicy().sanitize(sorgu)
         except Exception:
             # Temizleyici calismadiysa ham sorgu disari CIKMAZ.
             return "Sorgu temizlenemedi, disari cikmadim efendim."
+
+        # A-04: nihai sorgunun VERI SINIFI da denetlenir. Kirpma, orijinalde
+        # olmayan hassas bir diziyi URETEBILIYOR -- olculdu 2026-09-06:
+        # "paara rola X son haberler" cumlesinden "ara " ve "haber" silinince
+        # geriye "parola X son ler" kaliyor ve o haliyle disari cikiyordu.
+        #
+        # Yalnizca HASSASLIK verdicti okunur. Niyet verdicti bilerek yeniden
+        # okunmaz: niyeti yargilamak orijinal cumlenin isidir (yukaridaki
+        # not), kirpma artiginin degil.
+        try:
+            nihai_karar = WebResearchPolicy().decide(nihai)
+        except Exception as exc:
+            return f"Web politikasi calistirilamadi, disari cikmadim: {exc}"
+
+        if getattr(nihai_karar, "mode", "") == \
+                WebResearchPolicy.MODE_SENSITIVE_BLOCKED:
+            return (
+                "Sorgu kirpildiktan sonra hassas veri iceriyor; disari "
+                "gondermedim efendim. Neden: "
+                f"{getattr(nihai_karar, 'reason', 'hassas veri')}"
+            )
+
+        args[arg_adi] = nihai
         return None
 
     def _run_tool(self, tool_name: str, args: dict,
