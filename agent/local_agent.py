@@ -212,7 +212,11 @@ class LocalJarvisAgent:
         self.available_models: list[str] = []
         self._ollama = None
         self._registry = ModelRegistry()
-        self._project_ctx = self._load_project_context()
+        # Baglam ve parmak izi birlikte kurulur; sonraki turlarda
+        # `_proje_ctx_guncel()` yalniz kaynak degistiyse yeniden okur (B06).
+        self._project_ctx = ""
+        self._project_ctx_imza = None
+        self._proje_ctx_guncel()
         self.memory = self._load_memory()
         self._tools = self._load_tools()
         self._init_ollama()
@@ -246,6 +250,67 @@ class LocalJarvisAgent:
         except Exception as e:
             console.print(f"[yellow]⚠ Araç hatası: {e}[/]")
             return {}
+
+    def _proje_ctx_imzasi(self, root: Path) -> tuple:
+        """Proje durumunun kaynaklarindan ucuz bir parmak izi (B06).
+
+        Yalniz `stat()` yapar -- alt surec yok, dosya okumasi yok. Amac her
+        turda "degisti mi?" sorusunu bedelsiz cevaplamak.
+
+        `.git` bir DOSYA olabilir (worktree isaretcisi); o durumda gercek
+        gitdir cozulur, yoksa commit'ler goruncmez ve tazeleme calismaz --
+        bu repo bir worktree oldugu icin onemli.
+        """
+        hedefler: list[Path] = [
+            root / "roadmap_state.json",
+            root / "automation" / "HUMAN_NEEDED.md",
+        ]
+
+        git = root / ".git"
+        try:
+            if git.is_file():
+                icerik = git.read_text(encoding="utf-8").strip()
+                if icerik.startswith("gitdir:"):
+                    git = Path(icerik.split(":", 1)[1].strip())
+            hedefler.append(git / "HEAD")
+        except Exception:
+            pass
+
+        imza: list = []
+        for p in hedefler:
+            try:
+                st = p.stat()
+                imza.append((str(p), st.st_mtime_ns, st.st_size))
+            except OSError:
+                imza.append((str(p), None, None))
+        return tuple(imza)
+
+    def _proje_ctx_guncel(self, root: Path | None = None) -> str:
+        """Proje durumunu dondurur; kaynaklar degistiyse YENIDEN okur (B06).
+
+        Eskiden baglam yalniz `__init__`'te bir kez kuruluyordu. Ajan acikken
+        commit atilirsa JARVIS eski dunyayi anlatmaya devam ediyordu --
+        PUSULA'nin dogrudan ihlali ("repo'nun o anki gercek durumu; uydurma
+        degil, canli").
+
+        Tazeleme zamanlayiciyla degil PARMAK IZIYLE yapilir: TTL beklemek
+        "canli" degildir, her tur diski taramak da bedava degil.
+        """
+        kok = Path(root) if root is not None else Path(__file__).parent.parent
+        try:
+            imza = self._proje_ctx_imzasi(kok)
+        except Exception:
+            imza = None
+
+        if imza is None or imza != getattr(self, "_project_ctx_imza", None):
+            try:
+                self._project_ctx = self._load_project_context(kok)
+            except Exception:
+                # Fail-safe korunur: durum okunamazsa uydurma yerine bos.
+                self._project_ctx = ""
+            self._project_ctx_imza = imza
+
+        return self._project_ctx or ""
 
     def _load_project_context(self, root: Path | None = None) -> str:
         """Modele verilecek **canlı** proje durumu bloğunu kurar.
@@ -613,8 +678,11 @@ class LocalJarvisAgent:
         # System prompt: kimlik/sadakat/kisilik/uslup/zemin SSOT'tan gelir.
         system = build_system_prompt(level=_TIER_TO_LEVEL[tier])
         system += "\n\n" + LOCAL_AGENT_ADDENDUM
-        if self._project_ctx:
-            system += f"\n\n{self._project_ctx}"
+        # Proje durumu HER TURDA tazelenir (B06). Kaynaklar degismediyse
+        # parmak izi ayni kalir ve yeniden okuma yapilmaz.
+        proje_ctx = self._proje_ctx_guncel()
+        if proje_ctx:
+            system += f"\n\n{proje_ctx}"
         if self.memory:
             ctx = self.memory.get_context_for_prompt()
             if ctx:
