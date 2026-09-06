@@ -111,8 +111,12 @@ def run_suite(
     """Vaka listesini koşturur ve puanlar.
 
     ``ask(model, prompt, level, system_extra)`` şu sözlüğü döndürmeli:
-    ``{text, raw_tps, first_token_ms, total_s}``. Hata fırlatabilir — koşu
+    ``{text, raw_tps, prompt_eval_ms, total_s}``. Hata fırlatabilir — koşu
     durmaz, hata vakanın kaydına yazılır.
+
+    ``prompt_eval_ms`` **ilk token süresi değildir** (B11): Ollama'nın prompt
+    değerlendirme süresidir. Gerçek uçtan uca gecikme
+    ``scripts/olc_ses_gecikmesi.py`` ile ölçülür.
     """
     sonuclar: List[Dict[str, Any]] = []
     tepe_vram: Optional[float] = None
@@ -149,7 +153,7 @@ def run_suite(
         metin = (cevap or {}).get("text", "")
         kayit["answer"] = metin
         kayit["raw_tps"] = (cevap or {}).get("raw_tps")
-        kayit["first_token_ms"] = (cevap or {}).get("first_token_ms")
+        kayit["prompt_eval_ms"] = (cevap or {}).get("prompt_eval_ms")
         kayit["total_s"] = (cevap or {}).get("total_s")
         kayit["done_reason"] = (cevap or {}).get("done_reason")
         kayit["score"] = score_answer(metin, vaka)
@@ -180,7 +184,7 @@ def _summarise(sonuclar: List[Dict[str, Any]],
             k["passed"] += 1
 
     tps = [r["raw_tps"] for r in sonuclar if r.get("raw_tps")]
-    ilk = [r["first_token_ms"] for r in sonuclar if r.get("first_token_ms")]
+    ilk = [r["prompt_eval_ms"] for r in sonuclar if r.get("prompt_eval_ms")]
     ort_tps = sum(tps) / len(tps) if tps else None
 
     return {
@@ -190,7 +194,7 @@ def _summarise(sonuclar: List[Dict[str, Any]],
         "by_category": kategori,
         "avg_raw_tps": ort_tps,
         "avg_turkish_tps": turkish_equivalent_tps(ort_tps) if ort_tps else None,
-        "avg_first_token_ms": sum(ilk) / len(ilk) if ilk else None,
+        "avg_prompt_eval_ms": sum(ilk) / len(ilk) if ilk else None,
         "peak_vram_mb": tepe_vram,
         "exceeds_vram_ceiling": exceeds_vram_ceiling(tepe_vram),
         # Ölçülemeyen sinyaller ayrıca sayılır: bunlar "kaldı" değil,
@@ -297,7 +301,7 @@ def write_report(sonuc: Dict[str, Any], out_dir: Path | str = DEFAULT_OUT,
         "|---|---|",
         f"| Ortalama tok/s | {_g(s['avg_raw_tps'])} |",
         f"| Türkçe-eşdeğer tok/s | {_g(s['avg_turkish_tps'])} |",
-        f"| Ortalama ilk token | {_g(s['avg_first_token_ms'], 'ms')} |",
+        f"| Ortalama prompt degerlendirme | {_g(s['avg_prompt_eval_ms'], 'ms')} |",
         f"| Tepe VRAM (sistem geneli) | {_g(s['peak_vram_mb'], 'MB')} |",
         f"| VRAM tavanı aşıldı mı | {_bayrak(s['exceeds_vram_ceiling'])} |",
         f"| Bozuk kodlama | {s['encoding_failures']} |",
@@ -374,7 +378,15 @@ def _ollama_ask(model: str, prompt: str, level: str,
     return {
         "text": (d.get("response") or "").strip(),
         "raw_tps": sayi / (sure_ns / 1e9) if sure_ns else 0.0,
-        "first_token_ms": (d.get("prompt_eval_duration") or 0) / 1e6,
+        # B11: bu alan Ollama'nin `prompt_eval_duration` degeridir --
+        # PROMPT DEGERLENDIRME suresi. "Ilk token" DEGIL: `stream=False`
+        # kullandigimiz icin zaten "ilk token" diye bir an yok, cevap tek
+        # parca geliyor. Eski adi (`first_token_ms`) karar verdirici bir
+        # yanlisti; Turkish-Gemma bu sayiya bakilarak "TTFT 420 ms" diye
+        # elendi -- sayi dogruydu, etiket yanlisti.
+        # Gercek uctan uca gecikme hala OLCULMEDI; olcumu B12'nin konusu:
+        # scripts/olc_ses_gecikmesi.py
+        "prompt_eval_ms": (d.get("prompt_eval_duration") or 0) / 1e6,
         "total_s": toplam,
         # "length" = num_predict bitti, "stop" = model kendi durdu.
         "done_reason": d.get("done_reason"),

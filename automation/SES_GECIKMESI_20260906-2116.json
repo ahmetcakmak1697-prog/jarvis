@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "olculdu": "2026-09-06T21:16:46",
+  "mod": "kuru",
+  "model": "llama3.1:latest",
+  "turlar": [
+    {
+      "soru": "nerede kaldik",
+      "cevap_uzunluk": 85,
+      "stt_ms": 0.0,
+      "model_ms": 18739.3,
+      "ses_ms": 0.0,
+      "toplam_ms": 18739.3
+    },
+    {
+      "soru": "nerede kaldik",
+      "cevap_uzunluk": 96,
+      "stt_ms": 0.0,
+      "model_ms": 9444.0,
+      "ses_ms": 0.0,
+      "toplam_ms": 9444.0
+    },
+    {
+      "soru": "nerede kaldik",
+      "cevap_uzunluk": 85,
+      "stt_ms": 0.0,
+      "model_ms": 12464.0,
+      "ses_ms": 0.0,
+      "toplam_ms": 12464.0
+    },
+    {
+      "soru": "nerede kaldik",
+      "cevap_uzunluk": 70,
+      "stt_ms": 0.0,
+      "model_ms": 5428.3,
+      "ses_ms": 0.0,
+      "toplam_ms": 5428.3
+    }
+  ],
+  "ozet": {
+    "tur": 4,
+    "stt_ms": {
+      "p50": 0.0,
+      "p95": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "ort": 0.0
+    },
+    "model_ms": {
+      "p50": 10954.0,
+      "p95": 17798.0,
+      "min": 5428.3,
+      "max": 18739.3,
+      "ort": 11518.9
+    },
+    "ses_ms": {
+      "p50": 0.0,
+      "p95": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "ort": 0.0
+    },
+    "toplam_ms": {
+      "p50": 10954.0,
+      "p95": 17798.0,
+      "min": 5428.3,
+      "max": 18739.3,
+      "ort": 11518.9
+    },
+    "hedef_ms": 1500,
+    "p50_hedefte_mi": false,
+    "p95_hedefte_mi": false
+  }
+}
