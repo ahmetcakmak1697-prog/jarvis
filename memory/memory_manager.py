@@ -69,16 +69,64 @@ class JarvisMemory:
         with open(self.profile_path, 'w', encoding='utf-8') as f:
             json.dump(self.profile, f, ensure_ascii=False, indent=2)
     
+    def _temizle(self, metin: str) -> str:
+        """Kalıcı depoya yazmadan önce hassas veriyi maskele (B04).
+
+        Codex denetimi (2026-09-06): bu depo sınıflandırma yapmadan ham
+        konuşma yazıyordu. `LifeGraph` hassas olguları saklamadığını
+        bildiriyor ama o ikinci koruma, buradaki ham kaydı engellemiyordu.
+
+        `RedactionGuard` repoda zaten var; yeniden yazılmadı, bağlandı
+        (CLAUDE.md §9). İçe aktarma tembel: `memory` paketi `agents`
+        paketine yükleme anında bağımlı olmasın.
+
+        Guard çalışmazsa metin **yazılmaz değil, maskelenir**: hafıza
+        kaybı sessiz bir veri sızıntısından iyidir, ama ham veri de
+        yazılmamalıdır.
+        """
+        if not metin:
+            return metin
+        try:
+            from agents.redaction_guard import RedactionGuard
+            sonuc = RedactionGuard().sanitize_text(metin)
+            return getattr(sonuc, "text", None) or str(sonuc)
+        except Exception:
+            return "[maskelenemedi — kayıt atlandı]"
+
     def add_conversation(self, user_msg: str, jarvis_resp: str, model: str = "?"):
-        """Konuşmayı kaydet"""
+        """Konuşmayı kaydet (hassas veri maskelenerek)"""
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
         c.execute(
             "INSERT INTO conversations (timestamp, user_message, jarvis_response, model_used) VALUES (?, ?, ?, ?)",
-            (datetime.now().isoformat(), user_msg, jarvis_resp, model)
+            (datetime.now().isoformat(),
+             self._temizle(user_msg), self._temizle(jarvis_resp), model)
         )
         conn.commit()
         conn.close()
+
+    def clear_conversations(self) -> int:
+        """Kalıcı konuşma geçmişini siler; silinen kayıt sayısını döner (B04).
+
+        **Kapsam bilerek dar.** Yalnız `conversations` tablosu boşalır;
+        profil (ad, tercihler) ve `events` tablosu korunur. "Sohbet
+        geçmişini temizle" diyen kullanıcı, doğrulanmış profil olgularını
+        kaybetmeyi beklemez — geniş bir silme, dar bir silmeden daha kötü
+        bir sürprizdir.
+
+        Bu metot `clear_history()`'nin ekrana yazdığı "Geçmiş temizlendi."
+        cümlesini DOĞRU yapmak için var: eskiden yalnız RAM siliniyor,
+        veritabanındaki kayıt bir sonraki prompt'a geri geliyordu.
+        """
+        conn = sqlite3.connect(self.db_path)
+        try:
+            c = conn.cursor()
+            c.execute("DELETE FROM conversations")
+            silinen = c.rowcount
+            conn.commit()
+        finally:
+            conn.close()
+        return max(silinen, 0)
     
     def get_recent_conversations(self, n: int = 5) -> List[Dict]:
         """Son n konuşmayı getir"""

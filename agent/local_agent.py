@@ -643,9 +643,32 @@ class LocalJarvisAgent:
         return response
 
     def clear_history(self):
+        """Geçmişi temizle — RAM **ve** kalıcı depo (B04).
+
+        Eskiden yalnız RAM listesi siliniyor, ekrana "Geçmiş temizlendi."
+        yazılıyordu. Codex denetimi (2026-09-06) ölçtü: veritabanındaki
+        konuşma kalıyor ve `get_context_for_prompt` ile bir sonraki
+        prompt'a geri giriyordu. Kullanıcı "unut" diyor, JARVIS "unuttum"
+        diyor, sonraki turda hatırlıyordu.
+
+        Profil ve olaylar korunur; yalnız sohbet geçmişi silinir.
+        """
         self.history = []
         self.turn_count = 0
-        console.print("[green]Geçmiş temizlendi.[/]")
+
+        silinen = 0
+        if getattr(self, "memory", None) is not None:
+            try:
+                silinen = self.memory.clear_conversations()
+            except Exception as exc:  # noqa: BLE001
+                # Sessiz basari YASAK: silinemedi ise kullanici bilmeli.
+                console.print(
+                    f"[red]Kalıcı geçmiş silinemedi: {exc}[/]\n"
+                    "[yellow]Oturum geçmişi temizlendi ama disk kaydı duruyor.[/]"
+                )
+                return
+
+        console.print(f"[green]Geçmiş temizlendi ({silinen} kalıcı kayıt silindi).[/]")
 
     def show_stats(self):
         console.print("\n[bold cyan]📊 İstatistikler[/]")
