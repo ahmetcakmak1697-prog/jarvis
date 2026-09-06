@@ -80,6 +80,40 @@ def _yerel_kal_istendi(message: str) -> bool:
     return any(keyword_present(fold, k) for k in _YEREL_KAL_KOKLERI)
 
 
+#: ACIK belge isareti. B07 (Codex denetimi, 2026-09-06) oncesinde bu liste
+#: "oku, analiz, incele, bak, indir, dosya, yukle" gibi FIILLERI de iceriyordu
+#: ve duz alt dize araniyordu. Sonuc: "Bu kodun mantigini analiz et" cumlesi
+#: normal sohbeti birakip en yeni PDF'yi acıyordu.
+#:
+#: Simdi yalnizca BELGE ADI gecerli. Fiiller cikarildi cunku tek baslarina
+#: hicbir sey soylemiyorlar: "bir bak" bir dosya istegi degildir.
+#:
+#: Asimetri bilerek: yanlis negatif ucuz (kullanici "pdf oku" der, calisir),
+#: yanlis pozitif pahali (kod sorusu rastgele bir PDF'e sapar).
+_BELGE_ISARETLERI: tuple[str, ...] = (
+    "pdf", "dokuman", "makale", "belge",
+)
+
+#: Dosya adi uzantisi -- "rapor.pdf" gibi acik bir hedef de gecerli isarettir.
+_BELGE_UZANTISI = re.compile(r"\.(pdf|docx?|txt|md|epub)\b", re.IGNORECASE)
+
+
+def _pdf_istegi_mi(message: str) -> bool:
+    """Kullanici ACIKCA bir belge istedi mi?
+
+    `_fold_tr` + `keyword_present` kullanir, duz `.lower()` DEGIL: Turkce'de
+    `"İ".lower()` birlesik noktali bir karakter uretir ve "incele" ile
+    eslesmez (CLAUDE.md 6). Eski dal duz `.lower()` kullandigi icin buyuk
+    harfli girdilerde sessizce farkli davraniyordu.
+    """
+    if not message:
+        return False
+    if _BELGE_UZANTISI.search(message):
+        return True
+    fold = _fold_tr(message)
+    return any(keyword_present(fold, k) for k in _BELGE_ISARETLERI)
+
+
 def _is_greeting(message: str) -> bool:
     """Mesaj bir selamlama/nezaket ifadesi mi?
 
@@ -550,11 +584,10 @@ class LocalJarvisAgent:
     def chat(self, user_message: str) -> str:
         if not self.ollama_available:
             return "⚠️ Ollama bağlı değil."
-        # PDF/döküman algılama — JARVIS kendisi bulur ve yükler
-        mesaj_lower = user_message.lower()
-        pdf_keywords = ["pdf", "dosya", "döküman", "makale", "yükle",
-                        "oku", "analiz", "incele", "bak", "indir"]
-        if any(k in mesaj_lower for k in pdf_keywords):
+        # PDF/döküman algılama — yalnız AÇIK belge isteğinde (B07).
+        # Eskiden "analiz", "bak", "oku" gibi fiiller de tetikliyordu ve
+        # "Bu kodun mantığını analiz et" sorusu rastgele bir PDF açıyordu.
+        if _pdf_istegi_mi(user_message):
             from tools.tools import find_and_load_pdf
             from rag.rag_engine import JarvisRAG
             yukle = find_and_load_pdf()
