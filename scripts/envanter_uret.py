@@ -52,7 +52,9 @@ ISARETCI = "<!-- OTOMATIK-BOLUM: asagisi scripts/envanter_uret.py tarafindan ure
 # ayri bir baslikta listelenir.
 GIRIS_A = [
     "main.py",
-    "gui.py",
+    # gui.py 2026-09-06'da emekliye ayrildi (B02): islevleri jarvis_desktop.py
+    # tarafindan zaten karsilaniyordu ve o dogru sekilde 127.0.0.1'e baglaniyor.
+    # Sozlesme: tests/test_network_binding_contract.py
     "jarvis_desktop.py",
     "jarvis_server.py",
     "jarvis_brain.py",
