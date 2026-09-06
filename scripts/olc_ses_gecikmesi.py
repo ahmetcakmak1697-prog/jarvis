@@ -19,13 +19,35 @@ tavsiyesi). Optimizasyon ayri bir karttir ve Ahmet'in karari.
 
 Olculen dilimler
 ----------------
-    t0  konusma bitti           (VAD karari / kuru modda: baslangic)
-    t1  STT metni hazir         -> stt_ms
+    t0  `dinle()` cagrilmadan once
+    t1  girdi metni hazir       -> girdi_ms
     t2  model cevabi tamam      -> model_ms
-    t3  sentez dosyasi hazir    -> sentez_ms
-    t4  ilk ses duyuldu         -> oynatma_ms
+    t3  `seslendir()` dondu     -> sentez_ve_oynatma_ms
     ------------------------------------------------
-        toplam = t4 - t0        -> HEDEF: <= 1500 ms
+        tur_ms = t3 - t0
+
+NE OLCULMUYOR (A-02) -- bu aralik PUSULA'nin araligi DEGILDIR
+-------------------------------------------------------------
+* PUSULA'da baslangic "konusma bitti" anidir (VAD karari). Buradaki t0
+  `dinle()` oncesidir: mikrofon beklemesini, kullanicinin konusmasini,
+  STT'yi ve gerekirse klavye beklemesini kapsar. `STTResult` VAD
+  konusma-sonu anini disari vermiyor.
+* PUSULA'da bitis "ilk ses duyuldu" anidir. Buradaki t3 `say()` donusudur
+  ve varsayilan oynatici sesin BITMESINI bekler.
+  `TTSResult.first_audio_hint_ms` bu boslugu kapatmaz; kendi uyarisinda
+  "synthesis time only ... playback start is not measured" diyor.
+
+Codex'in deterministik senaryosunda gercek aralik 700 ms, bu betigin
+olctugu 7200 ms idi -- on kat. Sayilar uydurulmadi, ETIKETLER gercege
+indirildi (B11 dersi: yanlis etiketli bir olcum, dogru bir olcum gibi
+karar verdirir).
+
+`tur_ms` gercek araligi KAPSAR, yani onun UST SINIRIDIR: altinda kalmak
+PUSULA'nin saglandigini kanitlar, ustune cikmak hicbir sey kanitlamaz --
+hukum bu yuzden "HEDEFTE" ya da "BELIRSIZ", asla "HEDEF DISI" degil.
+
+Gercek sinirlari olcmek `voice/stt.py` ve `scripts/j0_tts_adapters.py`
+icine olay damgasi koymayi gerektirir; ikisi de bu kartin kapsami disinda.
 
 Rapor p50 ve p95 verir; tek kosu hukum degildir (A11 dersi: ayni model ayni
 puanlayicida bile kosular arasi oynuyor).
@@ -54,6 +76,15 @@ __all__ = [
 #: istatistik icin gecerli oldugu (p50 mi p95 mi) Ahmet'in urun kararidir
 #: (Codex B12).
 HEDEF_MS = 1500
+
+#: Olculemeyen sey uydurulmaz, ADIYLA raporlanir (A-02). Bu metin ozete ve
+#: JSON raporuna girer ki sayiyi okuyan neyi okumadigini da gorsun.
+OLCULMEYEN_SINIRLAR = (
+    "VAD konusma-sonu ani ve ilk ses olayi OLCULMUYOR: STTResult VAD "
+    "sonunu vermiyor, TTSResult.first_audio_hint_ms yalniz sentez suresi "
+    "(kendi uyarisi: 'playback start is not measured'). Olculen tur_ms "
+    "PUSULA araligini kapsar, yani onun UST SINIRIDIR."
+)
 
 
 class OlcumBasarisiz(RuntimeError):
@@ -139,15 +170,16 @@ def olc_tek_tur(
             "seslendirme kaniti yok -- bu tur gecerli olcum degil"
         )
 
+    # Alan adlari OLCULEN seyi soyler, hedeflenen seyi degil (A-02).
     ms = lambda a, b: round((b - a) * 1000, 1)  # noqa: E731
     return {
         "soru": metin,
         "cevap_uzunluk": len(cevap or ""),
         "ses_kaniti": ses_kaniti,
-        "stt_ms": ms(t0, t1),
+        "girdi_ms": ms(t0, t1),
         "model_ms": ms(t1, t2),
-        "ses_ms": ms(t2, t3),
-        "toplam_ms": ms(t0, t3),
+        "sentez_ve_oynatma_ms": ms(t2, t3),
+        "tur_ms": ms(t0, t3),
     }
 
 
@@ -165,7 +197,7 @@ def ozetle(turlar: List[Dict[str, Any]]) -> Dict[str, Any]:
         return round(d[alt] + (d[ust] - d[alt]) * (k - alt), 1)
 
     ozet: Dict[str, Any] = {"tur": len(turlar)}
-    for alan in ("stt_ms", "model_ms", "ses_ms", "toplam_ms"):
+    for alan in ("girdi_ms", "model_ms", "sentez_ve_oynatma_ms", "tur_ms"):
         d = [t[alan] for t in turlar if t.get(alan) is not None]
         if not d:
             continue
@@ -177,14 +209,19 @@ def ozetle(turlar: List[Dict[str, Any]]) -> Dict[str, Any]:
             "ort": round(statistics.mean(d), 1),
         }
 
-    toplam = ozet.get("toplam_ms", {})
+    # Hukum UST SINIR uzerinden verilir (A-02): olculen aralik PUSULA
+    # araligini kapsar. Altinda kalmak saglandigini KANITLAR; ustune cikmak
+    # hicbir sey kanitlamaz, o yuzden "HEDEF DISI" degil "BELIRSIZ".
+    tur = ozet.get("tur_ms", {})
     ozet["hedef_ms"] = HEDEF_MS
-    ozet["p50_hedefte_mi"] = (
-        toplam.get("p50", float("inf")) <= HEDEF_MS if toplam else None
-    )
-    ozet["p95_hedefte_mi"] = (
-        toplam.get("p95", float("inf")) <= HEDEF_MS if toplam else None
-    )
+    ozet["pusula_araligi_olculdu"] = False
+    ozet["olculmeyen_sinirlar"] = OLCULMEYEN_SINIRLAR
+    for etiket in ("p50", "p95"):
+        deger = tur.get(etiket)
+        ozet[f"{etiket}_hukum"] = (
+            None if deger is None
+            else ("HEDEFTE" if deger <= HEDEF_MS else "BELIRSIZ")
+        )
     return ozet
 
 
@@ -201,28 +238,30 @@ def _yazdir(ozet: Dict[str, Any]) -> None:
     print("=" * 58)
     print(f"  SES HATTI GECIKMESI — {ozet['tur']} tur")
     print("=" * 58)
-    basliklar = {"stt_ms": "STT (konusma -> metin)",
+    basliklar = {"girdi_ms": "Girdi (dinle cagrisi)",
                  "model_ms": "Model (metin -> cevap)",
-                 "ses_ms": "Sentez + oynatma",
-                 "toplam_ms": "TOPLAM"}
+                 "sentez_ve_oynatma_ms": "Sentez + TAM oynatma",
+                 "tur_ms": "TUR SURESI (ust sinir)"}
     for alan, baslik in basliklar.items():
         d = ozet.get(alan)
         if not d:
             continue
-        ayrac = "-" * 58 if alan == "toplam_ms" else ""
+        ayrac = "-" * 58 if alan == "tur_ms" else ""
         if ayrac:
             print(ayrac)
         print(f"  {baslik:<26} p50 {d['p50']:>8.1f} ms   p95 {d['p95']:>8.1f} ms")
     print("-" * 58)
     hedef = ozet.get("hedef_ms")
-    for etiket, anahtar in (("p50", "p50_hedefte_mi"), ("p95", "p95_hedefte_mi")):
-        durum = ozet.get(anahtar)
-        if durum is None:
+    for etiket in ("p50", "p95"):
+        hukum = ozet.get(f"{etiket}_hukum")
+        if hukum is None:
             continue
-        isaret = "HEDEFTE" if durum else "HEDEF DISI"
-        print(f"  {etiket} <= {hedef} ms ? {isaret}")
+        print(f"  {etiket} ust sinir <= {hedef} ms ? {hukum}")
     print("=" * 58)
-    print("  Not: hangi istatistigin kabul siniri oldugu Ahmet'in urun")
+    print("  BELIRSIZ = ust sinir asildi; PUSULA araligi bundan KUCUKTUR")
+    print("  ama ne kadar oldugu olculmuyor:")
+    print(f"  {ozet.get('olculmeyen_sinirlar', '')}")
+    print("  Hangi istatistigin kabul siniri oldugu Ahmet'in urun")
     print("  kararidir. Bu betik olcer, hukum vermez.")
     print()
 

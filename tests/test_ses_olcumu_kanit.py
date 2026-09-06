@@ -198,4 +198,4 @@ def test_kuru_modda_kanit_beklenmez():
     t = olc_tek_tur("soru", None, lambda m: "cevap", lambda c: None)
 
     assert t["ses_kaniti"] is False
-    assert t["toplam_ms"] >= 0
+    assert t["tur_ms"] >= 0
