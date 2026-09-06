@@ -392,6 +392,36 @@ modele gerçek kayıt beslemektir (Eşik 3). Bu **açık madde**.
 - **Regresyon testi:** `tests/test_e1_6b_delivery_result.py::test_delivery_result_is_dataclass`
   (sözleşmeyi zaten kilitliyor)
 
+### [2026-09-06] `eval` sandbox'a kapatılamaz — boş `__builtins__` bir güvenlik sınırı değildir
+
+- **Alan:** `tools/tools.py` → `calculate` (Codex denetimi B01)
+- **Şiddet:** BLOCKER
+- **Tuzak:** `eval(expression, {"__builtins__": {}}, safe_dict)` bir kum havuzu
+  sanıldı. Boş `__builtins__` yalnız ADLARI gizler, **nesne grafiğini değil**:
+  `().__class__.__base__.__subclasses__()` ile tüm sınıflara, oradan
+  `catch_warnings.__init__.__globals__['__builtins__']` ile gerçek
+  yerleşiklere dönülüyordu. Danışman canlı doğruladı — zincir `sum([20,22])`
+  → **42** döndürdü; aynı yoldan `open` ve `__import__('os').system` de
+  erişilebiliyordu.
+- **Kök neden:** İki ayrı yanılgı. (a) Ad görünürlüğü ile yetenek sınırı
+  karıştırıldı: Python'da her nesne kendi tip grafiğini taşır, adları saklamak
+  erişimi kaldırmaz. (b) Yüzeyin `run_python_code` ajandan çıkarılınca
+  kapandığı varsayıldı; oysa `calculate` "hesapla" tetikleyicisinden
+  ulaşılabilen **ikinci** yoldu ve açık kaldı.
+- **Kural:** Kullanıcı girdisi `eval`/`exec`'e hiçbir sarmalayıcıyla
+  verilmez. Kara liste (dunder süzgeci, `getattr` yasağı) tarihsel olarak hep
+  delindi; gereken beyaz listedir — `ast.parse(..., mode="eval")` + ele
+  alınmayan her düğüm türünü reddeden bir yorumlayıcı. Kaynak tüketmesi de bir
+  saldırıdır: `9**9**9` hesaplanmadan **önce** reddedilmeli.
+- **Kanıt:** `tools/tools.py:545` (`_eval_node`, beyaz liste),
+  `tools/tools.py:536` (`_guarded_pow`, üs sınırı).
+  Test önce kırmızı görüldü: 12 başarısız, iddia metni
+  `"... = 42"`; kaynak düzeltildikten sonra 26 geçti.
+- **Regresyon testi:** `tests/test_calculate_sandbox.py` — istismarın kendisi,
+  nesne grafiğinin her halkası ve kaynak sınırları, `LocalJarvisAgent`
+  `_detect_tool` → `_run_tool` **tam yolundan** sınanır; fonksiyonu doğrudan
+  çağırmak ajanın o fonksiyona giden yolunu kanıtlamaz.
+
 ---
 
 ## Kalıcı tuzak listesi (repo genelinde bilinen, tekrar eden sınıflar)

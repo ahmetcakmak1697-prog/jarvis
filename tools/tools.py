@@ -19,6 +19,7 @@ import ast
 import io
 import json
 import math
+import operator
 import os
 import subprocess
 import time
@@ -495,18 +496,102 @@ def run_python_code(code: str, timeout: int = 15) -> str:
 #  YENİ ARAÇ 6: HESAP MAKİNESİ
 # ════════════════════════════════════════════════════════
 
+#: `eval` bir sandbox'a kapatılamaz. `{"__builtins__": {}}` yalnız ADLARI
+#: gizler, nesne grafiğini değil: `().__class__.__base__.__subclasses__()`
+#: zincirinden `catch_warnings.__init__.__globals__` üzerinden gerçek
+#: yerleşiklere dönülüyordu (B01 — çalışan istismarla doğrulandı, `sum` da
+#: `open` da `os.system` de erişilebiliyordu). Kara liste denemeleri tarihsel
+#: olarak hep delindi; bu yüzden ifade artık `eval` EDİLMEZ, AST'si beyaz
+#: listeyle yorumlanır. `_eval_node` içinde ele alınmayan her düğüm türü —
+#: nitelik erişimi, indeksleme, lambda, üreteç, dize — reddedilir.
+_MATH_CONSTANTS = {
+    k: v for k, v in ((k, getattr(math, k)) for k in dir(math))
+    if not k.startswith("_") and not callable(v)
+}
+_ALLOWED_FUNCS = {
+    k: v for k, v in ((k, getattr(math, k)) for k in dir(math))
+    if not k.startswith("_") and callable(v)
+}
+_ALLOWED_FUNCS["abs"] = abs
+_ALLOWED_FUNCS["round"] = round
+
+_BINARY_OPS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.FloorDiv: operator.floordiv,
+    ast.Mod: operator.mod,
+}
+_UNARY_OPS = {ast.UAdd: operator.pos, ast.USub: operator.neg}
+
+#: Kaynak tüketme de bir saldırıdır: `9**9**9` reddedilmeden hesaplanırsa
+#: süreç dakikalarca CPU ve yüzlerce MB RAM yer. Tek çağrıyla dev tam sayı
+#: üreten math işlevleri de aynı nedenle sınırlanır.
+_MAX_EXPONENT = 1000
+_MAX_RESULT_BITS = 10_000
+_ARG_LIMITS = {"factorial": 1000, "comb": 1000, "perm": 1000}
+
+
+def _guarded_pow(base, exponent):
+    if abs(exponent) > _MAX_EXPONENT:
+        raise ValueError(f"üs çok büyük (en fazla {_MAX_EXPONENT})")
+    if isinstance(base, int) and isinstance(exponent, int) and exponent > 0:
+        if base.bit_length() * exponent > _MAX_RESULT_BITS:
+            raise ValueError("sonuç çok büyük")
+    return base ** exponent
+
+
+def _eval_node(node):
+    """Tek bir AST düğümünü yorumlar; beyaz listede olmayan her şeyi reddeder."""
+    if isinstance(node, ast.Constant):
+        if not isinstance(node.value, (int, float)):
+            raise ValueError(f"yalnız sayı kullanılabilir: {node.value!r}")
+        return node.value
+
+    if isinstance(node, ast.Name):
+        if node.id in _MATH_CONSTANTS:
+            return _MATH_CONSTANTS[node.id]
+        raise ValueError(f"bilinmeyen ad: {node.id}")
+
+    if isinstance(node, ast.UnaryOp):
+        op = _UNARY_OPS.get(type(node.op))
+        if op is None:
+            raise ValueError(f"izin verilmeyen işleç: {type(node.op).__name__}")
+        return op(_eval_node(node.operand))
+
+    if isinstance(node, ast.BinOp):
+        if isinstance(node.op, ast.Pow):
+            return _guarded_pow(_eval_node(node.left), _eval_node(node.right))
+        op = _BINARY_OPS.get(type(node.op))
+        if op is None:
+            raise ValueError(f"izin verilmeyen işleç: {type(node.op).__name__}")
+        return op(_eval_node(node.left), _eval_node(node.right))
+
+    if isinstance(node, ast.Call):
+        if not isinstance(node.func, ast.Name):
+            raise ValueError("yalnız izinli işlev adları çağrılabilir")
+        fn = _ALLOWED_FUNCS.get(node.func.id)
+        if fn is None:
+            raise ValueError(f"izin verilmeyen işlev: {node.func.id}")
+        if node.keywords:
+            raise ValueError("anahtar sözcüklü argüman desteklenmiyor")
+        args = [_eval_node(a) for a in node.args]
+        limit = _ARG_LIMITS.get(node.func.id)
+        if limit is not None and any(a > limit for a in args):
+            raise ValueError(f"{node.func.id} argümanı çok büyük (en fazla {limit})")
+        return fn(*args)
+
+    raise ValueError(f"izin verilmeyen ifade: {type(node).__name__}")
+
+
 def calculate(expression: str) -> str:
     """
     Matematiksel ifadeyi hesaplar.
     Örnek: "sin(pi/4) * 100", "2**10", "sqrt(144)"
     """
     try:
-        # Güvenli math fonksiyonları
-        safe_dict = {k: getattr(math, k) for k in dir(math) if not k.startswith("_")}
-        safe_dict["abs"] = abs
-        safe_dict["round"] = round
-
-        result = eval(expression, {"__builtins__": {}}, safe_dict)
+        result = _eval_node(ast.parse(expression, mode="eval").body)
         return f"{expression} = {result}"
     except ZeroDivisionError:
         return "Hata: Sıfıra bölme"
