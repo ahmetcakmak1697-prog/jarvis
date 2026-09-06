@@ -45,7 +45,10 @@ _REPO = Path(__file__).resolve().parents[1]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
-__all__ = ["olc_tek_tur", "ozetle", "rapor_yaz", "HEDEF_MS"]
+__all__ = [
+    "olc_tek_tur", "ozetle", "rapor_yaz", "HEDEF_MS",
+    "OlcumBasarisiz", "SesOlcumu",
+]
 
 #: CLAUDE.md 8'in soyledigi hedef. Bir kapi DEGIL, bir olcuttur: hangi
 #: istatistik icin gecerli oldugu (p50 mi p95 mi) Ahmet'in urun kararidir
@@ -53,16 +56,68 @@ __all__ = ["olc_tek_tur", "ozetle", "rapor_yaz", "HEDEF_MS"]
 HEDEF_MS = 1500
 
 
+class OlcumBasarisiz(RuntimeError):
+    """Tur olculmedi. Gecerli olcum sayilmaz, ortalamaya girmez (A-01).
+
+    Bir olcum hatti, olctugu sey olmadiginda sessizce basarili raporlayamaz;
+    boyle bir hat, hat olmamasindan kotudur.
+    """
+
+
+class SesOlcumu:
+    """`VoiceIO.say()` etrafinda ince bir KANIT toplayici (A-01).
+
+    `say()` istisnayi bilerek yutar ve hicbir sey dondurmez -- o katmanin
+    sozlesmesi "ses asla tek yol degildir" ve DOGRUDUR, degismez. Bu yuzden
+    basari/basarisizlik olcum tarafinda anlasilir. Uc kaynak birlikte
+    okunur, hepsi VoiceIO'nun ACIK arayuzu:
+
+    * `vio.enabled` -- kurulum sessizce kapali donmus olabilir;
+    * `speech_text(...)` -- bos metin hic seslendirilmez (VoiceIO'nun
+      cagirdigi islevin ta kendisi cagrilir, esik kopyalanmaz);
+    * `notify` bildirimleri -- hata varsa VoiceIO buradan haber verir.
+
+    Hicbir bildirim gelmemesi, konusmacinin `speak()` cagrisinin kendi
+    sozlesmesine gore basarili dondugu anlamina gelir; ilk ses olayinin
+    kaniti budur.
+    """
+
+    def __init__(self, vio: Any, uyarilar: List[str]) -> None:
+        self._vio = vio
+        self._uyarilar = uyarilar
+
+    def __call__(self, metin: Optional[str]) -> bool:
+        from voice.voice_loop import speech_text
+
+        if not getattr(self._vio, "enabled", False):
+            self._uyarilar.append("[olcum] ses katmani kapali; seslendirme yok")
+            return False
+
+        if not speech_text(metin):
+            self._uyarilar.append("[olcum] seslendirilecek metin yok")
+            return False
+
+        onceki = len(self._uyarilar)
+        self._vio.say(metin)
+        return len(self._uyarilar) == onceki
+
+
 def olc_tek_tur(
     soru: str,
     dinle: Optional[Callable[[], str]],
     sor: Callable[[str], str],
-    seslendir: Callable[[str], None],
+    seslendir: Callable[[str], Any],
+    ses_bekleniyor: bool = False,
 ) -> Dict[str, Any]:
     """Tek turu dilim dilim olcer. Enjekte edilebilir -- test edilebilsin.
 
     `dinle` None ise kuru mod: STT atlanir ve `soru` dogrudan kullanilir.
     Boylece mikrofon olmayan bir makinede model+sentez dilimleri yine olculur.
+
+    `seslendir` gercekten ses uretildiyse dogru bir deger dondurur. Kuru modda
+    ses beklenmez; `ses_bekleniyor=True` iken kanit yoksa tur GECERSIZDIR ve
+    `OlcumBasarisiz` firlatilir (A-01) -- olculmeyen bir tur ortalamayi
+    kirletemez.
     """
     t0 = time.perf_counter()
 
@@ -76,13 +131,19 @@ def olc_tek_tur(
     cevap = sor(metin)
     t2 = time.perf_counter()
 
-    seslendir(cevap)
+    ses_kaniti = bool(seslendir(cevap))
     t3 = time.perf_counter()
+
+    if ses_bekleniyor and not ses_kaniti:
+        raise OlcumBasarisiz(
+            "seslendirme kaniti yok -- bu tur gecerli olcum degil"
+        )
 
     ms = lambda a, b: round((b - a) * 1000, 1)  # noqa: E731
     return {
         "soru": metin,
         "cevap_uzunluk": len(cevap or ""),
+        "ses_kaniti": ses_kaniti,
         "stt_ms": ms(t0, t1),
         "model_ms": ms(t1, t2),
         "ses_ms": ms(t2, t3),
@@ -184,19 +245,27 @@ def main() -> int:
         return 1
     ajan.voice_mode = True
 
-    def _sessiz(_metin: str) -> None:
+    def _sessiz(_metin: str) -> bool:
         """Kuru modda oynatma yok; dilim sifir kalir, uydurulmaz."""
+        return False
 
     dinle = None
-    seslendir: Callable[[str], None] = _sessiz
+    seslendir: Callable[[str], Any] = _sessiz
     ses_aktif = False
+    #: VoiceIO hatalarini buraya yazar. Bagli olmazsa hata varsayilan
+    #: no-op'a gider ve olcum sessizce "basarili" olur (A-01).
+    uyarilar: List[str] = []
 
     if not a.kuru:
         try:
             from voice.voice_loop import build_default_voice_io
-            vio = build_default_voice_io(enabled=True)
+            vio = build_default_voice_io(enabled=True, notify=uyarilar.append)
+            # Kurulum istisna FIRLATMADAN kapali bir VoiceIO dondurebilir;
+            # o durumda hicbir ses cikmaz ama betik eskiden "tam" yaziyordu.
+            if not getattr(vio, "enabled", False):
+                raise OlcumBasarisiz("ses katmani kapali dondu")
             dinle = lambda: vio.prompt("Konusun efendim: ")  # noqa: E731
-            seslendir = vio.say
+            seslendir = SesOlcumu(vio, uyarilar)
             ses_aktif = True
         except Exception as exc:  # noqa: BLE001
             print(f"Ses katmani kurulamadi ({exc}); kuru moda dusuluyor.")
@@ -206,28 +275,45 @@ def main() -> int:
         print("Bu sayilar 1,5 saniye hedefini kanitlamaz; alt sinirdir.")
 
     turlar: List[Dict[str, Any]] = []
+    basarisiz = 0
     for i in range(a.tur):
         print(f"\n--- tur {i + 1}/{a.tur} ---")
+        onceki_uyari = len(uyarilar)
         try:
-            turlar.append(olc_tek_tur(a.soru, dinle, ajan.chat, seslendir))
+            turlar.append(
+                olc_tek_tur(a.soru, dinle, ajan.chat, seslendir,
+                            ses_bekleniyor=ses_aktif)
+            )
         except KeyboardInterrupt:
             print("\nKullanici durdurdu.")
             break
         except Exception as exc:  # noqa: BLE001
-            print(f"tur basarisiz: {type(exc).__name__}: {exc}")
+            basarisiz += 1
+            print(f"tur GECERSIZ: {type(exc).__name__}: {exc}")
+        finally:
+            # Sebep gorunmeden "gecersiz" demek yetmez: VoiceIO'nun kendi
+            # hata metni (ornegin kopan baglanti) burada basilir.
+            for u in uyarilar[onceki_uyari:]:
+                print(f"  {u}")
 
     if not turlar:
-        print("Hicbir tur olculemedi.")
+        print(f"Hicbir tur olculemedi ({basarisiz} gecersiz tur).")
         return 1
+    if basarisiz:
+        print(f"\nUYARI: {basarisiz} tur gecersizdi ve ortalamaya girmedi.")
 
     ozet = ozetle(turlar)
     _yazdir(ozet)
 
+    # Etiket iddiadan degil KANITTAN gelir: "tam" yalniz gercekten
+    # seslendirilmis turlar icin yazilir (A-01).
     sonuc = {
         "schema_version": 1,
         "olculdu": datetime.now().isoformat(timespec="seconds"),
-        "mod": "kuru" if not ses_aktif else "tam",
+        "mod": "tam" if all(t.get("ses_kaniti") for t in turlar) else "kuru",
         "model": ajan._registry.local_main(),
+        "gecersiz_tur": basarisiz,
+        "uyarilar": uyarilar,
         "turlar": turlar,
         "ozet": ozet,
     }
