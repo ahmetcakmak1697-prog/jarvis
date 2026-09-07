@@ -172,3 +172,38 @@ def test_hafiza_yokken_clear_history_patlamaz(tmp_path):
 
     a.clear_history()   # istisna firlatmamali
     assert a.history == []
+
+
+
+def test_clear_discloses_logical_deletion_scope(tmp_path, capsys):
+    import sqlite3
+
+    memory = _hafiza(tmp_path)
+    marker = "SYNTHETIC_RECOVERABLE_ROW_8821"
+    with sqlite3.connect(memory.db_path) as conn:
+        conn.execute("PRAGMA secure_delete=OFF")
+        conn.execute(
+            "INSERT INTO conversations(user_message, jarvis_response) VALUES (?, ?)",
+            (marker, "synthetic answer"),
+        )
+    assert marker.encode() in memory.db_path.read_bytes()
+    deleted = memory.clear_conversations()
+    assert deleted == 1
+    assert memory.get_recent_conversations() == []
+    notice = capsys.readouterr().out.lower()
+    assert "disk" in notice and "yedek" in notice and "garanti" in notice
+
+
+def test_agent_clear_shows_storage_scope_to_user(tmp_path, capsys):
+    from agent.local_agent import LocalJarvisAgent
+
+    agent = LocalJarvisAgent.__new__(LocalJarvisAgent)
+    agent.history = [{"role": "user", "content": "synthetic"}]
+    agent.turn_count = 1
+    agent.memory = _hafiza(tmp_path)
+    agent.memory.add_conversation("synthetic", "answer")
+    agent.clear_history()
+    assert agent.history == []
+    assert agent.memory.get_recent_conversations() == []
+    notice = capsys.readouterr().out.lower()
+    assert "disk" in notice and "yedek" in notice and "garanti" in notice

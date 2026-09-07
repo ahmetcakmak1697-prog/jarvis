@@ -461,3 +461,17 @@ hata sınıflarına karşılık gelir. Yeni kod yazarken önce buraya bakılır.
 - Evidence: eight new tests failed before the patch; all 34 calculator
   tests pass afterward. The billion-repeat regression replaces only the
   multiply primitive, so the test never allocates the dangerous tuple.
+
+
+### [2026-09-07] A-05: deletion promises must name their storage scope
+
+- Trap: SQL DELETE was described as forgetting without distinguishing
+  logical row removal from irrecoverable physical erasure.
+- Root cause: successful SELECT-after-DELETE tests cannot establish that
+  database pages, journals/WAL, snapshots or backups contain no old bytes.
+- Rule: this operation promises logical conversation removal only, retains
+  profile/events, and tells the user that disk/backup secure erasure is not
+  guaranteed. Physical recovery risk is disclosed, not claimed fixed.
+- Evidence: two user-notice tests failed first; all ten memory tests pass,
+  including the existing agent-to-storage clearing path. Full disk erasure
+  remains outside the approved v2 card.

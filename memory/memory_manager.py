@@ -118,6 +118,8 @@ class JarvisMemory:
         cümlesini DOĞRU yapmak için var: eskiden yalnız RAM siliniyor,
         veritabanındaki kayıt bir sonraki prompt'a geri geliyordu.
         """
+        # A-05: logical deletion only. SQLite pages, WAL/journals, backups
+        # and storage snapshots may retain prior bytes. No secure erase claim.
         conn = sqlite3.connect(self.db_path)
         try:
             c = conn.cursor()
@@ -126,6 +128,11 @@ class JarvisMemory:
             conn.commit()
         finally:
             conn.close()
+        print(
+            "Sohbet kayıtları sorgulardan kaldırıldı. "
+            "Disk ve yedeklerden kurtarılamaz silme garantisi yok; "
+            "profil ve olaylar korunur."
+        )
         return max(silinen, 0)
     
     def get_recent_conversations(self, n: int = 5) -> List[Dict]:
