@@ -1,10 +1,9 @@
 """
 jarvis/main.py — v3
-Claude (API) veya Lokal (Ollama) modunu destekler.
+Yerel Ollama girisi. Dogrudan Claude modu B08 ile emekliye ayrildi.
 """
 from __future__ import annotations
 import sys
-import os
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -23,19 +22,9 @@ BANNER = r"""
 """
 
 def _detect_mode() -> str:
-    """
-    Çalışma modunu otomatik belirle:
-    - USE_LOCAL_MODEL=true  → lokal (Ollama)
-    - ANTHROPIC_API_KEY var → claude (API)
-    - Hiçbiri               → lokal (fallback)
-    """
+    """Load local settings; credentials never select the retired API entry."""
     from dotenv import load_dotenv
     load_dotenv()
-
-    if os.getenv("USE_LOCAL_MODEL", "false").lower() == "true":
-        return "local"
-    if os.getenv("ANTHROPIC_API_KEY", "").strip():
-        return "claude"
     return "local"
 
 
@@ -49,7 +38,9 @@ def chat_loop(mode: str = "auto"):
     if mode == "local":
         _run_local_mode()
     else:
-        _run_claude_mode()
+        # B08: direct Claude entry retired; supported API executors are separate.
+        console.print("[yellow]Eski Claude girisi emekliye ayrildi. python main.py local kullanin.[/yellow]")
+        raise SystemExit(2)
 
 
 def _voice_requested() -> bool:
@@ -227,65 +218,6 @@ def _run_local_mode():
             console.print(f"[red]Hata: {e}[/]")
 
 
-def _run_claude_mode():
-    """Claude API modu."""
-    try:
-        from config import validate, JARVIS_NAME, PROJECT_PATH
-    except ImportError:
-        console.print("[red]Config yüklenemedi. config.py mevcut mu?[/]")
-        return
-
-    errors = validate()
-    if errors:
-        for e in errors:
-            console.print(f"[red]❌ {e}[/]")
-        console.print("\n[yellow]💡 Lokal modda çalışmak için .env'e USE_LOCAL_MODEL=true ekleyin[/]")
-        raise SystemExit(1)
-
-    console.print("[bold magenta]☁ CLAUDE MODU[/] — Anthropic API\n")
-    console.print("[dim]Komutlar: çıkış | geçmişi temizle | index | istatistik | yardım[/]\n")
-    console.print(f"[bold green]{JARVIS_NAME} hazır[/] | Proje: [cyan]{PROJECT_PATH}[/]\n")
-    console.print("[dim]💡 Model otomatik seçiliyor: Haiku→Sonnet→Opus (token tasarrufu)[/]\n")
-
-    from agent.jarvis_agent import JarvisAgent
-    agent = JarvisAgent()
-
-    while True:
-        try:
-            user_input = console.input("[bold blue]Sen:[/] ").strip()
-            if not user_input:
-                continue
-
-            lower = user_input.lower()
-
-            if lower in ("çıkış", "exit", "quit", "q"):
-                agent.show_stats()
-                console.print(f"\n[dim]{JARVIS_NAME}: Görüşürüz efendim.[/]")
-                break
-            elif lower in ("geçmişi temizle", "clear", "reset"):
-                agent.clear_history()
-                continue
-            elif lower in ("istatistik", "stats", "token"):
-                agent.show_stats()
-                continue
-            elif lower in ("index", "indeksle"):
-                _run_indexer()
-                continue
-            elif lower in ("yardım", "help"):
-                _show_help(mode="claude")
-                continue
-
-            response = agent.chat(user_input)
-            console.print(f"\n[bold cyan]{JARVIS_NAME}:[/]")
-            console.print(Markdown(response))
-            console.print()
-
-        except KeyboardInterrupt:
-            console.print(f"\n[dim]Çıkmak için 'çıkış' yazın.[/]")
-        except Exception as e:
-            console.print(f"[red]Hata: {e}[/]")
-
-
 def _run_indexer():
     try:
         from rag.indexer import RAGIndexer
@@ -308,15 +240,6 @@ def _show_help(mode: str = "local"):
   istatistik → Kullanım istatistikleri
   yardım     → Bu menü
         """)
-    else:
-        console.print("""
-[bold cyan]JARVIS Komutları (Claude Modu):[/]
-  çıkış          → Programdan çık
-  geçmişi temizle → Konuşma geçmişini temizle
-  index          → Proje dosyalarını indeksle
-  istatistik     → Token kullanım istatistikleri
-  yardım         → Bu menü
-        """)
 
 
 # ─── Entry point ─────────────────────────────────────────
@@ -331,7 +254,7 @@ if __name__ == "__main__":
         elif arg == "index":
             _run_indexer()
         else:
-            console.print(f"[yellow]Kullanım: python main.py [local|claude|index][/]")
-            console.print("[dim]Argümansız çalıştırınca .env'e göre otomatik mod seçilir.[/]")
+            console.print(f"[yellow]Kullanım: python main.py [local|index][/]")
+            console.print("[dim]Argumansiz calistirinca yerel Ollama modu secilir.[/]")
     else:
         chat_loop()

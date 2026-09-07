@@ -184,6 +184,10 @@ kötüdür**; ölçemediğimi ölçmüş gibi göstermedim.
    `run_python_code` aracının kum havuzu; **modül yüklemiyor**. Yani
    `tools/` altındaki 8 yetim dosya dinamik olarak da çağrılmıyor —
    gerçekten erişilemez durumdalar.
+**B08 emeklilik notu (2026-09-07):** Eski `main.py claude` girisi ve
+`agent/jarvis_agent.py` kaldirildi; AssistantExecutor/APIExecutor korunuyor.
+Asagidaki eski httpx gozlemi tarihseldir.
+
 3. **`agent/jarvis_agent.py:84` ve `agents/query_cache.py:188`**
    `__import__("httpx")` / `__import__("datetime")` kullanıyor; ikisi de
    dış kütüphane, repo modülü değil — haritayı etkilemiyor.
@@ -269,7 +273,6 @@ Test disi dosyalarin sinif dagilimi:
 | Dosya | Sinif | Kanit | Not |
 |---|---|---|---|
 | `agent/__init__.py` | CANLI | main.py -> 1 adim |  |
-| `agent/jarvis_agent.py` | CANLI | main.py -> 1 adim |  |
 | `agent/local_agent.py` | CANLI | giris noktasi (A) |  |
 | `agent/local_agent_memory.py` | CANLI | agent/local_agent.py -> 1 adim |  |
 
@@ -490,8 +493,6 @@ CLAUDE.md §3: *"onceden var olan dead code'a dokunma (gor, soyle, silme)."* Bu 
 
 Dinamik cagri (`importlib`, `__import__`, `exec`, `getattr`) statik grafikte gorunmez. Asagidaki dosyalar bu bicimleri kullaniyor; onlardan cikan baglar **eksik olabilir**. Bir modul yalniz dinamik yoldan cagriliyorsa YETIM gorunur ama olmayabilir.
 
-- `agent/jarvis_agent.py`
-  - `L84: http_client=__import__("httpx").Client(verify=False)`
 - `agents/memory_scorer.py`
   - `L16: sys.path.insert(0, str(ROOT_DIR))`
 - `agents/next_action_planner.py`

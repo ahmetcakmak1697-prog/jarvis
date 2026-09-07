@@ -475,3 +475,16 @@ hata sınıflarına karşılık gelir. Yeni kod yazarken önce buraya bakılır.
 - Evidence: two user-notice tests failed first; all ten memory tests pass,
   including the existing agent-to-storage clearing path. Full disk erasure
   remains outside the approved v2 card.
+
+
+### [2026-09-07] B08: retire an unsupported entry instead of reviving it
+
+- Trap: API credentials selected a legacy JarvisAgent entry that imported
+  nonexistent MemoryManager; a simple alias would also revive unsafe tools.
+- Root cause: automatic mode selection outlived the entry's memory contract.
+- Rule: an explicitly retired entry must be removed from source, dispatch
+  and active inventory; credential presence must not select it again. The
+  supported AssistantExecutor/APIExecutor path is a separate implementation.
+- Evidence: three retirement checks failed first; all four then passed,
+  plus two existing local CLI checks. Explicit claude mode exits with a
+  retirement message and code 2 before any agent is constructed.
