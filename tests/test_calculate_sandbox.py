@@ -189,3 +189,32 @@ def test_ic_ice_us_hesaplanmadan_reddedilir():
     assert "SONUC:9**9**9 = " not in p.stdout, (
         f"ic ice us hesaplandi: {p.stdout[-200:]!r}"
     )
+
+
+@pytest.mark.parametrize("expression", [
+    "frexp(1)*100",
+    "modf(1.5)*100",
+    "100*frexp(1)",
+    "frexp(1)+modf(1.5)",
+    "*".join(["(2**999)"] * 11),
+    "1" + "0" * 3100,
+    "1e309",
+])
+def test_non_scalar_or_oversized_arithmetic_is_rejected(ajan, expression):
+    # Small tuple probes are safe even against the vulnerable implementation.
+    result = _hesapla(ajan, expression)
+    assert not _hesaplandi_mi(expression, result)
+
+
+def test_tuple_rejected_before_multiplication(monkeypatch):
+    import ast
+    from tools import tools
+
+    reached = []
+    def multiply(left, right):
+        reached.append((type(left).__name__, right))
+        return 0  # Never allocate a giant tuple, including during RED.
+
+    monkeypatch.setitem(tools._BINARY_OPS, ast.Mult, multiply)
+    tools.calculate("frexp(1)*1000000000")
+    assert reached == [], "non-scalar value reached the arithmetic operator"

@@ -447,3 +447,17 @@ hata sınıflarına karşılık gelir. Yeni kod yazarken önce buraya bakılır.
   iyi olduğunu düşünüyorum". Kural: stratejik "sıradaki adım doğru mu"
   sorusu ayrıca sorulur; Codex diff-review'ı bunu kapatmaz.
   Bkz. `CLAUDE.md` DANIŞMAN MODU.
+
+
+### [2026-09-07] A-03: math function results can escape numeric bounds
+
+- Trap: allowing every math callable also allowed frexp/modf tuple results;
+  tuple multiplication bypassed the exponent limit.
+- Root cause: the AST validated syntax and selected expensive functions,
+  but did not validate the type and size of every intermediate value.
+- Rule: each AST result must be a finite numeric scalar; integer results
+  stay within the existing 10000-bit ceiling before a parent operation runs.
+  This is an arithmetic bound, not a general CPU/time sandbox guarantee.
+- Evidence: eight new tests failed before the patch; all 34 calculator
+  tests pass afterward. The billion-repeat regression replaces only the
+  multiply primitive, so the test never allocates the dangerous tuple.

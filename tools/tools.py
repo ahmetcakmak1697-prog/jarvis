@@ -542,31 +542,42 @@ def _guarded_pow(base, exponent):
     return base ** exponent
 
 
+def _checked_number(value):
+    # A-03: every AST result must be a bounded scalar before its parent runs.
+    if type(value) not in (int, float):
+        raise ValueError("only scalar numbers are allowed")
+    if isinstance(value, int) and value.bit_length() > _MAX_RESULT_BITS:
+        raise ValueError("numeric result is too large")
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValueError("numeric result must be finite")
+    return value
+
+
 def _eval_node(node):
     """Tek bir AST düğümünü yorumlar; beyaz listede olmayan her şeyi reddeder."""
     if isinstance(node, ast.Constant):
         if not isinstance(node.value, (int, float)):
             raise ValueError(f"yalnız sayı kullanılabilir: {node.value!r}")
-        return node.value
+        return _checked_number(node.value)
 
     if isinstance(node, ast.Name):
         if node.id in _MATH_CONSTANTS:
-            return _MATH_CONSTANTS[node.id]
+            return _checked_number(_MATH_CONSTANTS[node.id])
         raise ValueError(f"bilinmeyen ad: {node.id}")
 
     if isinstance(node, ast.UnaryOp):
         op = _UNARY_OPS.get(type(node.op))
         if op is None:
             raise ValueError(f"izin verilmeyen işleç: {type(node.op).__name__}")
-        return op(_eval_node(node.operand))
+        return _checked_number(op(_eval_node(node.operand)))
 
     if isinstance(node, ast.BinOp):
         if isinstance(node.op, ast.Pow):
-            return _guarded_pow(_eval_node(node.left), _eval_node(node.right))
+            return _checked_number(_guarded_pow(_eval_node(node.left), _eval_node(node.right)))
         op = _BINARY_OPS.get(type(node.op))
         if op is None:
             raise ValueError(f"izin verilmeyen işleç: {type(node.op).__name__}")
-        return op(_eval_node(node.left), _eval_node(node.right))
+        return _checked_number(op(_eval_node(node.left), _eval_node(node.right)))
 
     if isinstance(node, ast.Call):
         if not isinstance(node.func, ast.Name):
@@ -580,7 +591,7 @@ def _eval_node(node):
         limit = _ARG_LIMITS.get(node.func.id)
         if limit is not None and any(a > limit for a in args):
             raise ValueError(f"{node.func.id} argümanı çok büyük (en fazla {limit})")
-        return fn(*args)
+        return _checked_number(fn(*args))
 
     raise ValueError(f"izin verilmeyen ifade: {type(node).__name__}")
 
