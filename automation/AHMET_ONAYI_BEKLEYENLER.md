@@ -341,3 +341,91 @@ içine yazılmış kopyayı ölçüyor. Replika, gerçekteki `T1_S2_FAIL_LOG.md`
 okumasını ve "Onemli Kural" bloğunu içermiyor — yani zaten sapmış.
 
 **Gerekli olan:** Yukarıdaki 3 maddeye onay; sonra test-first uygulanır.
+
+---
+
+# İmzasız iş kuyruğundan ayrılanlar (2026-09-08)
+
+`automation/KART_IMZASIZ_KUYRUK.md` kaynakları taradı. Aşağıdakiler
+**imza gerektirdiği için** `automation/IMZASIZ_IS_KUYRUGU.md`'ye
+alınmadı. Hiçbiri başlatılmadı.
+
+## A16 — `auto_runner.py` kendi docstring'inde park işareti taşımıyor
+
+**Kaynak:** `docs/JARVIS_ENVANTER.md` Ç1 (ölçümle bulundu).
+
+`README.md:181` ve `BOOT_CHECK.md` §11 "PARK EDİLMİŞ (ÇALIŞTIRMA)"
+banner'ı taşıyor (CLAUDE.md §12'de çözüldü diye kayıtlı). Ama
+`auto_runner.py`'nin kendi docstring'i hâlâ *"Tek komut:
+`python auto_runner.py`"* diyor. Dosyayı açan biri park işareti değil,
+**davet** görüyor. Banner belgeye konmuş, koda konmamış.
+
+**Neden imza:** `CLAUDE.md` §9 AUTO cephesini kalıcı park etti ve kart
+park edilmiş cepheleri açıkça imza listesine koydu. Dosyaya bir banner
+eklemek onu açmak değildir — ama parked bir dosyaya dokunmanın kendisi
+Ahmet'in kararı.
+
+**Önerim:** Yalnız docstring'e banner; tek satır kod bile değişmez.
+
+## A17 — `jarvis_server.py` tüm arayüzlere bağlı, kimlik doğrulama yok
+
+**Kaynak:** Codex B02 denetimi, commit `1c0974a` gövdesi.
+
+`0.0.0.0:8000`, 35 dosyaya ulaşan bir giriş noktası; tek erişim
+denetimi yok. B02'de `gui.py` emekliye ayrıldı ama bu dosyaya
+dokunulmadı.
+
+**Neden imza:** Park edilmiş cephenin komşusu; kart adıyla sayıyor.
+Ayrıca "emekli mi, onarılsın mı" sorusu mimari.
+
+## A18 — `config/provider_profiles.json` yok ama üretim kodu okuyor
+
+**Kaynak:** `docs/JARVIS_ENVANTER.md` Ç3 ve §F.
+
+İki yapılandırma dosyası da yalnız `.example` olarak var; biri
+üretim kodunda **okunuyor**.
+
+**Neden imza:** Gerçek yapılandırma dosyası oluşturmak kartın açıkça
+imza listesine koyduğu iş.
+
+**Not:** Ahmet karar verirse, "dosya yoksa sessizce boş dönmek yerine
+gürültülü düşmek" ayrı ve imzasız bir iş olur — ama hangisinin doğru
+olduğu (fail-loud mu, varsayılana düşmek mi) onun kararı.
+
+## A19 — `api_budget_gate` ve 24 "yalnız-test" modülünü hatta bağlamak
+
+**Kaynak:** `docs/JARVIS_ENVANTER.md` Ç2 ve Ç5.
+
+`agents/api_budget_gate.py` testleriyle duruyor, dış model çağrısı
+yapan hat ondan geçmiyor. 24 modül yalnız kendi testinden erişilebilir.
+
+**Neden imza:** Bağlamak mimari yön değişikliğidir ve bütçe kapısı
+maliyet davranışını değiştirir. **Araştırma** kısmı kuyrukta (K9, K11).
+
+## A20 — 13 yetim modülü silmek
+
+**Kaynak:** `docs/JARVIS_ENVANTER.md` §D ("LISTE, SILME DEGIL").
+
+**Neden imza:** `CLAUDE.md` §3 — "önceden var olan dead code'a
+dokunma (gör, söyle, silme)". Neden yetim olduklarının
+**araştırılması** kuyrukta (K8).
+
+## A21 — Hassas desen sıkılaştırma (`redaction_guard` + `web_research_policy`)
+
+**Kaynak:** Codex A-05 notu ve `tests/test_egress_policy_local_path.py`
+içindeki strict xfail.
+
+İki ayrı ölçülmüş boşluk: `agents/redaction_guard.py:25` sentetik API
+anahtarı ve kart numarası desenlerini kaçırıyor;
+`agents/web_research_policy.py` `api[_-]?key` arıyor ve **boşluklu**
+`api key X` biçimini kaçırıyor (`api_key X` ve `apikey X`
+bloklanıyor).
+
+**Neden imza:** Politika paylaşılan bir bileşen — Telegram yolu ve
+`eval/run_d2_web_policy_eval.py`'nin 20 vakalık eşikli takımı onu
+kullanıyor. Sıkılaştırmak o **ölçümü oynatır**; kart ölçüm tanımını
+değiştiren her şeyi imzaya bağladı.
+
+**Not:** A-04 (commit `be8faaf`) nihai sorguyu da veri sınıfı
+denetiminden geçirdi; bu, desen borcunu kapatmaz. strict xfail hâlâ
+XFAIL — gevşetilmedi.
