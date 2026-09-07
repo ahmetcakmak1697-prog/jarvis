@@ -54,9 +54,45 @@ komşusu.
 kırpma yalnız kelime sınırında yapılıyor; A-04'ün ürettiği hassas dize
 senaryosu hâlâ engelleniyor (mevcut testler yeşil kalıyor).
 
+> **Bu ölçütün ikinci ve üçüncü maddesi birbiriyle ÇELİŞİYOR** — ADIM
+> 1'de yazarken görülmedi. A-04 testi tam olarak kırpmanın kelime
+> ortasından kesmesine dayanıyor (`"paara rola X"` → `"parola X"`);
+> kelime sınırına geçmek o senaryoyu ortadan kaldırır. Madde bu yüzden
+> ikiye bölündü.
+
 **Büyüklük:** orta
 
-**Durum:** SIRADAKİ — bu kartın ADIM 2'si bununla başlıyor.
+### K1a — konu kelimesi artık kesilmiyor ✅ KAPANDI
+
+**Commit:** `b91bf1b` · 11 test, 8'i kırmızı görüldü.
+
+"haber" ve "ne oldu" kırpma listesinden çıkarıldı: ikisi de komut
+değil, kullanıcının aradığı konu. Ölçülen sonuç:
+
+```
+"son haberler nedir"          -> "son haberler nedir"    (önce: "son ler nedir")
+"deprem haberi var mi"        -> "deprem haberi var mi"  (önce: "deprem i var mi")
+"yapay zeka hakkında araştır" -> "yapay zeka hakkında"   (komut hâlâ kırpılıyor)
+```
+
+Kapı: 1881 passed / 1 xfailed (iki sırada), ruff 283, taban 49.
+
+### K1b — komut kalıplarının kelime sınırına geçmesi ⛔ AHMET'E SORULDU
+
+**Kalan kusur:** `agent/local_agent.py` → `_WEB_KOMUT_KALIPLARI` hâlâ
+ham `str.replace` ile uygulanıyor ve kelime ortasından kesebiliyor:
+`"para araci"` → `"paraci"`.
+
+**Neden kendi başıma yapmadım:** Düzeltmek
+`tests/test_egress_policy_local_path.py::test_kirpilmis_nihai_sorgu_da_veri_sinifi_denetiminden_gecer`
+testini kırmızıya çevirir. O test kırpmanın hassas bir dize
+**üretmesine** dayanıyor; kelime sınırına geçilince o dize üretilmez,
+sorgu meşru olarak dışarı çıkar — yani testin iddiası yanlış hâle gelir,
+kaynak değil. `CLAUDE.md` §13.1: *"Testin kendisinin yanlış olduğu
+kanısına varılırsa bu bir kaynak-kod düzeltmesi değil, sözleşme
+değişikliğidir: durulur ve Ahmet'e sorulur."*
+
+→ `automation/AHMET_ONAYI_BEKLEYENLER.md` **A22**
 
 ---
 

@@ -429,3 +429,58 @@ değiştiren her şeyi imzaya bağladı.
 **Not:** A-04 (commit `be8faaf`) nihai sorguyu da veri sınıfı
 denetiminden geçirdi; bu, desen borcunu kapatmaz. strict xfail hâlâ
 XFAIL — gevşetilmedi.
+
+## A22 — A-04 testi, düzeltmek istediğim kusura dayanıyor (K1b)
+
+**Kaynak:** K1'i uygularken çıktı. `automation/IMZASIZ_IS_KUYRUGU.md` K1b.
+
+**Durum:** K1'in yarısı yapıldı (`b91bf1b`, K1a). Kalan yarısı burada
+duruyor çünkü **bir test sözleşmesini değiştirmeyi gerektiriyor.**
+
+**Kalan kusur:** `agent/local_agent.py` → `_WEB_KOMUT_KALIPLARI` ham
+`str.replace` ile uygulanıyor, yani kelime ortasından kesiyor:
+
+```
+"para araci ..."  ->  "paraci ..."        (bitisik iki kelime kaynasiyor)
+```
+
+Doğrusu kelime sınırında (`\b`) ve fold'lanmış metinde eşleştirmek.
+
+**Neden imza gerekiyor — ölçüldü (2026-09-08):**
+
+`tests/test_egress_policy_local_path.py::test_kirpilmis_nihai_sorgu_da_veri_sinifi_denetiminden_gecer`
+şu girdiyi kullanıyor: `"paara rola FAKE_AUDIT_MARKER_7719 son haberler"`.
+Bu cümle **masum**; hassas dizeyi kırpmanın kendisi üretiyor
+(`"ara "` silinince `"paara rola"` → `"parola"`). Test, sonucun araca
+**0 kez** ulaşmasını iddia ediyor.
+
+Kelime sınırına geçilirse `"paara"` içinde eşleşme olmaz, sorgu
+bozulmaz ve politika ona meşru olarak izin verir:
+
+```
+policy.decide("paara rola FAKE_AUDIT_MARKER_7719 son haberler")
+  -> allow=True, mode=current_info
+```
+
+Yani araç **1 kez** çağrılır ve test kırmızı yanar — ama bu, kaynağın
+bozulduğu için değil, **testin ön koşulunun ortadan kalktığı için**.
+
+`CLAUDE.md` §13.1: *"Testin kendisinin yanlış olduğu kanısına varılırsa
+bu bir kaynak-kod düzeltmesi değil, sözleşme değişikliğidir: durulur ve
+Ahmet'e sorulur."* Bu yüzden durdum.
+
+**Önemli:** A-04'ün KİLİTLEDİĞİ sözleşme ("dışarı çıkan nihai sorgu da
+veri sınıfı denetiminden geçer") değişmiyor ve `_egress_kapisi` aynen
+duruyor. Ölen şey yalnız o sözleşmeyi tetikleyen **vektör**.
+
+**Önerim:** K1b uygulansın; A-04 testi vektöre değil sözleşmeye
+bağlansın — yani hassas nihai sorgu doğrudan enjekte edilerek
+("orijinal temiz, nihai sorgu hassas") aynı kapı sınansın. Testin
+gücü düşmez, kırılganlığı düşer. Docstring'e vektörün K1b'de
+kapandığı ve hangi commit'te olduğu yazılır.
+
+**Alternatif:** K1b hiç yapılmaz ve `"para araci"` → `"paraci"`
+bozulması bilinçli borç olarak kalır. Bu durumda kuyrukta K1b
+"kapatılmayacak" diye işaretlenir.
+
+**Gerekli olan:** İki seçenekten biri. Kendi başıma seçmedim.
