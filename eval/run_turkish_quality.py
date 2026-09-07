@@ -346,6 +346,110 @@ def _bayrak(deger) -> str:
 # Gerçek çalıştırıcılar
 # --------------------------------------------------------------------------- #
 
+#: Dış sağlayıcılar. Anahtar ADI burada; DEĞERİ yalnız ortamda.
+#: Uç noktalar OpenAI-uyumlu sohbet biçimini kullanır.
+_SAGLAYICILAR: Dict[str, Dict[str, str]] = {
+    "deepseek": {
+        "url": "https://api.deepseek.com/chat/completions",
+        "env": "DEEPSEEK_API_KEY",
+        "model": "deepseek-chat",
+    },
+}
+
+
+def _http_json(url: str, govde: bytes, basliklar: Dict[str, str],
+               timeout: int) -> Dict[str, Any]:
+    """Tek HTTP POST. Ayrı fonksiyon olmasının sebebi test edilebilirlik:
+    çağrının kendisi enjekte edilir, ağa çıkılmadan sözleşme sınanır."""
+    import urllib.request
+
+    istek = urllib.request.Request(url, data=govde, headers=basliklar,
+                                   method="POST")
+    with urllib.request.urlopen(istek, timeout=timeout) as yanit:
+        return json.loads(yanit.read().decode("utf-8"))
+
+
+def _api_ask(model: str, prompt: str, level: str,
+             system_extra: Optional[str] = None,
+             num_predict: int = DEFAULT_NUM_PREDICT) -> Dict[str, Any]:
+    """Dış sağlayıcıya aynı vakayı sorar — `_ollama_ask` ile AYNI sözleşme.
+
+    Neden gerekli: 2026-09-06'da yerel tarafın rakamı ölçüldü, bulut tarafının
+    yok. Tek taraflı ölçümle "yerel mi bulut mu" kararı verilemez.
+
+    Neden `agents/api_executor.py` kullanılmıyor: burada ölçülmek istenen şey
+    MODEL, bizim borularımız değil. Üretim hattı ayrı bir katman ve kendi
+    politikalarını taşır; ölçüm onun arkasından yapılırsa model kalitesi ile
+    boru kalitesi birbirine karışır.
+
+    **Anahtar hiçbir yere yazılmaz** — ne loga, ne rapora, ne hata mesajına.
+
+    ``prompt_eval_ms`` bu yolda **None** kalır: sağlayıcı bu ölçümü vermiyor
+    ve bilinmeyen ölçüme 0 yazmak yanlış etiketli ölçüm kadar zararlıdır
+    (B11'in dersi) — 0 ms "çok hızlı" diye okunur.
+    """
+    import os
+
+    aile = model.split("/")[0].strip().lower()
+    tanim = _SAGLAYICILAR.get(aile)
+    if tanim is None:
+        raise RuntimeError(
+            f"tanimsiz saglayici: {aile!r}. Bilinenler: "
+            f"{', '.join(sorted(_SAGLAYICILAR))}"
+        )
+
+    anahtar = os.environ.get(tanim["env"], "").strip()
+    if not anahtar:
+        raise RuntimeError(
+            f"{tanim['env']} tanimli degil. Anahtari .env dosyasina yaz; "
+            "bu dosyayi yalnizca sen duzenlersin (CLAUDE.md §9)."
+        )
+
+    from agents.persona import build_system_prompt
+
+    system = build_system_prompt(level=level)
+    if system_extra and system_extra.strip():
+        system += ("\n\n[BİLİNEN GERÇEKLER — yalnız bunlara dayan, "
+                   f"burada olmayanı uydurma]\n{system_extra}")
+
+    istek_modeli = model.split("/", 1)[1] if "/" in model else tanim["model"]
+    govde = json.dumps({
+        "model": istek_modeli,
+        "messages": [{"role": "system", "content": system},
+                     {"role": "user", "content": prompt}],
+        "temperature": 0.2,          # yerel koşuyla AYNI — terazi bozulmasın
+        "max_tokens": num_predict,
+        "stream": False,
+    }).encode("utf-8")
+
+    t0 = time.perf_counter()
+    try:
+        d = _http_json(
+            tanim["url"], govde,
+            {"Content-Type": "application/json",
+             "Authorization": f"Bearer {anahtar}"},
+            300,
+        )
+    except Exception as exc:
+        # Anahtar istisna metnine sızabilir (bazı kütüphaneler başlıkları
+        # hata mesajına koyar). Mesajı yeniden kuruyoruz.
+        temiz = str(exc).replace(anahtar, "[REDACTED]") if anahtar else str(exc)
+        raise RuntimeError(f"{type(exc).__name__}: {temiz}") from None
+    toplam = time.perf_counter() - t0
+
+    secim = (d.get("choices") or [{}])[0]
+    metin = ((secim.get("message") or {}).get("content") or "").strip()
+    uretilen = (d.get("usage") or {}).get("completion_tokens") or 0
+
+    return {
+        "text": metin,
+        "raw_tps": (uretilen / toplam) if toplam > 0 else 0.0,
+        "prompt_eval_ms": None,      # sağlayıcı vermiyor — uydurulmaz
+        "total_s": toplam,
+        "done_reason": secim.get("finish_reason"),
+    }
+
+
 def _ollama_ask(model: str, prompt: str, level: str,
                 system_extra: Optional[str] = None,
                 num_predict: int = DEFAULT_NUM_PREDICT) -> Dict[str, Any]:
@@ -420,6 +524,9 @@ def main() -> int:
     ap.add_argument("--category", help="yalnız bu kategori")
     ap.add_argument("--limit", type=int, help="ilk N vaka (hızlı deneme)")
     ap.add_argument("--out", default=str(DEFAULT_OUT))
+    ap.add_argument("--saglayici", choices=sorted(_SAGLAYICILAR),
+                    help=("dis saglayiciyi olc (varsayilan: yerel Ollama). "
+                          "Anahtar ortamdan okunur; .env'i yalniz Ahmet yazar."))
     a = ap.parse_args()
 
     vakalar = load_cases()
@@ -431,18 +538,28 @@ def main() -> int:
         print("Eşleşen vaka yok.")
         return 1
 
+    # Dis saglayici secildiyse VRAM probu anlamsiz: model bu makinede degil.
+    # Olculmeyen seye sayi yazmamak icin prob kapatilir (B11'in dersi).
+    if a.saglayici:
+        sor, prob = _api_ask, None
+        varsayilan = f"{a.saglayici}/{_SAGLAYICILAR[a.saglayici]['model']}"
+    else:
+        sor, prob = _ollama_ask, _nvidia_probe
+        varsayilan = None
+
     if a.all_installed:
         modeller = _installed_models()
     elif a.model:
         modeller = [a.model]
+    elif varsayilan:
+        modeller = [varsayilan]
     else:
         from agents.model_registry import ModelRegistry
         modeller = [ModelRegistry().local_main()]
 
     for model in modeller:
         print(f"\n=== {model} · {len(vakalar)} vaka ===", flush=True)
-        sonuc = run_suite(vakalar, _ollama_ask, model=model,
-                          gpu_probe=_nvidia_probe)
+        sonuc = run_suite(vakalar, sor, model=model, gpu_probe=prob)
         s = sonuc["summary"]
         yollar = write_report(sonuc, out_dir=a.out)
         print(f"  geçen {s['passed']}/{s['total']}"
