@@ -182,6 +182,28 @@ TOOL_TRIGGERS = {
     ],
 }
 
+#: Arama sorgusundan cikarilan KOMUT kaliplari -- aranacak KONU degil (K1).
+#:
+#: "haber" ve "ne oldu" bu listeden CIKARILDI. Ikisi de kullanicinin
+#: aradigi seyin kendisi; komut degil. Olculdu 2026-09-08:
+#:
+#:     "son haberler nedir"   -> "son ler nedir"
+#:     "deprem haberi var mi" -> "deprem i var mi"
+#:
+#: "haber" koku "haberler"in ORTASINDAN kesiliyor ve arama saglayicisina
+#: anlamsiz bir dize gidiyordu. TOOL_TRIGGERS'ta bulunmak bir kelimeyi
+#: TETIKLEYICI yapar, kirpilacak yapmaz; iki liste birbirine karismisti.
+#:
+#: [ACIK KUSUR -- K1b] Kalan kaliplar hala ham `str.replace` ile siliniyor,
+#: yani kelime ortasindan kesebiliyorlar ("para araci" -> "paraci").
+#: Kelime sinirina gecmek `tests/test_egress_policy_local_path.py`
+#: icindeki A-04 sozlesme testinin on kosulunu ortadan kaldiriyor
+#: (CLAUDE.md 13.1: bu bir sozlesme degisikligidir, sorulur).
+#: Bkz. `automation/IMZASIZ_IS_KUYRUGU.md` K1b.
+_WEB_KOMUT_KALIPLARI: tuple[str, ...] = (
+    "araştır", "ara ", "güncel bilgi ver", "öğren",
+)
+
 # ─── Yerel ajana özgü ek yönergeler ─────────────────────
 # Kimlik, sadakat, kişilik, üslup ve uydurma yasağı `agents/persona.py`'den
 # gelir (SSOT). Burada YALNIZ bu ajana özgü olan kalır: araç çıktısı kuralları
@@ -598,7 +620,7 @@ class LocalJarvisAgent:
 
         if _eslesir("web_search"):
             query = message
-            for kw in ["araştır", "ara ", "haber", "güncel bilgi ver", "öğren", "ne oldu"]:
+            for kw in _WEB_KOMUT_KALIPLARI:
                 query = query.replace(kw, "").strip()
             if len(query) < 3:
                 query = message
