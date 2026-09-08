@@ -6,7 +6,7 @@ YENİ ARAÇLAR:
   🌐 fetch_webpage     — Sayfadan içerik çekme
   🔬 deep_research     — Çok adımlı derin araştırma
   📁 analyze_file      — PDF / Excel / CSV / TXT analizi
-  🐍 run_python_code   — Güvenli Python çalıştırma
+  run_python_code     -- EMEKLI (kod calistirmaz)
   🧮 calculate         — Matematiksel hesap
   📅 get_datetime      — Tarih/saat bilgisi
   📝 save_note         — Not / görev kaydet
@@ -16,6 +16,7 @@ YENİ ARAÇLAR:
 from __future__ import annotations
 
 import ast
+import fnmatch
 import io
 import json
 import math
@@ -28,7 +29,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from config import PROJECT_PATH, AUTO_RUN_COMMANDS
+from config import PROJECT_PATH
 from rich.console import Console
 from rich.prompt import Confirm
 
@@ -50,10 +51,12 @@ def _save_notes(notes: list[dict]):
 
 
 # ─── Yardımcı ───────────────────────────────────────────
-def _run(cmd: str, cwd: Path = PROJECT_PATH, timeout: int = 30) -> dict:
+def _run(cmd: list[str], cwd: Path | None = None, timeout: int = 30) -> dict:
     try:
+        if not isinstance(cmd, (list, tuple)):
+            raise ValueError("command arguments must be a list")
         result = subprocess.run(
-            cmd, shell=True, cwd=cwd,
+            list(cmd), shell=False, cwd=cwd or PROJECT_PATH,
             capture_output=True, text=True, timeout=timeout,
             encoding="utf-8", errors="replace"
         )
@@ -64,15 +67,18 @@ def _run(cmd: str, cwd: Path = PROJECT_PATH, timeout: int = 30) -> dict:
             "success": result.returncode == 0,
         }
     except subprocess.TimeoutExpired:
-        return {"stdout": "", "stderr": f"Zaman aşımı ({timeout}s)", "returncode": -1, "success": False}
+        return {"stdout": "", "stderr": f"Zaman asimi ({timeout}s)", "returncode": -1, "success": False}
     except Exception as e:
         return {"stdout": "", "stderr": str(e), "returncode": -1, "success": False}
 
 
 def _confirm_command(cmd: str) -> bool:
-    if AUTO_RUN_COMMANDS:
-        return True
-    return Confirm.ask(f"[yellow]Komut çalıştırılsın mı?[/] [cyan]{cmd}[/]")
+    # A model argument or AUTO_RUN_COMMANDS is not human authorization.
+    console.print(cmd, markup=False)
+    try:
+        return Confirm.ask("Komut calistirilsin mi?", default=False)
+    except (EOFError, KeyboardInterrupt):
+        return False
 
 
 # ════════════════════════════════════════════════════════
@@ -80,97 +86,183 @@ def _confirm_command(cmd: str) -> bool:
 # ════════════════════════════════════════════════════════
 
 def run_terminal_command(command: str) -> str:
-    """Terminal komutu çalıştırır."""
+    """Run an explicitly human-approved command; generic helpers never use a shell."""
     if not _confirm_command(command):
-        return "Kullanıcı komutu iptal etti."
-    result = _run(command)
+        return "Kullanici komutu iptal etti."
+    argv = (
+        ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command]
+        if os.name == "nt" else ["/bin/sh", "-c", command]
+    )
+    result = _run(argv)
     if result["success"]:
-        return result["stdout"] or "(Komut başarıyla çalıştı, çıktı yok)"
+        return result["stdout"] or "(Komut basariyla calisti, cikti yok)"
     return f"HATA (kod {result['returncode']}):\n{result['stderr']}"
 
 
+def _project_file(file_path: str) -> Path:
+    """Reject absolute/ambiguous/secret paths and resolve junctions before I/O."""
+    raw = str(file_path)
+    relative = Path(raw)
+    if relative.anchor or ":" in raw or any(ord(char) < 32 for char in raw):
+        raise ValueError("yalniz proje ici goreli dosya yolu kullanilabilir")
+
+    def validate(parts):
+        for part in parts:
+            lower = part.lower()
+            if (part.startswith(".") or part != part.rstrip(" .")
+                    or lower.startswith(("secret", "credential", "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519"))
+                    or any(fragment in lower for fragment in ("api_key", "access_token", "password"))
+                    or lower.endswith((".pem", ".key", ".p12", ".pfx"))):
+                raise ValueError("gizli veya belirsiz dosya yolu engellendi")
+
+    validate(relative.parts)
+    root = PROJECT_PATH.resolve()
+    path = (root / relative).resolve()
+    if not path.is_relative_to(root):
+        raise ValueError("proje disina erisim engellendi")
+    validate(path.relative_to(root).parts)
+    return path
+
+
+def _project_files():
+    """Walk only allowed directories; never descend into an escaping junction."""
+    root = PROJECT_PATH.resolve()
+    for directory, dirs, files in os.walk(root, followlinks=False):
+        allowed = []
+        for name in dirs:
+            if name in ("node_modules", "__pycache__"):
+                continue
+            try:
+                _project_file(str((Path(directory) / name).relative_to(root)))
+                allowed.append(name)
+            except (ValueError, OSError):
+                continue
+        dirs[:] = sorted(allowed)
+        for name in sorted(files):
+            try:
+                yield _project_file(str((Path(directory) / name).relative_to(root)))
+            except (ValueError, OSError):
+                continue
+
+
 def read_file(file_path: str) -> str:
-    """Dosya içeriğini okur."""
-    path = Path(file_path)
-    if not path.is_absolute():
-        path = PROJECT_PATH / path
+    """Read a non-secret, project-relative file."""
     try:
+        path = _project_file(file_path)
         content = path.read_text(errors="ignore", encoding="utf-8")
         if len(content) > 10_000:
             return content[:10_000] + f"\n\n... (kesildi, toplam {len(content):,} karakter)"
         return content
-    except FileNotFoundError:
-        return f"Dosya bulunamadı: {path}"
     except Exception as e:
         return f"Hata: {e}"
 
 
 def write_file(file_path: str, content: str) -> str:
-    """Dosyaya içerik yazar."""
-    path = Path(file_path)
-    if not path.is_absolute():
-        path = PROJECT_PATH / path
+    """Write only after showing the exact content and receiving human approval."""
     try:
+        path = _project_file(file_path)
+        console.print(f"Dosya: {path}\n{content}", markup=False)
+        if not Confirm.ask("Bu icerik dosyaya yazilsin mi?", default=False):
+            return "Kullanici dosya yazimini iptal etti."
+        # The human prompt may take time; resolve the original input again.
+        if _project_file(file_path) != path:
+            raise ValueError("file target changed during approval")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
-        return f"✓ Dosya yazıldı: {path} ({len(content):,} karakter)"
+        return f"Dosya yazildi: {path} ({len(content):,} karakter)"
+    except (EOFError, KeyboardInterrupt):
+        return "Dosya yazimi onaylanmadi."
     except Exception as e:
         return f"Hata: {e}"
 
 
 def list_directory(dir_path: str = ".") -> str:
-    """Klasör içeriğini listeler."""
-    path = Path(dir_path)
-    if not path.is_absolute():
-        path = PROJECT_PATH / path
+    """List only accessible project entries."""
     try:
+        path = _project_file(dir_path)
         items = []
         for item in sorted(path.iterdir()):
-            if item.name.startswith("."):
+            try:
+                safe = _project_file(str(item.relative_to(PROJECT_PATH.resolve())))
+            except (ValueError, OSError):
                 continue
-            icon = "📁" if item.is_dir() else "📄"
-            size = f" ({item.stat().st_size:,} B)" if item.is_file() else ""
-            items.append(f"{icon} {item.name}{size}")
-        return "\n".join(items) if items else "(boş klasör)"
+            items.append(f"{safe.name}/" if safe.is_dir() else safe.name)
+        return "\n".join(items) if items else "(bos klasor)"
     except Exception as e:
         return f"Hata: {e}"
 
 
 def search_in_files(query: str, file_pattern: str = "*.py") -> str:
-    """Proje dosyalarında metin arar."""
-    result = _run(f'grep -r --include="{file_pattern}" -n "{query}" .', cwd=PROJECT_PATH)
-    if result["stdout"]:
-        lines = result["stdout"].splitlines()[:50]
-        return "\n".join(lines)
-    return f"'{query}' için sonuç bulunamadı ({file_pattern})"
+    """Search literal text in accessible project files, without shell interpolation."""
+    matches = []
+    for path in _project_files():
+        if not fnmatch.fnmatch(path.name, file_pattern):
+            continue
+        try:
+            for number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+                if query in line:
+                    relative = path.relative_to(PROJECT_PATH.resolve())
+                    matches.append(f"{relative}:{number}:{line}")
+                    if len(matches) == 50:
+                        return "\n".join(matches)
+        except OSError:
+            continue
+    return "\n".join(matches) or f"'{query}' icin sonuc bulunamadi ({file_pattern})"
 
 
 def git_status() -> str:
-    status = _run("git status --short")
-    log = _run("git log --oneline -10")
-    branch = _run("git branch --show-current")
+    status = _run(["git", "status", "--short"])
+    log = _run(["git", "log", "--oneline", "-10"])
+    branch = _run(["git", "branch", "--show-current"])
+    if not all(item["success"] for item in (status, log, branch)):
+        return "Hata: Git durumu okunamadi."
     return (
         f"Branch: {branch['stdout']}\n\n"
-        f"Değişiklikler:\n{status['stdout'] or '(temiz)'}\n\n"
+        f"Degisiklikler:\n{status['stdout'] or '(temiz)'}\n\n"
         f"Son 10 commit:\n{log['stdout']}"
     )
 
 
 def git_diff(file_path: str = "") -> str:
-    cmd = f"git diff {file_path}" if file_path else "git diff"
-    result = _run(cmd)
-    if not result["stdout"]:
-        return "Bekleyen değişiklik yok."
-    return "\n".join(result["stdout"].splitlines()[:100])
+    try:
+        requested = None
+        if file_path:
+            path = _project_file(file_path)
+            if not path.is_file():
+                raise ValueError("select an existing file; use empty input for filtered deleted-file diffs")
+            requested = path.relative_to(PROJECT_PATH.resolve())
+        # Git pathspecs can name an index directory even when the worktree
+        # path is a file. Select exact changed file names in BOTH branches.
+        names = _run(["git", "diff", "--no-ext-diff", "--no-textconv", "--name-only", "-z"])
+        if not names["success"]:
+            return f"Hata: {names['stderr']}"
+        paths = []
+        for name in names["stdout"].split("\0"):
+            if not name or (requested is not None and Path(name) != requested):
+                continue
+            try:
+                paths.append(str(_project_file(name).relative_to(PROJECT_PATH.resolve())))
+            except (ValueError, OSError):
+                continue
+        if not paths:
+            return "Bekleyen erisilebilir dosya degisikligi yok."
+        result = _run(["git", "--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv", "--", *paths])
+        if not result["success"]:
+            return f"Hata: {result['stderr']}"
+        return "\n".join(result["stdout"].splitlines()[:100]) or "Bekleyen degisiklik yok."
+    except Exception as e:
+        return f"Hata: {e}"
 
 
 def get_project_structure(max_depth: int = 3) -> str:
-    result = _run(
-        f"find . -maxdepth {max_depth} -not -path '*/.*' "
-        "-not -path '*/node_modules/*' -not -path '*/__pycache__/*' "
-        "| sort | head -80"
-    )
-    return result["stdout"] or "Yapı alınamadı."
+    lines = []
+    for path in _project_files():
+        relative = path.relative_to(PROJECT_PATH.resolve())
+        if len(relative.parts) <= max_depth:
+            lines.append(str(relative))
+        if len(lines) == 80:
+            break
+    return "\n".join(lines) or "Yapi alinamadi."
 
 
 # ════════════════════════════════════════════════════════
@@ -217,7 +309,7 @@ def fetch_webpage(url: str, max_chars: int = 5000) -> str:
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         }
-        response = requests.get(url, headers=headers, timeout=15, verify=False)
+        response = requests.get(url, headers=headers, timeout=15, verify=True)
         response.raise_for_status()
 
         soup = BeautifulSoup(response.text, "html.parser")
@@ -292,7 +384,7 @@ def deep_research(topic: str, depth: int = 3) -> str:
             snippet = r.get("body", "")
 
             try:
-                resp = requests.get(url, headers=headers, timeout=8, verify=False)
+                resp = requests.get(url, headers=headers, timeout=8, verify=True)
                 soup = BeautifulSoup(resp.text, "html.parser")
                 for tag in soup(["script", "style", "nav", "footer"]):
                     tag.decompose()
@@ -329,9 +421,10 @@ def analyze_file(file_path: str, analysis_type: str = "auto") -> str:
 
     analysis_type: "auto" | "summary" | "full" | "stats"
     """
-    path = Path(file_path)
-    if not path.is_absolute():
-        path = PROJECT_PATH / path
+    try:
+        path = _project_file(file_path)
+    except (ValueError, OSError) as e:
+        return f"Hata: {e}"
 
     if not path.exists():
         return f"Dosya bulunamadı: {path}"
@@ -428,68 +521,8 @@ def analyze_file(file_path: str, analysis_type: str = "auto") -> str:
 # ════════════════════════════════════════════════════════
 
 def run_python_code(code: str, timeout: int = 15) -> str:
-    """
-    Python kodunu güvenli izole ortamda çalıştırır.
-    Veri analizi, hesaplama, grafik için idealdir.
-    """
-    # Tehlikeli import'ları engelle
-    dangerous = ["import os", "import sys", "import subprocess",
-                 "import shutil", "__import__", "eval(", "exec(", "open("]
-    for d in dangerous:
-        if d in code:
-            return f"❌ Güvenlik: '{d}' kullanımı engellenmiştir."
-
-    try:
-        # Stdout'u yakala
-        import io
-        from contextlib import redirect_stdout, redirect_stderr
-
-        stdout_capture = io.StringIO()
-        stderr_capture = io.StringIO()
-
-        # Güvenli namespace
-        safe_globals = {
-            "__builtins__": {
-                "print": print, "len": len, "range": range,
-                "str": str, "int": int, "float": float, "list": list,
-                "dict": dict, "tuple": tuple, "set": set, "bool": bool,
-                "sum": sum, "min": min, "max": max, "abs": abs,
-                "round": round, "sorted": sorted, "enumerate": enumerate,
-                "zip": zip, "map": map, "filter": filter,
-            },
-            "math": math,
-        }
-
-        # pandas ve numpy izin ver
-        try:
-            import pandas as pd
-            import numpy as np
-            safe_globals["pd"] = pd
-            safe_globals["np"] = np
-        except ImportError:
-            pass
-
-        output_lines = []
-
-        # print'i yakala
-        import builtins
-        original_print = builtins.print
-
-        def capturing_print(*args, **kwargs):
-            output_lines.append(" ".join(str(a) for a in args))
-
-        builtins.print = capturing_print
-        try:
-            exec(code, safe_globals)
-        finally:
-            builtins.print = original_print
-
-        if output_lines:
-            return "```\n" + "\n".join(output_lines) + "\n```"
-        return "(Kod çalıştı, çıktı yok)"
-
-    except Exception as e:
-        return f"❌ Hata: {type(e).__name__}: {e}\n{traceback.format_exc()[:500]}"
+    """Retired compatibility entry: never execute arbitrary Python in this process."""
+    return "Python kod calistirma araci emekliye ayrildi; yalniz calculate destekleniyor."
 
 
 # ════════════════════════════════════════════════════════
@@ -849,18 +882,6 @@ TOOL_DEFINITIONS = [
         },
     },
     {
-        "name": "run_python_code",
-        "description": "Python kodu çalıştırır. Hesaplama, veri analizi, pandas işlemleri için kullan. numpy ve pandas hazır.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "code": {"type": "string", "description": "Çalıştırılacak Python kodu"},
-                "timeout": {"type": "integer", "default": 15},
-            },
-            "required": ["code"],
-        },
-    },
-    {
         "name": "calculate",
         "description": "Matematiksel ifadeyi hesaplar. sin, cos, sqrt, log, pi vb. destekler.",
         "input_schema": {
@@ -945,7 +966,6 @@ TOOL_REGISTRY: dict[str, Any] = {
     "fetch_webpage":        fetch_webpage,
     "deep_research":        deep_research,
     "analyze_file":         analyze_file,
-    "run_python_code":      run_python_code,
     "calculate":            calculate,
     "get_datetime":         get_datetime,
     "save_note":            save_note,

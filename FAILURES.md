@@ -488,3 +488,32 @@ hata sınıflarına karşılık gelir. Yeni kod yazarken önce buraya bakılır.
 - Evidence: three retirement checks failed first; all four then passed,
   plus two existing local CLI checks. Explicit claude mode exits with a
   retirement message and code 2 before any agent is constructed.
+
+
+### [2026-09-07] B09: tools need execution boundaries, not prompt promises
+
+**B09 review finding corrected with Ahmet's explicit continuation approval
+(2026-09-08).** Both git_diff branches now select exact changed file names
+before requesting content; checking only the worktree type was insufficient
+because an index directory can have become a worktree file. Directory,
+missing-path and index-prefix regressions were each observed RED first;
+67 boundary/calculator/local-surface checks pass, and independent rereview
+returned PASS. Historical stop record: automation/CODEX_V2_UYGULAMA_2026-09-07.md.
+
+- Trap: a retired caller did not retire the shared tool implementation;
+  unverified TLS, unrestricted paths, shell interpolation and in-process
+  Python execution still existed in tools/tools.py.
+- Root cause: permission checks were attached to selected callers or tool
+  names instead of shared I/O and execution boundaries.
+- Rule: generic file tools accept non-secret project-relative paths and
+  validate resolved junction/symlink targets; writes show content and ask
+  the human. Helper commands use argv and literal git pathspecs, searches
+  use filesystem APIs, and TLS validation stays enabled. Direct Python
+  execution is retired. Explicit terminal commands still require human
+  approval and have the permissions of that approved command.
+- Evidence: 23 new boundary checks failed before the patch; 62 focused
+  boundary/calculator/local-surface tests then passed. No live network,
+  real secret files or user documents were used by these probes.
+- Scope: filename/path policy is not content classification or an OS
+  sandbox against concurrent hostile filesystem mutation. The existing
+  explicit desktop PDF import workflow is separate and unchanged.
