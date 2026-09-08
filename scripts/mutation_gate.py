@@ -34,6 +34,27 @@ _CMP = {ast.Eq: ast.NotEq, ast.NotEq: ast.Eq, ast.Lt: ast.GtE, ast.GtE: ast.Lt,
 _BOOL = {ast.And: ast.Or, ast.Or: ast.And}
 
 
+class MutationGateError(RuntimeError):
+    """Test komutu KOSMADI; olculmeyen bir sey "olduruldu" sayilamaz (K2)."""
+
+
+#: Testlerin KOSTUGUNU ve basarisiz oldugunu soyleyen tek cikis kodu (K2).
+#:
+#: Eskiden `returncode != 0` yeterliydi ve bu, kapinin kendisini
+#: kandiriyordu. pytest'in cikis kodlari:
+#:
+#:     0 = kosuldu, gecti           -> mutant HAYATTA
+#:     1 = kosuldu, basarisiz       -> mutant OLDURULDU
+#:     2 = kesinti                  3 = ic hata
+#:     4 = kullanim hatasi          5 = hic test toplanmadi
+#:
+#: Son dordu mutantin yakalandigini KANITLAMAZ; test komutunun hic
+#: calismadigini soyler. Olculdu 2026-09-08: bozuk bir test komutuyla
+#: kapi skor 1.0 ("testleriniz kusursuz") veriyordu -- anti-test-gaming
+#: araci, gaming'in en kaba bicimini odullendiriyordu.
+_TESTLER_KOSTU_VE_BASARISIZ = 1
+
+
 def _count(tree: ast.AST) -> int:
     n = 0
     for node in ast.walk(tree):
@@ -116,12 +137,24 @@ def run_gate(source: str, test_cmd: str, threshold: float,
             try:
                 cp = subprocess.run(test_cmd, shell=True, capture_output=True,
                                     text=True, timeout=timeout)
-                if cp.returncode != 0:
-                    killed += 1            # testler bug'ı yakaladı
-                else:
-                    survivors.append(m.applied)  # testler kaçırdı
             except subprocess.TimeoutExpired:
                 killed += 1                # mutasyon takılmaya yol açtı = tespit edildi
+                continue
+
+            if cp.returncode == 0:
+                survivors.append(m.applied)  # testler kaçırdı
+            elif cp.returncode == _TESTLER_KOSTU_VE_BASARISIZ:
+                killed += 1                # testler bug'ı yakaladı
+            else:
+                # Test komutu KOSMADI. Bunu "öldürüldü" saymak, kapının
+                # kendisini kandırır: bozuk bir komutla skor 1.0 çıkar.
+                # Sessiz yanlış cevap yerine gürültülü hata (K2).
+                raise MutationGateError(
+                    f"test komutu çalışmadı: çıkış kodu {cp.returncode} "
+                    f"(0=geçti, 1=başarısız; diğerleri ölçüm yapılmadı "
+                    f"demektir). Komut: {test_cmd}\n"
+                    f"stderr: {(cp.stderr or '')[-500:]}"
+                )
     finally:
         path.write_text(original, encoding="utf-8")  # her zaman geri yükle (hata dahil)
 
@@ -141,8 +174,15 @@ def main(argv=None) -> int:
     if not Path(args.source).exists():
         print(f"HATA: kaynak yok: {args.source}")
         return 1
-    score, survivors, ran = run_gate(args.source, args.test_cmd, args.threshold,
-                                     args.max_mutants, args.timeout)
+    try:
+        score, survivors, ran = run_gate(args.source, args.test_cmd, args.threshold,
+                                         args.max_mutants, args.timeout)
+    except MutationGateError as exc:
+        # Ölçüm yapılamadı: skor basmak yanlış cevap vermek olurdu.
+        print(f"# Mutation Gate -- {args.source}")
+        print(f"OLCUM YAPILAMADI: {exc}")
+        print("SONUÇ: HATA (skor hesaplanmadı; test komutunu düzeltin)")
+        return 2
     print(f"# Mutation Gate -- {args.source}")
     print(f"Skor: {score:.2f}  (çalıştırılan {ran}, hayatta kalan {len(survivors)}, eşik {args.threshold})")
     if survivors:

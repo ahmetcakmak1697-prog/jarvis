@@ -80,6 +80,58 @@ nasıl görüneceği** de yazılır. İkisi ayırt edilemiyorsa sinyal işe yara
 
 ## Kayıtlar
 
+### [2026-09-08] Mutation gate, koşmayan bir test komutuna "kusursuz" dedi
+
+- **Alan:** `scripts/mutation_gate.py` — anti-test-gaming kapısı
+- **Şiddet:** BLOCKER (kapının kendisi yanlış cevap veriyordu)
+- **Tuzak:** `tests/test_mutation_gate.py::test_weak_tests_leave_survivor`
+  yanıp sönüyordu: tam süitte `assert 1.0 < 0.8` ile düştü, tek başına
+  5/5 geçti, sonraki koşuda yeşil geldi. Zayıf test verildiği hâlde skor
+  1.0 çıkıyordu — yani "her mutant öldürüldü".
+- **Kök neden — ölçüldü, tahmin edilmedi (2026-09-08):** Alt-sürecin
+  çıkış kodu tek bir eşikle okunuyordu:
+
+  ```python
+  if cp.returncode != 0:
+      killed += 1        # "testler bug'i yakaladi"
+  ```
+
+  Sıfırdan farklı **her** kod "yakalandı" sayılıyordu. Oysa pytest'te
+  yalnız `1` "testler koştu ve başarısız" demek; `2` kesinti, `3` iç
+  hata, `4` kullanım hatası, `5` hiç test toplanmadı. Son dördü mutantın
+  yakalandığını değil, **test komutunun hiç çalışmadığını** söyler.
+  Doğrudan ölçüldü:
+
+  ```
+  "pytest <olmayan dosya>" (exit 4) -> skor=1.0  survivors=0
+  "sys.exit(2)" / "(3)" / "(5)"     -> skor=1.0  survivors=0
+  ```
+
+  Yani "kodu testten geçecek şekilde yazma" oyununu kırmak için var olan
+  araç, test komutu tamamen bozukken **"testleriniz kusursuz"** diyordu.
+  Yanıp sönme de buradan doğuyordu: alt-süreçteki pytest çevresel bir
+  sebeple koşamadığında bütün mutantlar "öldürüldü" sayılıyordu.
+- **Kural:** Bir alt-sürecin **başarısızlığı**, aradığın şeyin
+  **kanıtı** değildir. Çıkış kodunu ikili (`!= 0`) okuma; hangi kodun
+  "ölçüm yapıldı" hangisinin "ölçüm yapılamadı" demek olduğunu ayır.
+  Ölçüm yapılamadıysa skor **basılmaz**, gürültülü hata verilir —
+  `MutationGateError`. Bu, `FAILURES.md`'nin "YEŞİL ile ÖLÇÜLDÜ aynı
+  şey değildir" deseninin doğrudan uygulanışıdır.
+- **Kanıt:** `scripts/mutation_gate.py` → `_TESTLER_KOSTU_VE_BASARISIZ`
+  ve `MutationGateError`. Ölçüm çıktısı yukarıda.
+- **Regresyon testi:**
+  `tests/test_mutation_gate_olcum_durustlugu.py` — 8 test; düzeltmeden
+  önce 6'sı kırmızı görüldü. Mevcut `tests/test_mutation_gate.py`
+  (timeout=öldürüldü sözleşmesi dahil) değiştirilmedi.
+- **Kapanmayan sınır (açık borç):** Windows kabuğu **bulunamayan komut**
+  için de `1` döndürüyor ("is not recognized as an internal or external
+  command"), yani "testler koştu ve başarısız" ile aynı kod. Bu vaka
+  çıkış koduna bakarak ayrılamıyor ve hâlâ "öldürüldü" sayılıyor.
+  Görünür tutuluyor:
+  `test_BILINEN_SINIR_bulunamayan_komut_ayirt_edilemiyor`. Kapatmak
+  stderr ayrıştırmayı ya da `shell=False`'a geçmeyi gerektirir; ikisi
+  de `run_gate`'in sözleşmesini değiştirir.
+
 ### [2026-09-01] Bir worktree klasörünü kopyalamak yedek değildir
 
 - **Alan:** yedekleme / git topolojisi
