@@ -170,7 +170,27 @@ test ya deterministik hâle getirilmiş ya da neden kaçınılmaz olduğu
 
 ---
 
-## K3 — Üç dosya BOM (U+FEFF) taşıyor, AST hiçbiri okuyamıyor
+## K3 — Üç dosya BOM (U+FEFF) taşıyor ✅ İKİSİ KAPANDI, BİRİ CODEX'TE
+
+**Commit:** `a21bd97` · 7 test, 4'ü kırmızı görüldü.
+
+324 `.py` tarandı; BOM dışında ayrıştırma hatası yok.
+`tests/conftest.py` ve `tests/test_api_executor.py` temizlendi —
+bayt düzeyinde, gövde sha1 korunarak, her birinde tek satır diff.
+
+`agents/api_executor.py` **dokunulmadı** (Codex `agents/` içinde).
+Kusur silinmedi, strict xfail ile görünür bırakıldı; BOM kaldırıldığı
+an kırmızı yanar.
+
+İki yeni depo-geneli kilit eklendi: yeni BOM'lu dosya sessizce
+eklenemez, ve her `.py` `ast.parse` ile ayrıştırılabilir olmalı.
+
+Kapı: 1904 passed / 2 xfailed (iki sırada), uyarı sayısı 2'de kaldı,
+ruff 283, taban 49.
+
+*Aşağısı maddenin yazıldığı andaki kayıttır.*
+
+### K3 (kayıt) — Üç dosya BOM (U+FEFF) taşıyor, AST hiçbiri okuyamıyor
 
 **Nerede:** `agents/api_executor.py:1` · `tests/conftest.py:1` ·
 `tests/test_api_executor.py:1`
@@ -379,6 +399,27 @@ sunduğu arayüz yan yana yazıldı; bağlamanın maliyeti ve riski
 **Büyüklük:** küçük
 
 **Durum:** **Codex'te — beklemede** (`agents/`).
+
+---
+
+## K13 — `scripts/j0_mic_check.py` geçersiz kaçış dizisi taşıyor
+
+**Nerede:** `scripts/j0_mic_check.py`
+
+**Ölçüldü (2026-09-08, K3 sırasında yan bulgu):** Dosya `'\.'` geçersiz
+kaçış dizisi içeriyor; `ast.parse` sırasında
+`DeprecationWarning: invalid escape sequence '\.'` üretiyor. Depodaki
+324 `.py` içinde bu uyarıyı veren tek dosya.
+
+**Neden imza gerekmiyor:** Ham dize (`r"..."`) kullanılmamış bir regex;
+doğru davranış tartışmalı değil. Python 3.12'de bu uyarı `SyntaxWarning`
+oldu, ileride hata olacak.
+
+**Kabul ölçütü:** Dosya `-W error::DeprecationWarning` altında
+ayrıştırılıyor; `tests/test_kaynak_hijyeni.py` içindeki uyarı
+susturması kaldırılabiliyor.
+
+**Büyüklük:** küçük
 
 ---
 
