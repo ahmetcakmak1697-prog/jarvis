@@ -77,22 +77,34 @@ değil, kullanıcının aradığı konu. Ölçülen sonuç:
 
 Kapı: 1881 passed / 1 xfailed (iki sırada), ruff 283, taban 49.
 
-### K1b — komut kalıplarının kelime sınırına geçmesi ⛔ AHMET'E SORULDU
+### K1b — komut kalıpları kelime sınırına geçti ✅ KAPANDI
 
-**Kalan kusur:** `agent/local_agent.py` → `_WEB_KOMUT_KALIPLARI` hâlâ
-ham `str.replace` ile uygulanıyor ve kelime ortasından kesebiliyor:
-`"para araci"` → `"paraci"`.
+**Commit:** `1ffc7ce` · 4 test, hepsi kırmızı görüldü.
+**Karar:** A22 — Ahmet "üçüncü yol: ikisi de yaşasın" dedi.
 
-**Neden kendi başıma yapmadım:** Düzeltmek
-`tests/test_egress_policy_local_path.py::test_kirpilmis_nihai_sorgu_da_veri_sinifi_denetiminden_gecer`
-testini kırmızıya çevirir. O test kırpmanın hassas bir dize
-**üretmesine** dayanıyor; kelime sınırına geçilince o dize üretilmez,
-sorgu meşru olarak dışarı çıkar — yani testin iddiası yanlış hâle gelir,
-kaynak değil. `CLAUDE.md` §13.1: *"Testin kendisinin yanlış olduğu
-kanısına varılırsa bu bir kaynak-kod düzeltmesi değil, sözleşme
-değişikliğidir: durulur ve Ahmet'e sorulur."*
+Ölçülen kusur ve sonucu:
 
-→ `automation/AHMET_ONAYI_BEKLEYENLER.md` **A22**
+```
+"ankara haberleri"       -> "ankara haberleri"       (önce: "ankhaberleri")
+"para araci haberleri"   -> "para araci haberleri"   (önce: "paraci haberleri")
+"YAPAY ZEKA ... ARAŞTIR" -> "YAPAY ZEKA HAKKINDA"    (önce: hiç kırpılmıyordu)
+```
+
+Eşleştirme artık fold'lanmış metinde ve `\b` kelime sınırında; silme
+orijinal metinden, büyük harf ve Türkçe karakter korunuyor.
+
+**A-04 testinin girdisi değişti** (Ahmet onayı): `"paara rola X son
+haberler"` → `"parola X son haberler"`. Eski girdinin gücü kırpma
+kusuruna dayanıyordu; K1b onu kapattığı için o girdi artık meşru bir
+sorgu. Yeni girdi gerçekten hassas ve `sensitive_blocked`.
+
+**Kapsam kaybı kapatıldı:** yeni girdi orijinal cümlede zaten hassas
+olduğu için kapı **ilk** katmanda (B03) kapanıyor ve A-04'ün eklediği
+ikinci katmanı sınamıyordu. `test_orijinal_temizken_nihai_sorgu_yine_denetlenir`
+eklendi — orijinal `allow=True`, nihai sorgu `sensitive_blocked`;
+A-04 kapısı kaldırılırsa yalnız o test kırmızı yanar.
+
+Kapı: 1891 passed / 1 xfailed (iki sırada), ruff 283, taban 49.
 
 ---
 

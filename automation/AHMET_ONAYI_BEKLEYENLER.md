@@ -430,7 +430,32 @@ değiştiren her şeyi imzaya bağladı.
 denetiminden geçirdi; bu, desen borcunu kapatmaz. strict xfail hâlâ
 XFAIL — gevşetilmedi.
 
-## A22 — A-04 testi, düzeltmek istediğim kusura dayanıyor (K1b)
+## A22 — ✅ KARARLANDI (2026-09-08): üçüncü yol, ikisi de yaşasın
+
+**Ahmet'in kararı:** K1b uygulansın **ve** aynı commit'te A-04 testinin
+girdisi `"parola FAKE_AUDIT_MARKER_7719 son haberler"` olsun. Gerekçe:
+boşluklu `parola X` biçimi zaten `sensitive_blocked`, yani testin
+güvenlik özelliği kırpmaya bağlı kalmadan ayakta duruyor. Bu testi
+zayıflatmaz, güçlendirir — artık "bug'ın ürettiği dize yakalanıyor mu"
+değil, "gerçekten hassas girdi yakalanıyor mu" diye soruyor.
+
+**Uygulandı:** commit `1ffc7ce`. Ölçüm doğrulandı:
+`decide("parola FAKE_AUDIT_MARKER_7719 son haberler")` →
+`allow=False, mode=sensitive_blocked`.
+
+**Uygularken bulunan ek nokta:** yeni girdi orijinal cümlede zaten
+hassas olduğu için kapı **ilk** katmanda (B03) kapanıyor; A-04'ün
+eklediği ikinci katman o testte artık çalışmıyordu. Kapsam kaybını
+kapatmak için ayrı bir test eklendi
+(`test_orijinal_temizken_nihai_sorgu_yine_denetlenir`): orijinal temiz
+ve izinli, nihai sorgu hassas. A-04 kapısı kaldırılırsa yalnız o test
+kırmızı yanar.
+
+*Aşağısı kararın verildiği andaki kayıttır, tarihsel olarak duruyor.*
+
+---
+
+## A22 (kayıt) — A-04 testi, düzeltmek istediğim kusura dayanıyor (K1b)
 
 **Kaynak:** K1'i uygularken çıktı. `automation/IMZASIZ_IS_KUYRUGU.md` K1b.
 
