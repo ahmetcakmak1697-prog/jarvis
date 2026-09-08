@@ -569,3 +569,25 @@ returned PASS. Historical stop record: automation/CODEX_V2_UYGULAMA_2026-09-07.m
 - Scope: filename/path policy is not content classification or an OS
   sandbox against concurrent hostile filesystem mutation. The existing
   explicit desktop PDF import workflow is separate and unchanged.
+
+
+### [2026-09-08] B10: routing is not API execution
+
+- Trap: local conversation consumed the external budget and stopped when it
+  ran out; a cloud attempt could be counted by both router and executor.
+  Redaction/web-policy exceptions also fell through to external execution.
+- Root cause: ask_external describes missing local knowledge, not a chosen
+  cloud provider. Cost consumption was placed before execution policy.
+  Older tests encoded this bug by expecting the router to block all answers
+  and permitting ask_external after a policy exception.
+- Rule: only the existing APIBudgetGate at the actual API execution boundary
+  consumes a unit. Local generation remains available after budget denial.
+  Failed guards return a blocked decision; they cannot authorize external I/O.
+  CostLedger counts admitted attempts, not tokens, currency or billing.
+- Evidence: four new regressions failed before the source patch. Ahmet then
+  explicitly authorized strengthening four obsolete tests: verify zero API
+  calls AND an actual local answer for budget denial; blocked decision AND
+  zero API/web calls for guard failure. Relevant five test files: 35 passed.
+  All four strengthened legacy tests also fail against the old router
+  loaded only in memory, without reverting working files. Full-suite results
+  are recorded separately in the B10 completion report.

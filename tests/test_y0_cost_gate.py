@@ -39,13 +39,20 @@ def test_external_allowed_when_ledger_permits(tmp_path):
     assert result["route"] == "external"
 
 
-def test_external_blocked_when_ledger_denies(tmp_path):
-    r = _router(ledger=FakeLedgerBlock(), tmp_path=tmp_path)
-    result = r.route("tamamen bilinmeyen soru xyz999")
-    assert result["decision"] == "external_blocked"
-    assert result["route"] == "external_blocked"
-    assert "budget" in result["reason"] or "limit" in result["reason"]
+def test_local_answer_survives_external_budget_denial(tmp_path, monkeypatch):
+    from b10_execution_support import pipeline
 
+    router = _router(ledger=FakeLedgerBlock(), tmp_path=tmp_path)
+    ex, ledger, local, api = pipeline(tmp_path, monkeypatch, cloud=True, router=router)
+    ledger.check_and_consume("prior_api")
+    result = ex.ask("tamamen bilinmeyen soru xyz999")
+    assert result["ok"] is True
+    assert result["source"] == "ollama"
+    assert result["answer"] == "local answer"
+    assert result["primary_failed_executor"] == "api"
+    assert api.calls == []
+    assert local.calls == ["tamamen bilinmeyen soru xyz999"]
+    assert ledger.stats()["today_count"] == 1
 
 def test_local_answer_skips_ledger(tmp_path):
     from agents.local_first_router import LocalFirstRouter

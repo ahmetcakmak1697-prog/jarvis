@@ -74,11 +74,21 @@ def test_secret_blocked_contains_safe_message(tmp_path):
 # ----------------------------------------------------------------
 # 3. Budget block sadece secret olmayan sorguda devreye girmeli
 # ----------------------------------------------------------------
-def test_budget_block_on_clean_unknown_query(tmp_path):
-    ex = _make_executor(ledger=_BlockLedger(), tmp_path=tmp_path)
+def test_budget_denial_on_clean_query_falls_back_local(tmp_path, monkeypatch):
+    from agents.local_first_router import LocalFirstRouter
+    from b10_execution_support import pipeline
+
+    router = LocalFirstRouter(cost_ledger=_BlockLedger(), vector_memory=_EmptyVM(), data_root=tmp_path)
+    ex, ledger, local, api = pipeline(tmp_path, monkeypatch, cloud=True, router=router)
+    ledger.check_and_consume("prior_api")
     result = ex.ask("Django nasil kurulur xyz999?")
-    assert result["source"] == "external_blocked"
-    assert result["ok"] is False
+    assert result["ok"] is True
+    assert result["source"] == "ollama"
+    assert result["answer"] == "local answer"
+    assert result["primary_failed_executor"] == "api"
+    assert api.calls == []
+    assert local.calls == ["Django nasil kurulur xyz999?"]
+    assert ledger.stats()["today_count"] == 1
 
 
 # ----------------------------------------------------------------

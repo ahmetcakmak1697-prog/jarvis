@@ -1,6 +1,7 @@
 """Y0-3 - CostLedger.
 
-Gates external API calls with a daily limit.
+Limits admitted API execution attempts per day, including failed attempts.
+Counts calls, not tokens, currency, or provider billing; this is not a money cap.
 Persists daily count to JSONL so it survives restarts.
 
 daily_limit=0 means unlimited.

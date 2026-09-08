@@ -20,7 +20,8 @@ are placeholders. Do not treat them as real blockers. Only lines starting with
 ## Pending Items
 
 
-- [ ] [2026-09-06] [CODEX-A-20260906] A denetimi BLOCKER/CONCERN bulgulari acik: [rapor](CODEX_A_DOGRULAMA_2026-09-06.md). V2-HANDOFF: Ahmet KART_CODEX_B08_B10_v2.md ile devam iznini ve B08 eski girisin emekliligini onayladi. A-01/A-02/A-04/A-06/A-07 Claude'da; A-03/A-05 ve B08-B10 Codex'te. Bu madde artik B uygulamasinin izin engeli degil; kalan A duzeltmelerinin takibidir.
+
+- [ ] [2026-09-06] [CODEX-A-20260906] A denetimi BLOCKER/CONCERN bulgulari acik: [rapor](CODEX_A_DOGRULAMA_2026-09-06.md). V2-HANDOFF: Ahmet KART_CODEX_B08_B10_v2.md ile devam iznini ve B08 eski girisin emekliligini onayladi. A-01/A-02/A-04/A-06/A-07 Claude'da; Codex'in A-03/A-05 ve B08-B10 uygulamasi tamamlandi (CODEX_V2_SONUC_2026-09-08.md). Claude maddeleri bu kayitla yeniden onaylanmaz. Bu madde artik B uygulamasinin izin engeli degil; kalan A duzeltmelerinin takibidir.
 
 <!-- Add real items below this comment as they arise. Format:
 - [ ] [YYYY-MM-DD] [TASK-ID] What is needed and exactly why Claude cannot proceed.
@@ -30,6 +31,8 @@ are placeholders. Do not treat them as real blockers. Only lines starting with
 ---
 
 ## Resolved Items
+
+- [x] [2026-09-08] [CODEX-B10-GUARD-CONTRACT-20260908] Ahmet dort eski testi GUCLENDIRME onayi verdi. Sifir dis cagri + yerel yanit ve fail-closed iddialari eklendi. Iki tam sirada 1891 passed + 1 xfailed; Ruff 283; bagimsiz PASS. [Sonuc](CODEX_V2_SONUC_2026-09-08.md).
 
 - [x] [2026-09-08] [CODEX-B09-PATHSPEC-20260907] Ahmet duzeltmeye ve B10'a devam iznini verdi. Her iki git_diff dali degisen dosya listesinde tam ad eslesmesi kullaniyor; dizin/eksik yol/index-dizin varyantlari once RED, sonra GREEN. Bagimsiz yeniden inceleme PASS; 67 odak testi gecti. Tarihsel durma kaydi: [CODEX_V2_UYGULAMA_2026-09-07.md](CODEX_V2_UYGULAMA_2026-09-07.md).
 

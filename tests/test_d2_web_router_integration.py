@@ -140,19 +140,25 @@ def test_no_web_policy_preserves_existing_behavior():
     assert result["decision"] in ("ask_external", "clarify", "external_blocked")
 
 
-def test_policy_exception_fails_closed_to_existing_behavior():
-    class RaisingPolicy:
-        MODE_CURRENT_INFO = "current_info"
-        MODE_EXPLICIT_WEB = "explicit_web"
-        MODE_SENSITIVE_BLOCKED = "sensitive_blocked"
+def test_policy_exception_blocks_all_external_execution(tmp_path, monkeypatch):
+    from b10_execution_support import pipeline
 
+    class RaisingPolicy:
         def decide(self, query, context=None):
             raise RuntimeError("policy crashed")
 
-    router = LocalFirstRouter(web_research_policy=RaisingPolicy(), query_cache=FakeQueryCache())
-    result = router.route("Bugun hava nasil?")
-    # Must not crash, must fall through to existing behavior
-    assert result["decision"] in ("ask_external", "clarify", "external_blocked")
+    ex, ledger, local, api = pipeline(tmp_path, monkeypatch, cloud=True, web_policy=RaisingPolicy())
+    researcher = FakeWebResearcher(report="unexpected web answer")
+    monkeypatch.setattr(ex, "_web_researcher", researcher)
+    result = ex.ask("Bugun hava nasil?")
+    assert result["blocked"] is True
+    assert result["ok"] is False
+    assert result["router_decision"]["decision"] == "web_research_blocked"
+    assert result["router_decision"]["signals"]["guard_failed"] is True
+    assert api.calls == []
+    assert researcher.calls == []
+    assert local.calls == []
+    assert ledger.stats()["today_count"] == 0
 
 
 def test_non_web_question_unchanged():

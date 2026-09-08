@@ -49,7 +49,7 @@ class LocalFirstRouter:
         self._kc_min_confidence = kc_min_confidence
         self._data_root = Path(data_root) if data_root else ROOT / "memory"
         self._vector_memory = vector_memory
-        self._cost_ledger = cost_ledger
+        # cost_ledger remains a compatibility argument; APIBudgetGate owns consumption.
         self._query_cache = query_cache
         self._redact_before_external = redact_before_external
         self._web_research_policy = web_research_policy
@@ -75,17 +75,6 @@ class LocalFirstRouter:
     def _get_cascade(self):
         from agents.model_cascade import ModelCascade
         return ModelCascade()
-
-    def _get_ledger(self):
-
-        if self._cost_ledger is not None:
-            return self._cost_ledger
-        try:
-            from agents.cost_ledger import CostLedger
-            self._cost_ledger = CostLedger()
-        except Exception:
-            self._cost_ledger = None
-        return self._cost_ledger
 
     def _recall(self, question: str) -> list[dict]:
 
@@ -206,9 +195,15 @@ class LocalFirstRouter:
                         },
                     }
             except Exception:
-                pass  # redaction failure = fail open (let through, don't crash)
+                return {
+                    "decision": "redacted_blocked",
+                    "route": "redacted_blocked",
+                    "confidence": 0,
+                    "reason": "redaction_guard_failed",
+                    "signals": {"redaction_enabled": True, "guard_failed": True},
+                }
 
-        # 3. D2: Web research policy bridge before generic external budget gate
+        # 3. D2: Web research policy bridge before model routing
         if self._web_research_policy is not None:
             try:
                 wr_decision = self._web_research_policy.decide(question)
@@ -249,25 +244,16 @@ class LocalFirstRouter:
                         },
                     }
             except Exception:
-                pass  # fail closed: fall through to safe local/API
-
-        # 4. Cost ledger gate before generic external escalation
-        ledger = self._get_ledger()
-        if ledger is not None:
-            gate = ledger.check_and_consume("external_call")
-            if not gate.get("allowed"):
                 return {
-                    "decision": "external_blocked",
-                    "route": "external_blocked",
+                    "decision": "web_research_blocked",
+                    "route": "web_research_blocked",
                     "confidence": 0,
-                    "reason": f"budget_limit:{gate.get('reason','exceeded')}",
-                    "signals": {
-                        "kc_found": False,
-                        "memory_hits": 0,
-                        "ledger": gate,
-                    },
+                    "reason": "web_policy_guard_failed",
+                    "signals": {"guard_failed": True},
                 }
 
+        # Routing does not choose local vs. cloud execution. AssistantExecutor's
+        # APIBudgetGate consumes once, immediately before an API execution attempt.
         checked = ["knowledge_card", "memory"]
         escalation_reason = "no_local_knowledge:kc=0,memory=0"
         cascade = self._get_cascade().select(question)

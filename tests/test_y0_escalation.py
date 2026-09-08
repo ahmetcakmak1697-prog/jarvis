@@ -61,12 +61,23 @@ def test_external_has_crystallize_candidate(tmp_path):
     assert cand["status"] == "pending_crystallization"
 
 
-def test_blocked_has_no_crystallize_candidate(tmp_path):
-    r = _router(ledger=FakeLedgerBlock(), tmp_path=tmp_path)
-    result = r.route("bilinmeyen soru xyz999")
-    assert result["decision"] == "external_blocked"
-    assert result.get("crystallize_candidate") is None
+def test_budget_denial_keeps_local_answer_and_pending_candidate(tmp_path, monkeypatch):
+    from b10_execution_support import pipeline
 
+    router = _router(ledger=FakeLedgerBlock(), tmp_path=tmp_path)
+    ex, ledger, local, api = pipeline(tmp_path, monkeypatch, cloud=True, router=router)
+    ledger.check_and_consume("prior_api")
+    result = ex.ask("bilinmeyen soru xyz999")
+    assert result["ok"] is True
+    assert result["source"] == "ollama"
+    assert result["answer"] == "local answer"
+    assert result["primary_failed_executor"] == "api"
+    assert api.calls == []
+    assert local.calls == ["bilinmeyen soru xyz999"]
+    assert ledger.stats()["today_count"] == 1
+    candidate = result["router_decision"]["crystallize_candidate"]
+    assert candidate["question"] == "bilinmeyen soru xyz999"
+    assert candidate["status"] == "pending_crystallization"
 
 def test_local_answer_has_no_crystallize_candidate(tmp_path):
     from agents.knowledge_card_store import KnowledgeCardStore
