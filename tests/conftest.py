@@ -1,4 +1,4 @@
-﻿"""Governance test import bridge + test izolasyonu.
+"""Governance test import bridge + test izolasyonu.
 
 This file lives under tests/ and adds the repo scripts/ directory to sys.path.
 
