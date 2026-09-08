@@ -108,7 +108,41 @@ Kapı: 1891 passed / 1 xfailed (iki sırada), ruff 283, taban 49.
 
 ---
 
-## K2 — `test_mutation_gate::test_weak_tests_leave_survivor` yanıp sönüyor
+## K2 — `test_mutation_gate::test_weak_tests_leave_survivor` yanıp sönüyor ✅ KAPANDI
+
+**Commit:** `c815ee8` · 8 test, 6'sı kırmızı görüldü.
+
+**Kök neden ölçüldü, hipotez yanlış çıktı.** Aşağıda "en olası sebep"
+diye yazdığım eşzamanlılık hikâyesi *tetikleyiciydi*, sebep değil.
+Gerçek sebep `scripts/mutation_gate.py:119`'daydı:
+
+```python
+if cp.returncode != 0:
+    killed += 1        # "testler bug'i yakaladi"
+```
+
+Sıfırdan farklı **her** çıkış kodu "mutant yakalandı" sayılıyordu.
+Ölçülen sonuç: test komutu hiç çalışmadığında kapı **skor 1.0**
+veriyordu — anti-test-gaming aracı, bozuk bir test komutuna
+"testleriniz kusursuz" diyordu.
+
+```
+"pytest <olmayan dosya>" (exit 4) -> skor=1.0  survivors=0
+"sys.exit(2)" / "(3)" / "(5)"     -> skor=1.0  survivors=0
+```
+
+Artık yalnız `exit 1` öldürüldü sayılıyor; ölçüm yapılamadığını
+söyleyen kodlar `MutationGateError` ile gürültülü düşüyor.
+`FAILURES.md` kaydı eklendi. Timeout=öldürüldü sözleşmesi değişmedi.
+
+**Açık borç (görünür bırakıldı):** Windows kabuğu bulunamayan komut
+için de `1` döndürüyor; o vaka çıkış koduna bakarak ayrılamıyor ve hâlâ
+"öldürüldü" sayılıyor. `test_BILINEN_SINIR_bulunamayan_komut_ayirt_edilemiyor`
+bunu kilitliyor.
+
+Kapı: 1899 passed / 1 xfailed (iki sırada), ruff 283, taban 49.
+
+*Aşağısı maddenin yazıldığı andaki kayıttır.*
 
 **Nerede:** `tests/test_mutation_gate.py:50`
 
