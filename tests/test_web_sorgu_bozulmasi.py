@@ -117,3 +117,64 @@ def test_bos_kalan_sorgu_orijinale_doner(ajan):
     sorgu = _sorgu(ajan, "araştır")
 
     assert len(sorgu) >= 3, f"bos/kirik sorgu disari cikiyor: {sorgu!r}"
+
+
+# ─── 3. K1b: komut kaliplari da kelime sinirinda ────────
+#
+# K1a konu kelimelerini listeden cikardi ama kalan kaliplar hala ham
+# `str.replace` ile siliniyordu. Olculdu 2026-09-08:
+#
+#     "para araci haberleri" -> "paraci haberleri"
+#
+# "ara " kalibi "para "nin ortasindan kesiyor ve iki kelime KAYNASIYOR.
+# Kirpma yalnizca silebilmeli; yeni kelime uretmesi onu arama sorgusu
+# olmaktan cikarir.
+
+
+@pytest.mark.parametrize("mesaj,olmamali", [
+    ("para araci haberleri", "paraci"),
+    ("kara para haberleri", "kap"),
+    # Kaynasmis hali yazilir, koku degil: "ank" dogru ciktinin da
+    # icinde ("ankara") ve iddiayi bos yere kirmizi yakardi.
+    ("ankara haberleri", "ankhaberleri"),
+])
+def test_komut_kalibi_kelime_ortasindan_kesmiyor(ajan, mesaj, olmamali):
+    """Bitisik iki kelime kaynasmamali: "para araci" -> "paraci" YASAK."""
+    sorgu = _sorgu(ajan, mesaj)
+
+    assert olmamali not in sorgu.lower(), (
+        f"kelime ortasindan kesilip yeni kelime uredi: {mesaj!r} -> {sorgu!r}"
+    )
+    assert sorgu == mesaj, (
+        f"komut icermeyen cumle degistirilmemeli: {mesaj!r} -> {sorgu!r}"
+    )
+
+
+def test_komut_kalibi_buyuk_harfle_de_kirpilir(ajan):
+    """Kirpma fold'lanmis metinde eslesir: BUYUK harf de yakalanir.
+
+    Ham `str.replace` harfe duyarliydi; "ARAŞTIR" hic kirpilmiyordu.
+    CLAUDE.md 6: eslestirme her iki tarafa ayni fold uygulanarak yapilir.
+    """
+    from agents.data_classifier import _fold_tr
+
+    sorgu = _sorgu(ajan, "YAPAY ZEKA HAKKINDA ARAŞTIR")
+
+    # Duz `.lower()` ile karsilastirmak YANILTIR: "ARAŞTIR".lower() noktali
+    # "araştir" verir, "araştır" ile eslesmez ve iddia bos yere gecerdi.
+    # Iki taraf da ayni fold'dan gecirilir (CLAUDE.md 6).
+    assert "arastir" not in _fold_tr(sorgu), (
+        f"buyuk harfli komut kirpilmadi: {sorgu!r}"
+    )
+    assert "yapay zeka" in _fold_tr(sorgu)
+
+
+def test_komut_silinince_kelimeler_birlesmez(ajan):
+    """Kalip iki kelimenin arasindan cikinca komsular yapismaz."""
+    sorgu = _sorgu(ajan, "deprem araştır bolgesi haberleri")
+
+    assert "depremboigesi" not in sorgu.lower().replace(" ", "")[:14]
+    for kelime in sorgu.lower().split():
+        assert kelime in {"deprem", "bolgesi", "haberleri"}, (
+            f"beklenmeyen kelime: {kelime!r} ({sorgu!r})"
+        )

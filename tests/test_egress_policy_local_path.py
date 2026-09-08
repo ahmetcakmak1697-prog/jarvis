@@ -157,21 +157,27 @@ def test_sir_hicbir_arguman_icinde_disari_cikmaz(ajan):
 # 2b. A-04: kirpma, ORIJINALDE OLMAYAN hassas bir dizi uretebiliyor
 # --------------------------------------------------------------------------- #
 
-def test_kirpilmis_nihai_sorgu_da_veri_sinifi_denetiminden_gecer(ajan):
-    """Codex'in kaniti: girdi masum, DISARI CIKAN hali degil.
+def test_hassas_sorgu_web_arama_yolunda_araca_ulasmaz(ajan):
+    """Bosluklu `parola X` bicimi arama yolunda araca ULASMAZ.
 
-    `_detect_tool` web sorgusunu kurarken "ara " ve "haber" parcalarini
-    siliyor. "paara rola ... son haberler" cumlesinden geriye
-    "parola ... son ler" kaliyor -- hassas desen kirpmanin KENDISI
-    tarafindan uretiliyor.
+    **Girdi degisti (2026-09-08, Ahmet onayi -- A22).** Eski hali
+    `"paara rola {SIR} son haberler"` idi ve testin gucu bir KUSURA
+    dayaniyordu: `_detect_tool` "ara " parcasini kelime ortasindan
+    kesip hassas dizeyi KENDISI uretiyordu. K1b o kesmeyi duzeltti,
+    yani eski girdi artik masum bir sorgu -- ve o haliyle disari
+    cikmasi DOGRU.
 
-    Karar orijinal cumleye bakiyordu (dogru: politikanin isi niyeti
-    yargilamak, kirpma artigini degil); ama disari cikan metin kirpilmis
-    sorgu. Ikisinin ayrilmasi kapiyi eksik biraktı: olculdu 2026-09-06,
-    sahte web aracina 1 cagri ulasti.
+    Test zayiflamadi, guclendi: artik "bug'in urettigi dize yakalaniyor
+    mu" degil, "gercekten hassas girdi yakalaniyor mu" diye soruyor.
+    Olculdu: `policy.decide("parola {SIR} son haberler")` ->
+    `allow=False, mode=sensitive_blocked`.
+
+    **Kapsam notu:** bu girdi ORIJINAL cumlede zaten hassas oldugu icin
+    kapi ilk katmanda (B03) kapanir. A-04'un ekledigi ikinci katman --
+    "orijinal temiz ama NIHAI sorgu hassas" -- asagida ayri sinaniyor.
     """
     casus = _casusla(ajan, "web_search")
-    mesaj = f"paara rola {SIR} son haberler"
+    mesaj = f"parola {SIR} son haberler"
 
     ad, cikti = _tam_yol(ajan, mesaj)
 
@@ -179,7 +185,36 @@ def test_kirpilmis_nihai_sorgu_da_veri_sinifi_denetiminden_gecer(ajan):
         f"on kosul: bu cumle web aramasi secmeli, gelen {ad}"
     )
     assert casus.cagri_sayisi == 0, (
-        f"kirpilmis hassas sorgu araca ulasti: {casus.gelen}"
+        f"hassas sorgu araca ulasti: {casus.gelen}"
+    )
+    assert SIR not in str(casus.gelen), "ham isaretci arguman icinde cikti"
+    assert cikti, "engel sessiz olmamali -- kullaniciya sebep donmeli"
+
+
+def test_orijinal_temizken_nihai_sorgu_yine_denetlenir(ajan):
+    """A-04'un kilitledigi sozlesme: NIHAI sorgu bagimsiz denetlenir.
+
+    Politika kararini orijinal cumle verir (dogru: niyeti yargilamak
+    onun isi). Ama disari cikan metin `args["query"]`'dir. Ikisi
+    ayrildigi icin arada denetimsiz bir bosluk kaliyordu.
+
+    Burada o bosluk dogrudan kurulur: orijinal cumle temiz ve politika
+    ona IZIN VERIYOR (`son haberler nedir` -> allow=True), nihai sorgu
+    ise hassas. Kapi kalkarsa arac cagrilir ve bu test kirmizi yanar.
+
+    Yol `_run_tool` uzerinden gecer, `_egress_kapisi` dogrudan
+    cagrilmaz: kapinin YURUTME kodunda bagli oldugu da sinanmali.
+    """
+    casus = _casusla(ajan, "web_search")
+
+    cikti = ajan._run_tool(
+        "web_search",
+        {"query": f"parola {SIR}", "max_results": 5},
+        "son haberler nedir",
+    )
+
+    assert casus.cagri_sayisi == 0, (
+        f"orijinal temiz diye hassas nihai sorgu disari cikti: {casus.gelen}"
     )
     assert SIR not in str(casus.gelen), "ham isaretci arguman icinde cikti"
     assert cikti, "engel sessiz olmamali -- kullaniciya sebep donmeli"

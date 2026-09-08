@@ -194,15 +194,54 @@ TOOL_TRIGGERS = {
 #: anlamsiz bir dize gidiyordu. TOOL_TRIGGERS'ta bulunmak bir kelimeyi
 #: TETIKLEYICI yapar, kirpilacak yapmaz; iki liste birbirine karismisti.
 #:
-#: [ACIK KUSUR -- K1b] Kalan kaliplar hala ham `str.replace` ile siliniyor,
-#: yani kelime ortasindan kesebiliyorlar ("para araci" -> "paraci").
-#: Kelime sinirina gecmek `tests/test_egress_policy_local_path.py`
-#: icindeki A-04 sozlesme testinin on kosulunu ortadan kaldiriyor
-#: (CLAUDE.md 13.1: bu bir sozlesme degisikligidir, sorulur).
-#: Bkz. `automation/IMZASIZ_IS_KUYRUGU.md` K1b.
+#: K1b: kaliplar artik ham `str.replace` ile degil, fold'lanmis metinde
+#: KELIME SINIRINDA aranir. Eski hali kelime ortasindan kesiyor ve iki
+#: kelimeyi KAYNASTIRIYORDU -- olculdu 2026-09-08:
+#:
+#:     "ankara haberleri"     -> "ankhaberleri"
+#:     "para araci haberleri" -> "paraci haberleri"
+#:
+#: Ayrica harfe duyarliydi: "ARAŞTIR" hic kirpilmiyordu. Eslestirme
+#: `_fold_tr` ile iki tarafa da ayni sekilde uygulanir (CLAUDE.md 6).
 _WEB_KOMUT_KALIPLARI: tuple[str, ...] = (
-    "araştır", "ara ", "güncel bilgi ver", "öğren",
+    "araştır", "ara", "güncel bilgi ver", "öğren",
 )
+
+#: Uzun kalip once denensin diye uzunluga gore siralanir; `\b` zaten
+#: dogru olani secer ama sira acik yazilinca okunur kalir.
+_WEB_KOMUT_DESENI = re.compile(
+    r"\b(?:"
+    + "|".join(
+        re.escape(_fold_tr(k))
+        for k in sorted(_WEB_KOMUT_KALIPLARI, key=len, reverse=True)
+    )
+    + r")\b"
+)
+
+
+def _web_sorgusu(message: str) -> str:
+    """Arama sorgusundan KOMUT kaliplarini cikarir, KONUYA dokunmaz (K1).
+
+    Eslestirme fold'lanmis metinde yapilir, silme ORIJINAL metinden --
+    boylece kullanicinin buyuk harfi ve Turkce karakterleri korunur.
+    Fold uzunlugu degistirirse (nadir bir Unicode kucultmesi) hicbir sey
+    silinmez: kirpilmamis bir sorgu, bozulmus bir sorgudan iyidir.
+    """
+    ham = (message or "").strip()
+    fold = _fold_tr(ham)
+    if len(fold) != len(ham):
+        return ham
+
+    parcalar: list[str] = []
+    son = 0
+    for eslesme in _WEB_KOMUT_DESENI.finditer(fold):
+        parcalar.append(ham[son:eslesme.start()])
+        son = eslesme.end()
+    parcalar.append(ham[son:])
+
+    sorgu = re.sub(r"\s+", " ", "".join(parcalar)).strip()
+    # Kirpma her seyi yediyse orijinal gider; bos sorgu disari cikmaz.
+    return sorgu if len(sorgu) >= 3 else ham
 
 # ─── Yerel ajana özgü ek yönergeler ─────────────────────
 # Kimlik, sadakat, kişilik, üslup ve uydurma yasağı `agents/persona.py`'den
@@ -619,12 +658,9 @@ class LocalJarvisAgent:
             return "calculate", {"expression": expr}
 
         if _eslesir("web_search"):
-            query = message
-            for kw in _WEB_KOMUT_KALIPLARI:
-                query = query.replace(kw, "").strip()
-            if len(query) < 3:
-                query = message
-            return "web_search", {"query": query, "max_results": 5}
+            return "web_search", {
+                "query": _web_sorgusu(message), "max_results": 5,
+            }
 
         return None
 
