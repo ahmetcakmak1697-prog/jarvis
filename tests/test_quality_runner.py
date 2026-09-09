@@ -256,7 +256,20 @@ def test_longform_case_receives_its_declared_budget():
 
 
 def test_only_longform_cases_declare_a_larger_budget():
-    """Cerrahi degisiklik (§3): 60 vakanin kosulu hic degismez."""
+    """Cerrahi degisiklik (§3): 60 vakanin kosulu hic degismez.
+
+    Butce 1200 -> 4000 (2026-09-10). Bu bir OLCUM TANIMI degisikligidir ve
+    Ahmet'in imzasiyla yapildi (`KART_DEEPSEEK_10_KUSUR.md` PARCA B, imza
+    2026-09-09; kosul: llama3.1 de ayni tanimla yeniden kosulur).
+
+    Sayi tahminle secilmedi: 1200'de dort vakanin dordu de
+    `done_reason="length"` ile kesiliyordu; 4000'de dordu de `"stop"` ile
+    bitti ve en uzun cevap 2977 cikis tokeni tuttu. Olcum:
+    `automation/TERAZI_ETAP1_2026-09-10.md` §1.
+
+    Testin KORUDUGU sozlesme degismedi: butceyi yalniz longform beyan eder,
+    diger 60 vaka varsayilanda kalir.
+    """
     from pathlib import Path
 
     from eval.run_turkish_quality import CASES_PATH, DEFAULT_NUM_PREDICT
@@ -265,7 +278,7 @@ def test_only_longform_cases_declare_a_larger_budget():
     beyan = {c["id"]: c["num_predict"] for c in veri["cases"] if "num_predict" in c}
     assert sorted(beyan) == ["t2_longform_001", "t2_longform_002",
                              "t2_longform_003", "t2_longform_004"]
-    assert set(beyan.values()) == {1200}
+    assert set(beyan.values()) == {4000}
     assert DEFAULT_NUM_PREDICT == 400
 
 

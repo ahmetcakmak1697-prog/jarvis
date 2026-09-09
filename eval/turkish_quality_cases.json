@@ -11,7 +11,14 @@
     "memory": "taban 5/5",
     "grounding": "taban 4/5",
     "longform": "taban 0/4",
-    "overall_v2": "taban 49/64"
+    "overall_v2": "taban 49/64",
+    "olcum_tanimi": {
+      "note": "Yukaridaki sayilar HANGI TANIMLA olculdu. Tanim degisirse sayilar karsilastirilamaz; bu blok o yuzden var (2026-09-10).",
+      "longform_num_predict": 1200,
+      "diger_num_predict": 400,
+      "gecerlilik": "ESKI TANIM. 2026-09-10'da longform butcesi 4000'e cikarildi (olculdu: dort vakanin dordu de 1200'de done_reason=length ile kesiliyordu; 4000'de dordu de stop ile bitti, en uzun cevap 2977 cikis tokeni). Yeni tanimdaki taban ETAP 2'de olculecek; bu satirlar o zamana kadar ESKI tanimin kaydidir ve silinmez.",
+      "kaynak": "automation/TERAZI_ETAP1_2026-09-10.md"
+    }
   },
   "cases": [
     {
@@ -867,7 +874,7 @@
     {
       "id": "t2_longform_001",
       "category": "longform",
-      "num_predict": 1200,
+      "num_predict": 4000,
       "prompt": "Polimer malzemelerde yaşlanma mekanizmalarını ve önlem yöntemlerini detaylı anlat.",
       "expected_elements": [
         "derinlik",
@@ -883,7 +890,7 @@
     {
       "id": "t2_longform_002",
       "category": "longform",
-      "num_predict": 1200,
+      "num_predict": 4000,
       "prompt": "ESHOT otobüs telemetri verisini pandas ile nasıl özetlerim? Adım adım ve gerekçeleriyle anlat.",
       "expected_elements": [
         "derinlik",
@@ -899,7 +906,7 @@
     {
       "id": "t2_longform_003",
       "category": "longform",
-      "num_predict": 1200,
+      "num_predict": 4000,
       "prompt": "Isıtma-soğutma sistemlerinde enerji verimliliğini artırmanın yollarını kapsamlı biçimde açıkla.",
       "expected_elements": [
         "derinlik",
@@ -915,7 +922,7 @@
     {
       "id": "t2_longform_004",
       "category": "longform",
-      "num_predict": 1200,
+      "num_predict": 4000,
       "prompt": "Yerel bir dil modelini 8 GB ekran kartında çalıştırmanın sınırlarını ve ödünleşimlerini derinlemesine anlat.",
       "expected_elements": [
         "derinlik",

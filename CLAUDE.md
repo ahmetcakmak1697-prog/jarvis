@@ -280,6 +280,16 @@ puanlanıyor; uzun anlatım vakaları 1200 token bütçe alıyor). **Taban 49/64
 değişmedi** — düzeltmeler kayıtlı llama koşusunun hiçbir vakasına dokunmadı.
 Ölçümler: `automation/TERAZI_DUZELTMELERI_2026-09-05.md`.
 
+**Ölçüm tanımı 2026-09-10'da yine değişti — 49/64 artık GEÇMİŞ tanımın
+sayısıdır.** Uzun anlatım bütçesi 1200'den **4000** token'a çıkarıldı
+(Ahmet imzalı, `KART_DEEPSEEK_10_KUSUR.md` PARÇA B). Gerekçe ölçüldü:
+1200'de dört longform vakasının dördü de `done_reason="length"` ile
+kesiliyordu, yani terazi cevabı değil **duvara çarpmayı** puanlıyordu;
+4000'de dördü de `"stop"` ile bitti ve en uzun cevap 2977 çıkış tokeni
+tuttu. 49/64 **silinmedi**, tanımıyla birlikte duruyor ve yeni tanımdaki
+sayıyla **karşılaştırılamaz**. Yeni taban ve iki modelin dört sayısı:
+`automation/TERAZI_ETAP1_2026-09-10.md`, `automation/TERAZI_ETAP2_2026-09-10.md`.
+
 **Sıra bağımsızlığı kuralı:** Bir testin tek başına geçmesi onu geçmiş
 saymaz. Kapı **tam süit** üzerinde çalıştırılır. Yeşil hat iddiası, süit
 alfabetik *ve* ters sırada geçtiğinde kanıtlanmış olur:
