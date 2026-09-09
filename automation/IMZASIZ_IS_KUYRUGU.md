@@ -423,6 +423,43 @@ susturması kaldırılabiliyor.
 
 ---
 
+## K14 — `run_turkish_quality.py` `.env`'i hiç yüklemiyor
+
+**Nerede:** `eval/run_turkish_quality.py:401`
+
+**Ölçüldü (2026-09-09, Ahmet frontier ölçümünü başlatırken):**
+
+```python
+anahtar = os.environ.get(tanim["env"], "").strip()
+```
+
+Betik anahtarı **yalnız ortam değişkeninden** okuyor ve `.env` dosyasını
+hiç yüklemiyor. `main.py:26` `load_dotenv()` çağırıyor, bu betik
+çağırmıyor. Sonuç: `.env` doğru doldurulmuş olsa bile `--saglayici`
+yolu "anahtar yok" diyor.
+
+**Ahmet bunu canlı yaşadı.** Geçici çözüm, `.env`'i PowerShell'de elle
+ayrıştırıp oturuma yüklemek oldu — işe yaradı ama her yeni terminalde
+tekrar gerekiyor.
+
+**Neden imza gerekmiyor:** `python-dotenv` **zaten bağımlılık**
+(`main.py` kullanıyor), yeni teknoloji yok. Betiğin belgelenen davranışı
+ile gerçek davranışı arasındaki fark; doğru davranış tartışmalı değil.
+
+**Neden önemli:** Bu betik "yerel mi bulut mu" kararını besleyen tek
+ölçüm aracı. Kurulum sürtünmesi ölçümün **yapılmamasına** yol açar —
+nitekim `.env` bir gündür duruyordu ve ölçüm bu yüzden alınmamıştı.
+
+**Kabul ölçütü:** `.env` varken `--saglayici deepseek` ek bir kabuk
+komutu gerektirmeden çalışıyor; ortam değişkeni zaten tanımlıysa
+**`.env` onu ezmiyor** (öncelik: gerçek ortam > dosya); `.env` yoksa
+davranış değişmiyor. Anahtarın hiçbir kod yolunda loglanmadığı testle
+kilitli. **`.env` dosyasının içeriği hiçbir teste girmez** (§9).
+
+**Büyüklük:** küçük
+
+---
+
 ## K12 — `ruff` borcu 283
 
 **Nerede:** repo geneli
