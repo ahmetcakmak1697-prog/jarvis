@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "task": "KART_DEEPSEEK_10_KUSUR/PARCA_A",
+  "base_commit": "8b970e0",
+  "source_hashes": {
+    "agents/persona.py": "eaa2a766ba5a967be998616433407af910ff84d8b706af61cdda9bf2c22ffa88",
+    "eval/quality_scorer.py": "2f859a5e7d11d8a6b16fd31d8d74e5505e0ddbaf550510376482e1540eeb1bdb",
+    "eval/run_turkish_quality.py": "bd6526fe1c9e57dfb1f7efd3c5f2ac205aae86b301acb521aaeb4c9844247c8e",
+    "eval/turkish_quality_cases.json": "f7cb6af868ae2f3339981176799a2f4c84c292bbf234c3102f8d8cb23a10b55f"
+  },
+  "old_persona_sha256": "e63ef921238993bd6289c65d770cb815b98d5d72cb1abe06e70323b72505c495",
+  "leak_corpus": {
+    "old": 688,
+    "new": 690,
+    "removed": 12,
+    "added": 14
+  },
+  "cross_scores": [
+    {
+      "file": "automation/KALITE_deepseek_deepseek-chat_20260909-2208.json",
+      "sha256": "dcad04b72ebe82c73e4baedf4b349a5a90eab7b361ea4c4f6c260b57d1965678",
+      "recorded_passed": 54,
+      "errors": 1,
+      "old_corpus_passed": 54,
+      "new_corpus_passed": 54,
+      "changed_failed_checks": []
+    },
+    {
+      "file": "automation/KALITE_llama3.1_latest_20260905-1617.json",
+      "sha256": "c37a123c4d88db316bc3b3a18c944ca8d93f7f1e429f3e9a99a82917ed740658",
+      "recorded_passed": 49,
+      "errors": 0,
+      "old_corpus_passed": 49,
+      "new_corpus_passed": 49,
+      "changed_failed_checks": []
+    },
+    {
+      "file": "automation/PARCA_A_PERSONA_2026-09-09/aday/KALITE_deepseek_deepseek-chat_20260909-2344.json",
+      "sha256": "a9138b578105e3c772990330c962687b7d654670b229b7f75b4186bf9689b9e8",
+      "recorded_passed": 56,
+      "errors": 0,
+      "old_corpus_passed": 56,
+      "new_corpus_passed": 56,
+      "changed_failed_checks": []
+    },
+    {
+      "file": "automation/PARCA_A_PERSONA_2026-09-09/aday/KALITE_llama3.1_latest_20260909-2342.json",
+      "sha256": "b31ab27e438fabd992b54908c698c9bf40c8b5177f7a9dd5e99afad7ab0df23b",
+      "recorded_passed": 50,
+      "errors": 0,
+      "old_corpus_passed": 50,
+      "new_corpus_passed": 50,
+      "changed_failed_checks": []
+    }
+  ],
+  "quality_definition_changed": false,
+  "documented_llama_baseline": 49,
+  "acceptance": {
+    "target_passed": 2,
+    "target_total": 3,
+    "llama_live_passed": 50,
+    "llama_floor": 49
+  },
+  "gates": {
+    "pytest_normal": {
+      "passed": 1950,
+      "xfailed": 2,
+      "warnings": 2,
+      "seconds": 70.15
+    },
+    "pytest_reverse": {
+      "passed": 1950,
+      "xfailed": 2,
+      "warnings": 2,
+      "seconds": 82.05
+    },
+    "ruff_findings": 283
+  },
+  "review": {
+    "verdict": "PASS",
+    "scope": "persona diff only; live quality and corpus evidence evaluated separately"
+  },
+  "part_b_started": false,
+  "push": false
+}

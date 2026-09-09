@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "stamp": "20260909-2338",
+  "model": "deepseek/deepseek-chat",
+  "results": [
+    {
+      "id": "t1_tone_001",
+      "category": "tone",
+      "prompt": "Merhaba",
+      "level": "L1",
+      "grounded": false,
+      "num_predict": 400,
+      "done_reason": null,
+      "error": "RuntimeError: URLError: <urlopen error [WinError 10061] Hedef makine etkin olarak reddettiğinden bağlantı kurulamadı>",
+      "answer": "",
+      "score": {
+        "answer_chars": 0,
+        "encoding_broken": [],
+        "encoding_ok": true,
+        "foreign_hits": [],
+        "foreign_ok": true,
+        "foreign_run": null,
+        "has_efendim": false,
+        "ai_boilerplate": false,
+        "persona_ok": null,
+        "admits_no_record": false,
+        "grounding_ok": null,
+        "contains_ok": null,
+        "length_ok": null,
+        "prompt_leak": false,
+        "prompt_leak_hits": [],
+        "repetition_ok": true,
+        "repeated_phrase": null,
+        "repeated_phrase_2x": null,
+        "truncated": false,
+        "passed": false,
+        "failed_checks": [
+          "empty"
+        ]
+      }
+    }
+  ],
+  "summary": {
+    "passed": 0,
+    "total": 1,
+    "errors": 1,
+    "by_category": {
+      "tone": {
+        "passed": 0,
+        "total": 1
+      }
+    },
+    "avg_raw_tps": null,
+    "avg_turkish_tps": null,
+    "avg_prompt_eval_ms": null,
+    "peak_vram_mb": null,
+    "exceeds_vram_ceiling": null,
+    "encoding_failures": 0,
+    "prompt_leaks": 0,
+    "repetitions": 0,
+    "repetitions_2x": 0,
+    "truncations": 0,
+    "budget_exhausted": 0,
+    "truncations_budget": 0,
+    "foreign_sentences": 0,
+    "foreign_leaks": 0,
+    "ai_boilerplate": 0,
+    "efendim_rate": 0,
+    "declared_cases": 0
+  }
+}
