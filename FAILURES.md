@@ -591,3 +591,37 @@ returned PASS. Historical stop record: automation/CODEX_V2_UYGULAMA_2026-09-07.m
   All four strengthened legacy tests also fail against the old router
   loaded only in memory, without reverting working files. Full-suite results
   are recorded separately in the B10 completion report.
+
+
+### [2026-09-09] The measurement tool graded the network and called it the model
+
+- Trap: the first live frontier run reported `39/64` for DeepSeek against a
+  recorded `49/64` for local llama3.1. Read as "the cloud model is worse
+  than a local 8B" -- a conclusion that would have redirected the whole
+  local-vs-hybrid decision. It was false.
+- Root cause: `_api_ask` issued exactly one HTTP POST with no retry.
+  Fifteen of 64 cases died on `WinError 10054` (connection reset by peer)
+  and returned an empty answer. An empty answer legitimately fails scoring,
+  so transport failures were silently converted into quality failures.
+  On the 49 cases that actually returned text the real tally was
+  DeepSeek 39 to llama 37 -- a tie inside the A11 volatility band.
+- Second, compounding fault: `quality_scorer` wrote `encoding_ok=False`
+  for empty answers while `encoding_broken` stayed empty, so the report
+  summarized fifteen network deaths as `Bozuk kodlama 15`. The first
+  diagnosis attempt therefore went looking for a UTF-8 bug. A wrongly
+  labelled measurement is worse than a missing one: it sends a human
+  running in a specific wrong direction.
+- Rule: any harness that reaches the network over many iterations must
+  separate transport failure from subject failure, and must retry
+  transient errors before scoring. `HTTPError` subclasses `URLError`, so
+  a permanent 401 must be filtered out before the transient check or a
+  bad key gets retried 64 times into a rate limit. A metric name must
+  describe what was measured; an empty result is "empty", never "corrupt".
+- Related trap found while fixing: bare `load_dotenv()` walks upward from
+  the CALLING MODULE's file, not from `cwd`. Tests that `chdir` to a temp
+  directory still found the repository's real `.env` -- meaning the suite
+  could reach a real API key. Pass the path explicitly and lock it with a
+  test that asserts the suite cannot find a key in a hermetic cwd.
+- Evidence: nine new tests, four seen red first. Gate 1913 passed +
+  2 xfailed in both orders, ruff 283 unchanged. Baseline provably
+  unaffected: every local run has zero empty and zero errored cases.

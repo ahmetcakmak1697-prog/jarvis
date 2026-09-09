@@ -423,7 +423,10 @@ susturması kaldırılabiliyor.
 
 ---
 
-## K14 — `run_turkish_quality.py` `.env`'i hiç yüklemiyor
+## K14 — `run_turkish_quality.py` `.env`'i hiç yüklemiyor ✅ KAPANDI
+
+**Commit:** `3b44d80` · 2 test, 1'i kırmızı görüldü. Aynı commit'te ağ
+yeniden denemesi ve puanlayıcı etiketi de düzeltildi (asıl kusur oydu).
 
 **Nerede:** `eval/run_turkish_quality.py:401`
 
