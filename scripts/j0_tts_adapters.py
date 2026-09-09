@@ -27,6 +27,7 @@ automation/LOOP0D_J0B_SAFETY_CONTRACT.md.
 """
 from __future__ import annotations
 
+import inspect
 import math
 import os
 import time
@@ -49,12 +50,37 @@ class TTSResult:
         0 would be a false claim. See warning field.
     warning: populated whenever first_audio_hint_ms is None; callers should
         log or surface this string rather than silently discarding it.
+
+    Event-stamp fields (added 2026-09-09) — Turkish names on purpose: they are
+    the names the measurement card and automation/TTS_ANATOMISI_2026-09-09.md
+    use, and a field the report calls `oynatma_ms` must be called that here too.
+
+    sentez_ms: synthesis request sent -> audio bytes in hand. For Edge TTS this
+        IS the cloud round-trip; it is the number that decides whether streaming
+        TTS can help at all.
+    oynatici_kurulum_ms: audio ready -> player reports it has started. Covers
+        mixer init and file load. None when the player cannot report its start.
+    oynatma_ms: player start -> speak() returns. With the blocking default
+        player this is the spoken duration of the utterance.
+    toplam_ms: speak() entry -> speak() return, wall clock.
+
+    ``first_audio_hint_ms`` is NOT replaced by these. It keeps measuring exactly
+    what its own warning always said (synthesis time only), and ``sentez_ms``
+    is the same instant pair under a name that says so. Deleting the old field
+    would rewrite history that other reports already cite.
+
+    Every one of these is None when it was not measured — never 0. A 0 would
+    claim "I measured it and it cost nothing".
     """
 
     ok: bool
     engine: str
     first_audio_hint_ms: Optional[float]
     warning: Optional[str] = field(default=None)
+    sentez_ms: Optional[float] = field(default=None)
+    oynatici_kurulum_ms: Optional[float] = field(default=None)
+    oynatma_ms: Optional[float] = field(default=None)
+    toplam_ms: Optional[float] = field(default=None)
 
     def __post_init__(self) -> None:
         if self.first_audio_hint_ms is None and self.warning is None:
@@ -398,6 +424,25 @@ EDGE_TTS_ENABLE_FLAG = "JARVIS_J0_EDGE_TTS_ENABLED"
 EDGE_TTS_DEFAULT_VOICE = "tr-TR-AhmetNeural"
 
 
+def _elapsed_ms(start: float, end: float) -> float:
+    return (end - start) * 1000.0
+
+
+def _player_reports_start(player) -> bool:
+    """Can this player tell us when it began playing?
+
+    Opt-in by signature: a player that accepts ``on_playback_start`` gets a
+    callback, one that does not keeps its old single-argument contract and
+    leaves the playback stamps unmeasured. Signature inspection is used rather
+    than catching TypeError, because a TypeError raised *inside* the player
+    would otherwise be silently misread as "old signature".
+    """
+    try:
+        return "on_playback_start" in inspect.signature(player).parameters
+    except (TypeError, ValueError):
+        return False
+
+
 class EdgeTTSAdapter:
     """Microsoft Edge TTS. Cloud service -- DEFAULT OFF.
 
@@ -410,6 +455,11 @@ class EdgeTTSAdapter:
 
     ``synth`` and ``player`` are injectable so tests exercise the full path
     with no network and no audio device.
+
+    ``play=False`` synthesizes without playing. It exists for measurement: the
+    difference between a played and an unplayed run is the player's own share.
+    In that mode oynatici_kurulum_ms and oynatma_ms are None, not 0 — nothing
+    was played, so nothing was measured.
     """
 
     engine_name = "edge-tts"
@@ -420,11 +470,13 @@ class EdgeTTSAdapter:
         synth=None,
         player=None,
         enabled: Optional[bool] = None,
+        play: bool = True,
     ) -> None:
         self._voice = voice
         self._synth = synth
         self._player = player
         self._enabled = enabled
+        self._play = play
 
     def is_enabled(self) -> bool:
         if self._enabled is not None:
@@ -440,6 +492,7 @@ class EdgeTTSAdapter:
         )
 
     def speak(self, text: str) -> TTSResult:
+        t0 = time.perf_counter()
         if not isinstance(text, str) or not text.strip():
             return self._fail("text_empty")
         if not self.is_enabled():
@@ -451,20 +504,35 @@ class EdgeTTSAdapter:
         synth = self._synth or _default_edge_synth
         player = self._player or _default_audio_player
 
-        start = time.perf_counter()
+        t_istek = time.perf_counter()
         try:
             audio_path = synth(text, self._voice)
         except Exception as exc:  # noqa: BLE001 - surfaced, never swallowed
             return self._fail(f"synthesis_error: {exc}")
+        t_ses_hazir = time.perf_counter()
         # Measured BEFORE playback: the default player blocks for the whole
         # utterance, so including it would report speech duration as latency.
-        synth_ms = (time.perf_counter() - start) * 1000.0
+        synth_ms = _elapsed_ms(t_istek, t_ses_hazir)
 
-        try:
-            player(audio_path)
-        except Exception as exc:  # noqa: BLE001
-            return self._fail(f"playback_error: {exc}")
+        # The player is the only thing that knows when it began; from outside
+        # the call it is invisible. A player that cannot say so leaves the
+        # stamp None rather than letting speak() guess.
+        stamps: dict = {}
 
+        def _on_playback_start() -> None:
+            stamps.setdefault("basladi", time.perf_counter())
+
+        if self._play:
+            try:
+                if _player_reports_start(player):
+                    player(audio_path, on_playback_start=_on_playback_start)
+                else:
+                    player(audio_path)
+            except Exception as exc:  # noqa: BLE001
+                return self._fail(f"playback_error: {exc}")
+        t_bitti = time.perf_counter()
+
+        basladi = stamps.get("basladi")
         return TTSResult(
             ok=True,
             engine=self.engine_name,
@@ -473,6 +541,14 @@ class EdgeTTSAdapter:
                 "first_audio_hint_ms is synthesis time only (network round-trip "
                 "to the cloud TTS); playback start follows it and is not measured"
             ),
+            sentez_ms=synth_ms,
+            oynatici_kurulum_ms=(
+                None if basladi is None else _elapsed_ms(t_ses_hazir, basladi)
+            ),
+            oynatma_ms=(
+                None if basladi is None else _elapsed_ms(basladi, t_bitti)
+            ),
+            toplam_ms=_elapsed_ms(t0, t_bitti),
         )
 
 
@@ -497,14 +573,26 @@ def _default_edge_synth(text: str, voice: str) -> str:
     return path
 
 
-def _default_audio_player(path: str) -> None:
-    """Play an audio file through the default output device (pygame)."""
+def _default_audio_player(path: str, on_playback_start=None) -> None:
+    """Play an audio file through the default output device (pygame).
+
+    ``on_playback_start`` is called right after play() returns, i.e. when the
+    mixer has accepted the audio and started the channel. That is the instant
+    the card calls t_oynatma_basladi. It is a PLAYER-REPORTED start, not a
+    verified acoustic onset: what happens between the mixer starting and the
+    speaker moving is below this layer and is not measured here.
+
+    Behaviour is unchanged when the callback is omitted — mixer init, load,
+    play, block until done, unload, in that order.
+    """
     import pygame
 
     if not pygame.mixer.get_init():
         pygame.mixer.init()
     pygame.mixer.music.load(path)
     pygame.mixer.music.play()
+    if on_playback_start is not None:
+        on_playback_start()
     while pygame.mixer.music.get_busy():
         pygame.time.wait(50)
     pygame.mixer.music.unload()

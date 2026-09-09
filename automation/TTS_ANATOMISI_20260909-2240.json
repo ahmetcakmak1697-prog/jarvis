@@ -1,0 +1,713 @@
+{
+  "schema_version": 1,
+  "olculdu": "2026-09-09T22:37:25",
+  "olculmeyen": "t_oynatma_basladi oynaticinin BILDIRDIGI andir (pygame play() donusu), dogrulanmis akustik baslangic degil. Mixer ile hoparlor arasi bu katmanin altindadir ve olculmuyor.",
+  "oynatmali": {
+    "basamaklar": {
+      "21": {
+        "cumle": "Bugün hava çok güzel.",
+        "karakter": 21,
+        "ses_bayt_p50": 16848.0,
+        "turlar": [
+          {
+            "ok": true,
+            "karakter": 21,
+            "sentez_ms": 1149.4,
+            "oynatici_kurulum_ms": 188.2,
+            "oynatma_ms": 2836.5,
+            "toplam_ms": 4174.1,
+            "warning": null,
+            "ses_bayt": 16848
+          },
+          {
+            "ok": true,
+            "karakter": 21,
+            "sentez_ms": 494.4,
+            "oynatici_kurulum_ms": 4.4,
+            "oynatma_ms": 2830.2,
+            "toplam_ms": 3329.0,
+            "warning": null,
+            "ses_bayt": 16848
+          },
+          {
+            "ok": true,
+            "karakter": 21,
+            "sentez_ms": 573.3,
+            "oynatici_kurulum_ms": 4.2,
+            "oynatma_ms": 2832.0,
+            "toplam_ms": 3409.5,
+            "warning": null,
+            "ses_bayt": 16848
+          },
+          {
+            "ok": true,
+            "karakter": 21,
+            "sentez_ms": 815.7,
+            "oynatici_kurulum_ms": 5.7,
+            "oynatma_ms": 2835.8,
+            "toplam_ms": 3657.2,
+            "warning": null,
+            "ses_bayt": 16848
+          },
+          {
+            "ok": true,
+            "karakter": 21,
+            "sentez_ms": 518.2,
+            "oynatici_kurulum_ms": 4.9,
+            "oynatma_ms": 2834.5,
+            "toplam_ms": 3357.6,
+            "warning": null,
+            "ses_bayt": 16848
+          }
+        ],
+        "ozet": {
+          "tur": 5,
+          "gecerli_tur": 5,
+          "sentez_ms": {
+            "p50": 573.3,
+            "min": 494.4,
+            "max": 1149.4,
+            "ort": 710.2,
+            "olculen_tur": 5
+          },
+          "oynatici_kurulum_ms": {
+            "p50": 4.9,
+            "min": 4.2,
+            "max": 188.2,
+            "ort": 41.5,
+            "olculen_tur": 5
+          },
+          "oynatma_ms": {
+            "p50": 2834.5,
+            "min": 2830.2,
+            "max": 2836.5,
+            "ort": 2833.8,
+            "olculen_tur": 5
+          },
+          "toplam_ms": {
+            "p50": 3409.5,
+            "min": 3329.0,
+            "max": 4174.1,
+            "ort": 3585.5,
+            "olculen_tur": 5
+          }
+        }
+      },
+      "56": {
+        "cumle": "Sabah erkenden kalkıp bahçedeki çiçekleri suladım bugün.",
+        "karakter": 56,
+        "ses_bayt_p50": 28800.0,
+        "turlar": [
+          {
+            "ok": true,
+            "karakter": 56,
+            "sentez_ms": 1001.7,
+            "oynatici_kurulum_ms": 5.1,
+            "oynatma_ms": 4805.8,
+            "toplam_ms": 5812.6,
+            "warning": null,
+            "ses_bayt": 28800
+          },
+          {
+            "ok": true,
+            "karakter": 56,
+            "sentez_ms": 567.2,
+            "oynatici_kurulum_ms": 4.0,
+            "oynatma_ms": 4803.1,
+            "toplam_ms": 5374.3,
+            "warning": null,
+            "ses_bayt": 28800
+          },
+          {
+            "ok": true,
+            "karakter": 56,
+            "sentez_ms": 627.0,
+            "oynatici_kurulum_ms": 4.2,
+            "oynatma_ms": 4799.5,
+            "toplam_ms": 5430.7,
+            "warning": null,
+            "ses_bayt": 28800
+          },
+          {
+            "ok": true,
+            "karakter": 56,
+            "sentez_ms": 541.9,
+            "oynatici_kurulum_ms": 3.2,
+            "oynatma_ms": 4809.4,
+            "toplam_ms": 5354.5,
+            "warning": null,
+            "ses_bayt": 28800
+          },
+          {
+            "ok": true,
+            "karakter": 56,
+            "sentez_ms": 892.1,
+            "oynatici_kurulum_ms": 3.8,
+            "oynatma_ms": 4806.3,
+            "toplam_ms": 5702.2,
+            "warning": null,
+            "ses_bayt": 28800
+          }
+        ],
+        "ozet": {
+          "tur": 5,
+          "gecerli_tur": 5,
+          "sentez_ms": {
+            "p50": 627.0,
+            "min": 541.9,
+            "max": 1001.7,
+            "ort": 726.0,
+            "olculen_tur": 5
+          },
+          "oynatici_kurulum_ms": {
+            "p50": 4.0,
+            "min": 3.2,
+            "max": 5.1,
+            "ort": 4.1,
+            "olculen_tur": 5
+          },
+          "oynatma_ms": {
+            "p50": 4805.8,
+            "min": 4799.5,
+            "max": 4809.4,
+            "ort": 4804.8,
+            "olculen_tur": 5
+          },
+          "toplam_ms": {
+            "p50": 5430.7,
+            "min": 5354.5,
+            "max": 5812.6,
+            "ort": 5534.9,
+            "olculen_tur": 5
+          }
+        }
+      },
+      "119": {
+        "cumle": "Deniz kıyısındaki küçük kasabada yaşayan balıkçılar, her sabah güneş doğmadan önce ağlarını toplayıp açığa açılırlardı.",
+        "karakter": 119,
+        "ses_bayt_p50": 48816.0,
+        "turlar": [
+          {
+            "ok": true,
+            "karakter": 119,
+            "sentez_ms": 1047.6,
+            "oynatici_kurulum_ms": 4.6,
+            "oynatma_ms": 8139.4,
+            "toplam_ms": 9191.7,
+            "warning": null,
+            "ses_bayt": 48816
+          },
+          {
+            "ok": true,
+            "karakter": 119,
+            "sentez_ms": 1176.6,
+            "oynatici_kurulum_ms": 4.6,
+            "oynatma_ms": 8145.5,
+            "toplam_ms": 9326.7,
+            "warning": null,
+            "ses_bayt": 48816
+          },
+          {
+            "ok": true,
+            "karakter": 119,
+            "sentez_ms": 992.9,
+            "oynatici_kurulum_ms": 4.8,
+            "oynatma_ms": 8150.2,
+            "toplam_ms": 9147.9,
+            "warning": null,
+            "ses_bayt": 48816
+          },
+          {
+            "ok": true,
+            "karakter": 119,
+            "sentez_ms": 1095.8,
+            "oynatici_kurulum_ms": 4.2,
+            "oynatma_ms": 8143.5,
+            "toplam_ms": 9243.5,
+            "warning": null,
+            "ses_bayt": 48816
+          },
+          {
+            "ok": true,
+            "karakter": 119,
+            "sentez_ms": 695.9,
+            "oynatici_kurulum_ms": 4.2,
+            "oynatma_ms": 8143.0,
+            "toplam_ms": 8843.1,
+            "warning": null,
+            "ses_bayt": 48816
+          }
+        ],
+        "ozet": {
+          "tur": 5,
+          "gecerli_tur": 5,
+          "sentez_ms": {
+            "p50": 1047.6,
+            "min": 695.9,
+            "max": 1176.6,
+            "ort": 1001.8,
+            "olculen_tur": 5
+          },
+          "oynatici_kurulum_ms": {
+            "p50": 4.6,
+            "min": 4.2,
+            "max": 4.8,
+            "ort": 4.5,
+            "olculen_tur": 5
+          },
+          "oynatma_ms": {
+            "p50": 8143.5,
+            "min": 8139.4,
+            "max": 8150.2,
+            "ort": 8144.3,
+            "olculen_tur": 5
+          },
+          "toplam_ms": {
+            "p50": 9191.7,
+            "min": 8843.1,
+            "max": 9326.7,
+            "ort": 9150.6,
+            "olculen_tur": 5
+          }
+        }
+      },
+      "244": {
+        "cumle": "Kütüphanenin en üst katındaki okuma salonunda, rafların arasından süzülen ışık eski kitapların sayfalarına düşerken, öğrenciler sınav haftası boyunca sabahlara kadar çalışır, aralarda pencereden şehrin ışıklarını seyrederek biraz dinlenirlerdi.",
+        "karakter": 244,
+        "ses_bayt_p50": 95184.0,
+        "turlar": [
+          {
+            "ok": true,
+            "karakter": 244,
+            "sentez_ms": 2418.9,
+            "oynatici_kurulum_ms": 4.4,
+            "oynatma_ms": 15883.1,
+            "toplam_ms": 18306.5,
+            "warning": null,
+            "ses_bayt": 95184
+          },
+          {
+            "ok": true,
+            "karakter": 244,
+            "sentez_ms": 741.0,
+            "oynatici_kurulum_ms": 5.5,
+            "oynatma_ms": 15858.5,
+            "toplam_ms": 16605.0,
+            "warning": null,
+            "ses_bayt": 95184
+          },
+          {
+            "ok": true,
+            "karakter": 244,
+            "sentez_ms": 1048.8,
+            "oynatici_kurulum_ms": 4.0,
+            "oynatma_ms": 15883.8,
+            "toplam_ms": 16936.6,
+            "warning": null,
+            "ses_bayt": 95184
+          },
+          {
+            "ok": true,
+            "karakter": 244,
+            "sentez_ms": 973.2,
+            "oynatici_kurulum_ms": 4.6,
+            "oynatma_ms": 15889.8,
+            "toplam_ms": 16867.6,
+            "warning": null,
+            "ses_bayt": 95184
+          },
+          {
+            "ok": true,
+            "karakter": 244,
+            "sentez_ms": 724.7,
+            "oynatici_kurulum_ms": 4.5,
+            "oynatma_ms": 15895.4,
+            "toplam_ms": 16624.6,
+            "warning": null,
+            "ses_bayt": 95184
+          }
+        ],
+        "ozet": {
+          "tur": 5,
+          "gecerli_tur": 5,
+          "sentez_ms": {
+            "p50": 973.2,
+            "min": 724.7,
+            "max": 2418.9,
+            "ort": 1181.3,
+            "olculen_tur": 5
+          },
+          "oynatici_kurulum_ms": {
+            "p50": 4.5,
+            "min": 4.0,
+            "max": 5.5,
+            "ort": 4.6,
+            "olculen_tur": 5
+          },
+          "oynatma_ms": {
+            "p50": 15883.8,
+            "min": 15858.5,
+            "max": 15895.4,
+            "ort": 15882.1,
+            "olculen_tur": 5
+          },
+          "toplam_ms": {
+            "p50": 16867.6,
+            "min": 16605.0,
+            "max": 18306.5,
+            "ort": 17068.1,
+            "olculen_tur": 5
+          }
+        }
+      }
+    },
+    "uyumlar": {
+      "sentez_ms": {
+        "n": 20,
+        "egim_ms_karakter": 2.2478,
+        "kesisim_ms": 657.6,
+        "r2": 0.2153
+      },
+      "oynatici_kurulum_ms": {
+        "n": 20,
+        "egim_ms_karakter": -0.1127,
+        "kesisim_ms": 26.1,
+        "r2": 0.0572
+      },
+      "oynatma_ms": {
+        "n": 20,
+        "egim_ms_karakter": 58.5244,
+        "kesisim_ms": 1478.6,
+        "r2": 0.9988
+      },
+      "toplam_ms": {
+        "n": 20,
+        "egim_ms_karakter": 60.6596,
+        "kesisim_ms": 2162.2,
+        "r2": 0.9939
+      }
+    },
+    "tum_turlar": 20
+  },
+  "oynatmasiz": {
+    "basamaklar": {
+      "21": {
+        "cumle": "Bugün hava çok güzel.",
+        "karakter": 21,
+        "ses_bayt_p50": 16848.0,
+        "turlar": [
+          {
+            "ok": true,
+            "karakter": 21,
+            "sentez_ms": 820.2,
+            "oynatici_kurulum_ms": null,
+            "oynatma_ms": null,
+            "toplam_ms": 820.2,
+            "warning": null,
+            "ses_bayt": 16848
+          },
+          {
+            "ok": true,
+            "karakter": 21,
+            "sentez_ms": 542.8,
+            "oynatici_kurulum_ms": null,
+            "oynatma_ms": null,
+            "toplam_ms": 542.8,
+            "warning": null,
+            "ses_bayt": 16848
+          },
+          {
+            "ok": true,
+            "karakter": 21,
+            "sentez_ms": 578.2,
+            "oynatici_kurulum_ms": null,
+            "oynatma_ms": null,
+            "toplam_ms": 578.2,
+            "warning": null,
+            "ses_bayt": 16848
+          },
+          {
+            "ok": true,
+            "karakter": 21,
+            "sentez_ms": 541.5,
+            "oynatici_kurulum_ms": null,
+            "oynatma_ms": null,
+            "toplam_ms": 541.5,
+            "warning": null,
+            "ses_bayt": 16848
+          },
+          {
+            "ok": true,
+            "karakter": 21,
+            "sentez_ms": 617.4,
+            "oynatici_kurulum_ms": null,
+            "oynatma_ms": null,
+            "toplam_ms": 617.5,
+            "warning": null,
+            "ses_bayt": 16848
+          }
+        ],
+        "ozet": {
+          "tur": 5,
+          "gecerli_tur": 5,
+          "sentez_ms": {
+            "p50": 578.2,
+            "min": 541.5,
+            "max": 820.2,
+            "ort": 620.0,
+            "olculen_tur": 5
+          },
+          "toplam_ms": {
+            "p50": 578.2,
+            "min": 541.5,
+            "max": 820.2,
+            "ort": 620.0,
+            "olculen_tur": 5
+          }
+        }
+      },
+      "56": {
+        "cumle": "Sabah erkenden kalkıp bahçedeki çiçekleri suladım bugün.",
+        "karakter": 56,
+        "ses_bayt_p50": 28800.0,
+        "turlar": [
+          {
+            "ok": true,
+            "karakter": 56,
+            "sentez_ms": 537.1,
+            "oynatici_kurulum_ms": null,
+            "oynatma_ms": null,
+            "toplam_ms": 537.1,
+            "warning": null,
+            "ses_bayt": 28800
+          },
+          {
+            "ok": true,
+            "karakter": 56,
+            "sentez_ms": 543.7,
+            "oynatici_kurulum_ms": null,
+            "oynatma_ms": null,
+            "toplam_ms": 543.7,
+            "warning": null,
+            "ses_bayt": 28800
+          },
+          {
+            "ok": true,
+            "karakter": 56,
+            "sentez_ms": 570.1,
+            "oynatici_kurulum_ms": null,
+            "oynatma_ms": null,
+            "toplam_ms": 570.1,
+            "warning": null,
+            "ses_bayt": 28800
+          },
+          {
+            "ok": true,
+            "karakter": 56,
+            "sentez_ms": 597.8,
+            "oynatici_kurulum_ms": null,
+            "oynatma_ms": null,
+            "toplam_ms": 597.8,
+            "warning": null,
+            "ses_bayt": 28800
+          },
+          {
+            "ok": true,
+            "karakter": 56,
+            "sentez_ms": 528.9,
+            "oynatici_kurulum_ms": null,
+            "oynatma_ms": null,
+            "toplam_ms": 528.9,
+            "warning": null,
+            "ses_bayt": 28800
+          }
+        ],
+        "ozet": {
+          "tur": 5,
+          "gecerli_tur": 5,
+          "sentez_ms": {
+            "p50": 543.7,
+            "min": 528.9,
+            "max": 597.8,
+            "ort": 555.5,
+            "olculen_tur": 5
+          },
+          "toplam_ms": {
+            "p50": 543.7,
+            "min": 528.9,
+            "max": 597.8,
+            "ort": 555.5,
+            "olculen_tur": 5
+          }
+        }
+      },
+      "119": {
+        "cumle": "Deniz kıyısındaki küçük kasabada yaşayan balıkçılar, her sabah güneş doğmadan önce ağlarını toplayıp açığa açılırlardı.",
+        "karakter": 119,
+        "ses_bayt_p50": 48816.0,
+        "turlar": [
+          {
+            "ok": true,
+            "karakter": 119,
+            "sentez_ms": 700.2,
+            "oynatici_kurulum_ms": null,
+            "oynatma_ms": null,
+            "toplam_ms": 700.2,
+            "warning": null,
+            "ses_bayt": 48816
+          },
+          {
+            "ok": true,
+            "karakter": 119,
+            "sentez_ms": 589.2,
+            "oynatici_kurulum_ms": null,
+            "oynatma_ms": null,
+            "toplam_ms": 589.2,
+            "warning": null,
+            "ses_bayt": 48816
+          },
+          {
+            "ok": true,
+            "karakter": 119,
+            "sentez_ms": 684.1,
+            "oynatici_kurulum_ms": null,
+            "oynatma_ms": null,
+            "toplam_ms": 684.1,
+            "warning": null,
+            "ses_bayt": 48816
+          },
+          {
+            "ok": true,
+            "karakter": 119,
+            "sentez_ms": 576.0,
+            "oynatici_kurulum_ms": null,
+            "oynatma_ms": null,
+            "toplam_ms": 576.0,
+            "warning": null,
+            "ses_bayt": 48816
+          },
+          {
+            "ok": true,
+            "karakter": 119,
+            "sentez_ms": 651.2,
+            "oynatici_kurulum_ms": null,
+            "oynatma_ms": null,
+            "toplam_ms": 651.2,
+            "warning": null,
+            "ses_bayt": 48816
+          }
+        ],
+        "ozet": {
+          "tur": 5,
+          "gecerli_tur": 5,
+          "sentez_ms": {
+            "p50": 651.2,
+            "min": 576.0,
+            "max": 700.2,
+            "ort": 640.1,
+            "olculen_tur": 5
+          },
+          "toplam_ms": {
+            "p50": 651.2,
+            "min": 576.0,
+            "max": 700.2,
+            "ort": 640.1,
+            "olculen_tur": 5
+          }
+        }
+      },
+      "244": {
+        "cumle": "Kütüphanenin en üst katındaki okuma salonunda, rafların arasından süzülen ışık eski kitapların sayfalarına düşerken, öğrenciler sınav haftası boyunca sabahlara kadar çalışır, aralarda pencereden şehrin ışıklarını seyrederek biraz dinlenirlerdi.",
+        "karakter": 244,
+        "ses_bayt_p50": 95184.0,
+        "turlar": [
+          {
+            "ok": true,
+            "karakter": 244,
+            "sentez_ms": 739.6,
+            "oynatici_kurulum_ms": null,
+            "oynatma_ms": null,
+            "toplam_ms": 739.6,
+            "warning": null,
+            "ses_bayt": 95184
+          },
+          {
+            "ok": true,
+            "karakter": 244,
+            "sentez_ms": 686.6,
+            "oynatici_kurulum_ms": null,
+            "oynatma_ms": null,
+            "toplam_ms": 686.6,
+            "warning": null,
+            "ses_bayt": 95184
+          },
+          {
+            "ok": true,
+            "karakter": 244,
+            "sentez_ms": 1860.2,
+            "oynatici_kurulum_ms": null,
+            "oynatma_ms": null,
+            "toplam_ms": 1860.2,
+            "warning": null,
+            "ses_bayt": 95184
+          },
+          {
+            "ok": true,
+            "karakter": 244,
+            "sentez_ms": 855.9,
+            "oynatici_kurulum_ms": null,
+            "oynatma_ms": null,
+            "toplam_ms": 855.9,
+            "warning": null,
+            "ses_bayt": 95184
+          },
+          {
+            "ok": true,
+            "karakter": 244,
+            "sentez_ms": 778.4,
+            "oynatici_kurulum_ms": null,
+            "oynatma_ms": null,
+            "toplam_ms": 778.4,
+            "warning": null,
+            "ses_bayt": 95184
+          }
+        ],
+        "ozet": {
+          "tur": 5,
+          "gecerli_tur": 5,
+          "sentez_ms": {
+            "p50": 778.4,
+            "min": 686.6,
+            "max": 1860.2,
+            "ort": 984.1,
+            "olculen_tur": 5
+          },
+          "toplam_ms": {
+            "p50": 778.4,
+            "min": 686.6,
+            "max": 1860.2,
+            "ort": 984.1,
+            "olculen_tur": 5
+          }
+        }
+      }
+    },
+    "uyumlar": {
+      "sentez_ms": {
+        "n": 20,
+        "egim_ms_karakter": 1.8167,
+        "kesisim_ms": 500.1,
+        "r2": 0.2974
+      },
+      "oynatici_kurulum_ms": null,
+      "oynatma_ms": null,
+      "toplam_ms": {
+        "n": 20,
+        "egim_ms_karakter": 1.8167,
+        "kesisim_ms": 500.1,
+        "r2": 0.2974
+      }
+    },
+    "tum_turlar": 20
+  }
+}
