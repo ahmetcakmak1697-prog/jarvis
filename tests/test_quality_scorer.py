@@ -675,3 +675,28 @@ def test_passing_threshold_block_records_a_baseline_not_a_target():
     hedefler = sorted(k for k, v in blok.items() if ">=" in str(v))
     assert hedefler == [], f"hedef sozdizimi kalmis: {hedefler}"
     assert "49/64" in blok["overall_v2"]
+
+
+def test_bos_cevap_KODLAMA_BOZUK_diye_raporlanmaz():
+    """Bos cevabin kodlamasi bozuk degildir -- hicbir kodlamasi yoktur.
+
+    Olculdu (2026-09-09): ilk canli DeepSeek kosusunda 15 vaka ag
+    kopmasindan bos dondu. Puanlayici bunlara `encoding_ok=False` yazdi,
+    rapor da `| Bozuk kodlama | 15 |` diye ozetledi -- oysa
+    `encoding_broken` listesi BOSTU. Raporu okuyan (once ben) once
+    "UTF-8 hatasi" sandi; gercek sebep agdi.
+
+    Yanlis etiketli olcum, olculmemis olcumden daha zararlidir: insani
+    yanlis yone kosturur. `passed` DEGISMEZ -- bos cevap yine kalir,
+    sebebi `empty` olarak zaten dogru yaziliyor.
+    """
+    from eval.quality_scorer import score_answer
+
+    s = score_answer("", {"id": "x", "category": "tone", "level": "L1"})
+
+    assert s["passed"] is False, "bos cevap gecmemeli"
+    assert s["failed_checks"] == ["empty"], "dusme sebebi 'empty' olmali"
+    assert s["encoding_broken"] == []
+    assert s["encoding_ok"] is True, (
+        "bos metin 'bozuk kodlama' sayilmis -- teshisi yanlis yone saptirir"
+    )

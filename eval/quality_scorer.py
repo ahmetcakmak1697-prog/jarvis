@@ -358,7 +358,11 @@ def score_answer(answer: Optional[str], case: Dict[str, Any]) -> Dict[str, Any]:
 
     if not metin:
         return {
-            "answer_chars": 0, "encoding_broken": [], "encoding_ok": False,
+            # Boş metnin kodlaması bozuk DEĞİLDİR; hiç kodlaması yoktur.
+            # Eskiden burada `False` yazıyordu ve rapor bunu "Bozuk kodlama"
+            # diye özetliyordu (2026-09-09'da 15 ağ kopması UTF-8 hatası
+            # sanıldı). Düşme sebebi `empty` olarak zaten doğru yazılıyor.
+            "answer_chars": 0, "encoding_broken": [], "encoding_ok": True,
             "foreign_hits": [], "foreign_ok": True, "foreign_run": None,
             "has_efendim": False, "ai_boilerplate": False,
             "persona_ok": None, "admits_no_record": False, "grounding_ok": None,

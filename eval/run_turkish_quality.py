@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import socket
 import sys
 import tempfile
 import time
@@ -357,6 +358,33 @@ _SAGLAYICILAR: Dict[str, Dict[str, str]] = {
 }
 
 
+# Yeniden deneme — ölçüldü (2026-09-09, ilk canlı frontier koşusu):
+# 64 vakanın 15'i `WinError 10054` (bağlantı uzaktan koparıldı) ile boş
+# döndü ve rapor 39/64 yazdı. Yani takım modeli değil **hattı** ölçtü.
+# Aynı 49 vakada gerçek tablo 39'a 37'ydi.
+_API_DENEME_SAYISI = 3
+_API_GERI_CEKILME_S = 2.0        # deneme × bu kadar saniye (2, 4)
+
+# 5xx ve 429 geçicidir; diğer 4xx (401 yanlış anahtar, 400 bozuk istek)
+# kalıcıdır ve tekrarlamak hem boşa gider hem hız sınırını zorlar.
+_GECICI_HTTP_KODLARI = frozenset({408, 409, 425, 429, 500, 502, 503, 504})
+
+
+def _gecici_ag_hatasi(exc: BaseException) -> bool:
+    """Bu hata tekrar denemeye değer mi?
+
+    Ayrı fonksiyon olmasının sebebi: "hangi hata geçicidir" bir POLİTİKA
+    kararıdır ve tek yerde durmalı. `HTTPError` bir `URLError` alt sınıfı
+    olduğu için önce o ayıklanır — yoksa yanlış anahtar da geçici sayılır.
+    """
+    import urllib.error
+
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code in _GECICI_HTTP_KODLARI
+    return isinstance(exc, (urllib.error.URLError, ConnectionError,
+                            TimeoutError, socket.timeout))
+
+
 def _http_json(url: str, govde: bytes, basliklar: Dict[str, str],
                timeout: int) -> Dict[str, Any]:
     """Tek HTTP POST. Ayrı fonksiyon olmasının sebebi test edilebilirlik:
@@ -400,6 +428,22 @@ def _api_ask(model: str, prompt: str, level: str,
 
     anahtar = os.environ.get(tanim["env"], "").strip()
     if not anahtar:
+        # K14 — `.env`'i biz yüklemiyorduk (`main.py:26` yüklüyor). Ahmet
+        # dosyayı doğru doldurdu, betik yine "tanimli degil" dedi ve ölçüm
+        # bir gün gecikti. `override=False` varsayılanı sayesinde kabukta
+        # tanımlı anahtar dosyadakini EZER — açık terminal sessizce
+        # başka bir anahtara dönmez. Dosya okunur, asla loglanmaz (§9).
+        # Yol AÇIKÇA veriliyor: argümansız `load_dotenv()` cwd'den değil,
+        # ÇAĞIRAN MODÜLÜN dosya konumundan yukarı yürür. Yani `cd` etmek
+        # onu şaşırtmaz ve test hermetik olamaz — bu tuzağa 2026-09-09'da
+        # düşüldü, iki test kırmızı yandı ve sebebi bu satırdı.
+        try:
+            from dotenv import load_dotenv
+            load_dotenv(Path.cwd() / ".env")
+        except ImportError:
+            pass
+        anahtar = os.environ.get(tanim["env"], "").strip()
+    if not anahtar:
         raise RuntimeError(
             f"{tanim['env']} tanimli degil. Anahtari .env dosyasina yaz; "
             "bu dosyayi yalnizca sen duzenlersin (CLAUDE.md §9)."
@@ -422,19 +466,24 @@ def _api_ask(model: str, prompt: str, level: str,
         "stream": False,
     }).encode("utf-8")
 
-    t0 = time.perf_counter()
-    try:
-        d = _http_json(
-            tanim["url"], govde,
-            {"Content-Type": "application/json",
-             "Authorization": f"Bearer {anahtar}"},
-            300,
-        )
-    except Exception as exc:
+    basliklar = {"Content-Type": "application/json",
+                 "Authorization": f"Bearer {anahtar}"}
+
+    def _temizle(exc: BaseException) -> str:
         # Anahtar istisna metnine sızabilir (bazı kütüphaneler başlıkları
         # hata mesajına koyar). Mesajı yeniden kuruyoruz.
-        temiz = str(exc).replace(anahtar, "[REDACTED]") if anahtar else str(exc)
-        raise RuntimeError(f"{type(exc).__name__}: {temiz}") from None
+        return str(exc).replace(anahtar, "[REDACTED]") if anahtar else str(exc)
+
+    t0 = time.perf_counter()
+    for deneme in range(1, _API_DENEME_SAYISI + 1):
+        try:
+            d = _http_json(tanim["url"], govde, basliklar, 300)
+            break
+        except Exception as exc:
+            if deneme >= _API_DENEME_SAYISI or not _gecici_ag_hatasi(exc):
+                raise RuntimeError(
+                    f"{type(exc).__name__}: {_temizle(exc)}") from None
+            time.sleep(_API_GERI_CEKILME_S * deneme)
     toplam = time.perf_counter() - t0
 
     secim = (d.get("choices") or [{}])[0]
