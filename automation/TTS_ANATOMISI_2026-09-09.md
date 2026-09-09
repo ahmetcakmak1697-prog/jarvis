@@ -1,3 +1,26 @@
+> ## ⚠️ BU BELGENİN §1'İ ÇÜRÜTÜLDÜ (2026-09-09 gecesi, gerçek cevaplarla)
+>
+> Düzeltme: `automation/GECIKME_ACIKLAMASI_2026-09-09.md`. Belge **silinmedi**.
+>
+> | İddia | Durum |
+> |---|---|
+> | İlk sese kadar 577–1.052 ms, %99 ağ | ✅ **DOĞRULANDI** — gerçek cevaplarla 615,5 ms |
+> | Oynatma = 0,1667 × bayt (R² 1,000) | ✅ **DOĞRULANDI** |
+> | **"Eğim uyuşmuyor: 58,52'ye karşı 72,22 — Ahmet'inki %23 dik"** | ❌ **ÇÜRÜDÜ** |
+> | **"3.468 ms dik eğimin muhasebe artığı"** | ❌ **ÇÜRÜDÜ** |
+>
+> **Sebebi: sentetik cümlelerim temsili değildi.** Düz nesir 58,52 ms/karakter
+> okunuyor; gerçek JARVIS cevapları **73,77 ms/karakter** (22 tur, R² 0,9975).
+> Ahmet'in 72,22'si gerçek ölçüme **%2,1** uzaklıkta — yani onun eğimi
+> doğruydu, benimki dar bir metin türünden geliyordu.
+>
+> §1'de "açıklanamıyor" diye bıraktığım **+2.615 ms**'nin **1.416 ms**'si tam
+> olarak budur. Kalanın 526 ms'si makine yükü, ~673 ms'si hâlâ açık.
+>
+> **Ders:** sentetik ölçüm gerçek girdiyi temsil etmeyebilir; bunu ancak gerçek
+> girdiyle koşarak anlarsın. "Kendi çıkarımını sına" kuralı kendi ölçümüm için
+> de geçerliymiş.
+
 # TTS anatomisi — 3.468 ms'nin içi
 
 **Ölçen:** Claude Code · **Tarih:** 2026-09-09 · **Dal:** `auto/opencode-deepseek`

@@ -1,0 +1,197 @@
+{
+  "schema_version": 1,
+  "olculdu": "2026-09-09T23:45:15",
+  "mod": "tam",
+  "model": "llama3.1:latest",
+  "gecersiz_tur": 0,
+  "uyarilar": [],
+  "turlar": [
+    {
+      "soru": "nerede kaldik",
+      "cevap": "Anlık proje durumuna erişimim yok.",
+      "cevap_uzunluk": 34,
+      "ses_kaniti": true,
+      "girdi_ms": 0.0,
+      "model_ms": 616.3,
+      "sentez_ve_oynatma_ms": 5315.6,
+      "tur_ms": 5931.9,
+      "sentez_ms": 1676.9762000039918,
+      "oynatici_kurulum_ms": 205.76449999498436,
+      "oynatma_ms": 3432.785500001046
+    },
+    {
+      "soru": "nerede kaldik",
+      "cevap": "Anlık proje durumuna erişimim yok.",
+      "cevap_uzunluk": 34,
+      "ses_kaniti": true,
+      "girdi_ms": 0.0,
+      "model_ms": 304.6,
+      "sentez_ve_oynatma_ms": 4099.3,
+      "tur_ms": 4403.8,
+      "sentez_ms": 659.2302000062773,
+      "oynatici_kurulum_ms": 4.462199998670258,
+      "oynatma_ms": 3435.4390000007697
+    },
+    {
+      "soru": "nerede kaldik",
+      "cevap": "Anlık proje durumuna erişimim yok.",
+      "cevap_uzunluk": 34,
+      "ses_kaniti": true,
+      "girdi_ms": 0.0,
+      "model_ms": 7304.5,
+      "sentez_ve_oynatma_ms": 4073.5,
+      "tur_ms": 11378.0,
+      "sentez_ms": 630.4872999971849,
+      "oynatici_kurulum_ms": 3.6888000031467527,
+      "oynatma_ms": 3439.225299996906
+    },
+    {
+      "soru": "nerede kaldik",
+      "cevap": "Anlık proje durumuna erişimim yok.",
+      "cevap_uzunluk": 34,
+      "ses_kaniti": true,
+      "girdi_ms": 0.0,
+      "model_ms": 199.5,
+      "sentez_ve_oynatma_ms": 4004.9,
+      "tur_ms": 4204.4,
+      "sentez_ms": 563.0854999981239,
+      "oynatici_kurulum_ms": 3.9898999966681004,
+      "oynatma_ms": 3437.6546000057715
+    },
+    {
+      "soru": "nerede kaldik",
+      "cevap": "Anlık proje durumuna erişimim yok.",
+      "cevap_uzunluk": 34,
+      "ses_kaniti": true,
+      "girdi_ms": 0.0,
+      "model_ms": 199.8,
+      "sentez_ve_oynatma_ms": 4265.9,
+      "tur_ms": 4465.7,
+      "sentez_ms": 823.4818999990239,
+      "oynatici_kurulum_ms": 5.025799997383729,
+      "oynatma_ms": 3437.270399997942
+    },
+    {
+      "soru": "nerede kaldik",
+      "cevap": "Anlık proje durumuna erişimim yok.",
+      "cevap_uzunluk": 34,
+      "ses_kaniti": true,
+      "girdi_ms": 0.0,
+      "model_ms": 197.0,
+      "sentez_ve_oynatma_ms": 4136.4,
+      "tur_ms": 4333.4,
+      "sentez_ms": 694.3853999982821,
+      "oynatici_kurulum_ms": 4.344599998148624,
+      "oynatma_ms": 3437.6202000057674
+    },
+    {
+      "soru": "nerede kaldik",
+      "cevap": "Anlık proje durumuna erişimim yok.",
+      "cevap_uzunluk": 34,
+      "ses_kaniti": true,
+      "girdi_ms": 0.0,
+      "model_ms": 198.6,
+      "sentez_ve_oynatma_ms": 3952.2,
+      "tur_ms": 4150.8,
+      "sentez_ms": 507.59110000217333,
+      "oynatici_kurulum_ms": 3.5709999938262627,
+      "oynatma_ms": 3440.9432000029483
+    },
+    {
+      "soru": "nerede kaldik",
+      "cevap": "Anlık proje durumuna erişimim yok.",
+      "cevap_uzunluk": 34,
+      "ses_kaniti": true,
+      "girdi_ms": 0.0,
+      "model_ms": 195.2,
+      "sentez_ve_oynatma_ms": 3994.0,
+      "tur_ms": 4189.1,
+      "sentez_ms": 551.4613000050304,
+      "oynatici_kurulum_ms": 4.4713999959640205,
+      "oynatma_ms": 3437.9249999983585
+    },
+    {
+      "soru": "nerede kaldik",
+      "cevap": "Anlık proje durumuna erişimim yok.",
+      "cevap_uzunluk": 34,
+      "ses_kaniti": true,
+      "girdi_ms": 0.0,
+      "model_ms": 197.5,
+      "sentez_ve_oynatma_ms": 4045.5,
+      "tur_ms": 4243.0,
+      "sentez_ms": 600.4175999987638,
+      "oynatici_kurulum_ms": 5.015900002035778,
+      "oynatma_ms": 3440.015599997423
+    },
+    {
+      "soru": "nerede kaldik",
+      "cevap": "Anlık proje durumuna erişimim yok.",
+      "cevap_uzunluk": 34,
+      "ses_kaniti": true,
+      "girdi_ms": 0.0,
+      "model_ms": 189.1,
+      "sentez_ve_oynatma_ms": 3988.0,
+      "tur_ms": 4177.2,
+      "sentez_ms": 538.6188999982551,
+      "oynatici_kurulum_ms": 4.407000000355765,
+      "oynatma_ms": 3444.8685000024852
+    }
+  ],
+  "ozet": {
+    "tur": 10,
+    "girdi_ms": {
+      "p50": 0.0,
+      "p95": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "ort": 0.0
+    },
+    "model_ms": {
+      "p50": 199.1,
+      "p95": 4294.8,
+      "min": 189.1,
+      "max": 7304.5,
+      "ort": 960.2
+    },
+    "sentez_ve_oynatma_ms": {
+      "p50": 4059.5,
+      "p95": 4843.2,
+      "min": 3952.2,
+      "max": 5315.6,
+      "ort": 4187.5
+    },
+    "tur_ms": {
+      "p50": 4288.2,
+      "p95": 8927.3,
+      "min": 4150.8,
+      "max": 11378.0,
+      "ort": 5147.7
+    },
+    "sentez_ms": {
+      "p50": 615.5,
+      "p95": 1292.9,
+      "min": 507.6,
+      "max": 1677.0,
+      "ort": 724.6
+    },
+    "oynatici_kurulum_ms": {
+      "p50": 4.4,
+      "p95": 115.4,
+      "min": 3.6,
+      "max": 205.8,
+      "ort": 24.5
+    },
+    "oynatma_ms": {
+      "p50": 3437.8,
+      "p95": 3443.1,
+      "min": 3432.8,
+      "max": 3444.9,
+      "ort": 3438.4
+    },
+    "hedef_ms": 1500,
+    "pusula_araligi_olculdu": false,
+    "olculmeyen_sinirlar": "VAD konusma-sonu ani ve ilk ses olayi OLCULMUYOR: STTResult VAD sonunu vermiyor, TTSResult.first_audio_hint_ms yalniz sentez suresi (kendi uyarisi: 'playback start is not measured'). Olculen tur_ms PUSULA araligini kapsar, yani onun UST SINIRIDIR.",
+    "p50_hukum": "BELIRSIZ",
+    "p95_hukum": "BELIRSIZ"
+  }
+}

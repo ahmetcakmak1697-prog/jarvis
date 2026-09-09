@@ -56,6 +56,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import statistics
 import sys
 import time
@@ -113,11 +114,16 @@ class SesOlcumu:
     kaniti budur.
     """
 
-    def __init__(self, vio: Any, uyarilar: List[str]) -> None:
+    def __init__(self, vio: Any, uyarilar: List[str],
+                 son_sonuc: Optional[Callable[[], Any]] = None) -> None:
         self._vio = vio
         self._uyarilar = uyarilar
+        #: `VoiceIO.say()` hicbir sey dondurmez ve o sozlesme DEGISMEZ. TTS'in
+        #: kendi damgalarina ulasmak icin konusmaci disaridan sarilir ve son
+        #: `TTSResult` buradan okunur. Verilmezse davranis eskisi gibi kalir.
+        self._son_sonuc = son_sonuc
 
-    def __call__(self, metin: Optional[str]) -> bool:
+    def __call__(self, metin: Optional[str]) -> Any:
         from voice.voice_loop import speech_text
 
         if not getattr(self._vio, "enabled", False):
@@ -130,7 +136,28 @@ class SesOlcumu:
 
         onceki = len(self._uyarilar)
         self._vio.say(metin)
-        return len(self._uyarilar) == onceki
+        if len(self._uyarilar) != onceki:
+            return False
+
+        # Bildirim gelmedi: `speak()` kendi sozlesmesine gore basarili dondu.
+        # Damga varsa ONU dondur -- ici bos bir `True`, olculmus dilimleri
+        # cope atardi.
+        sonuc = self._son_sonuc() if self._son_sonuc is not None else None
+        return True if sonuc is None else sonuc
+
+
+def _ses_kaniti(sonuc: Any) -> bool:
+    """Seslendirme gercekten oldu mu?
+
+    Iki sozlesme birlikte desteklenir: eski `seslendir` bool/None dondururdu,
+    yenisi `TTSResult` donduruyor. Nesnenin kendisi her zaman truthy oldugu
+    icin `bool(sonuc)` YETMEZ -- `ok=False` bir TTSResult boyle "kanit"
+    sayilirdi. A-01 tam olarak bu hatanin karti.
+    """
+    if sonuc is None:
+        return False
+    ok = getattr(sonuc, "ok", None)
+    return bool(sonuc) if ok is None else bool(ok)
 
 
 def olc_tek_tur(
@@ -162,9 +189,10 @@ def olc_tek_tur(
     cevap = sor(metin)
     t2 = time.perf_counter()
 
-    ses_kaniti = bool(seslendir(cevap))
+    ses_sonucu = seslendir(cevap)
     t3 = time.perf_counter()
 
+    ses_kaniti = _ses_kaniti(ses_sonucu)
     if ses_bekleniyor and not ses_kaniti:
         raise OlcumBasarisiz(
             "seslendirme kaniti yok -- bu tur gecerli olcum degil"
@@ -174,12 +202,25 @@ def olc_tek_tur(
     ms = lambda a, b: round((b - a) * 1000, 1)  # noqa: E731
     return {
         "soru": metin,
+        # Cevabin KENDISI kaydedilir, yalniz uzunlugu degil: olctugu girdiyi
+        # saklamayan bir olcum araci kendi sonucunu bir daha uretemez. 2026-09-09'da
+        # tam bu eksik yuzunden "gercek cevaplar sentezi yavaslatiyor mu"
+        # sorusu sinanamadi. Uzunluk alani KALIR -- eski kayitlarla kiyas
+        # onun uzerinden yapiliyor.
+        "cevap": cevap or "",
         "cevap_uzunluk": len(cevap or ""),
         "ses_kaniti": ses_kaniti,
         "girdi_ms": ms(t0, t1),
         "model_ms": ms(t1, t2),
         "sentez_ve_oynatma_ms": ms(t2, t3),
         "tur_ms": ms(t0, t3),
+        # TTS'in KENDI damgalari (`EdgeTTSAdapter.speak`). Damga veremeyen bir
+        # seslendirici icin `None` -- `0` degil. `sentez_ve_oynatma_ms` tek
+        # sayi olarak kaldigi surece ag payi ile calinan sesin suresi
+        # birbirinden ayrilamiyordu.
+        "sentez_ms": getattr(ses_sonucu, "sentez_ms", None),
+        "oynatici_kurulum_ms": getattr(ses_sonucu, "oynatici_kurulum_ms", None),
+        "oynatma_ms": getattr(ses_sonucu, "oynatma_ms", None),
     }
 
 
@@ -197,7 +238,8 @@ def ozetle(turlar: List[Dict[str, Any]]) -> Dict[str, Any]:
         return round(d[alt] + (d[ust] - d[alt]) * (k - alt), 1)
 
     ozet: Dict[str, Any] = {"tur": len(turlar)}
-    for alan in ("girdi_ms", "model_ms", "sentez_ve_oynatma_ms", "tur_ms"):
+    for alan in ("girdi_ms", "model_ms", "sentez_ve_oynatma_ms", "tur_ms",
+                 "sentez_ms", "oynatici_kurulum_ms", "oynatma_ms"):
         d = [t[alan] for t in turlar if t.get(alan) is not None]
         if not d:
             continue
@@ -233,6 +275,40 @@ def rapor_yaz(sonuc: Dict[str, Any], hedef_dizin: Path) -> Path:
     return yol
 
 
+def _kuru_ses_cikisi(uyarilar: List[str]):
+    """STT'siz ama GERCEK TTS'li seslendirici kurar.
+
+    Dinleyici hic kurulmaz: ne mikrofon ne de Whisper yuklenir, yani Ahmet'i
+    beklemez. Cikis tarafi ise tam gercek yoldur -- `VoiceIO.say()` cagrilir,
+    yani `speech_text()` temizligi ve B05 veri-sinifi kapisi de olculen surenin
+    icindedir. Bunlar "atlandi" denip disarida birakilsaydi olculen sey canli
+    hattin kendisi olmazdi.
+
+    Konusmaci sarilir cunku `VoiceIO.say()` hicbir sey dondurmez ve o sozlesme
+    degismez; `TTSResult` ancak boyle disari cikar. `is_local` TANIMLANMAZ --
+    varsayilan `False` kalir ve egress kapisi yerinde durur.
+    """
+    from j0_tts_adapters import EDGE_TTS_ENABLE_FLAG, EdgeTTSAdapter
+    from voice.voice_loop import VoiceIO
+
+    # Bayrak YALNIZ bu surecte. Hicbir dosyaya yazilmaz, `.env` okunmaz (9).
+    os.environ[EDGE_TTS_ENABLE_FLAG] = "1"
+    print("Edge TTS bayragi YALNIZ bu surecte acildi; dosyaya yazilmadi.")
+
+    adapter = EdgeTTSAdapter()
+    gercek_speak = adapter.speak
+    kayit: Dict[str, Any] = {}
+
+    def _kaydeden_speak(metin: str):
+        sonuc = gercek_speak(metin)
+        kayit["son"] = sonuc
+        return sonuc
+
+    adapter.speak = _kaydeden_speak
+    vio = VoiceIO(speaker=adapter, enabled=True, notify=uyarilar.append)
+    return SesOlcumu(vio, uyarilar, son_sonuc=lambda: kayit.get("son")), True
+
+
 def _yazdir(ozet: Dict[str, Any]) -> None:
     print()
     print("=" * 58)
@@ -241,6 +317,11 @@ def _yazdir(ozet: Dict[str, Any]) -> None:
     basliklar = {"girdi_ms": "Girdi (dinle cagrisi)",
                  "model_ms": "Model (metin -> cevap)",
                  "sentez_ve_oynatma_ms": "Sentez + TAM oynatma",
+                 # TTS'in kendi damgalari: ust satirin ICINDE durur, yanina
+                 # degil. Ag payi ile calinan sesin suresi artik ayri gorunur.
+                 "sentez_ms": "   . sentez (AG)",
+                 "oynatici_kurulum_ms": "   . oynatici kurulumu",
+                 "oynatma_ms": "   . oynatma (calinan ses)",
                  "tur_ms": "TUR SURESI (ust sinir)"}
     for alan, baslik in basliklar.items():
         d = ozet.get(alan)
@@ -272,7 +353,9 @@ def main() -> int:
     ap.add_argument("--soru", default="nerede kaldik",
                     help="kuru modda sorulacak metin")
     ap.add_argument("--kuru", action="store_true",
-                    help="mikrofonsuz: STT atlanir, model+sentez olculur")
+                    help="mikrofonsuz: STT atlanir")
+    ap.add_argument("--ses-cikisi", action="store_true",
+                    help="kuru modda TTS'i GERCEKTEN kostur (STT yok, ses var)")
     ap.add_argument("--out", default=str(_REPO / "automation"))
     a = ap.parse_args()
 
@@ -295,7 +378,16 @@ def main() -> int:
     #: no-op'a gider ve olcum sessizce "basarili" olur (A-01).
     uyarilar: List[str] = []
 
-    if not a.kuru:
+    if a.kuru and a.ses_cikisi:
+        # STT yok, TTS VAR. `--kuru` tek basina TTS'i hic calistirmiyor
+        # (seslendir sabit False donen bir no-op) -- yani "kuru mod model+TTS
+        # olcer" varsayimiyla alinan her sayi, sentezi hic gormeden
+        # "olctum" derdi. Bu kapi o bosluğu kapatir.
+        try:
+            seslendir, ses_aktif = _kuru_ses_cikisi(uyarilar)
+        except Exception as exc:  # noqa: BLE001
+            print(f"Ses cikisi kurulamadi ({exc}); sessiz kuru moda dusuluyor.")
+    elif not a.kuru:
         try:
             from voice.voice_loop import build_default_voice_io
             vio = build_default_voice_io(enabled=True, notify=uyarilar.append)

@@ -1,3 +1,20 @@
+> ## ⚠️ BU BELGENİN §2–§3'Ü KISMEN ÇÜRÜTÜLDÜ (2026-09-09 gecesi, doğrudan ölçümle)
+>
+> Düzeltme: `automation/GECIKME_ACIKLAMASI_2026-09-09.md`. Belge **silinmedi**;
+> neyin bırakıldığı görünmeden neyin geldiği anlaşılmaz.
+>
+> | İddia | Durum |
+> |---|---|
+> | Eğim 72,2 ms/karakter = normal konuşma hızı | ✅ **DOĞRULANDI** — gerçek cevaplarla ölçülen 73,77 ms/karakter (%2,1 fark) |
+> | **"Sabit terim 3.468 ms, ilk sese kadar geçen süredir"** | ❌ **ÇÜRÜDÜ** — doğrudan ölçülen **620 ms** (sentez 615,5 + oynatıcı 4,4) |
+> | **"İlk sese kadar ~4.155 ms"** | ❌ **ÇÜRÜDÜ** — ölçülen **~820 ms** |
+> | "Darboğaz LLM değil, sentez" | ⚠️ **KISMEN** — sentez (615 ms) modelden (199 ms) büyük, ama ikisi de küçük |
+>
+> **Sebebi:** 3.468 ms bir kesişimdir ve kesişim, eğimin doğru olduğu yerde bile
+> ölçülen bir bedel değildir — beş noktalık örneklemin gürültüsünü ve sesin
+> kendi sabit parçasını (~1,5 sn sessizlik/dolgu) içine alır. §3'ün kendi
+> `[EMİN DEĞİLİM]` uyarısı haklıydı; bu belge o uyarıyı doğrular.
+
 # Ses hattı: 20.488 ms nereye gidiyor — çözümleme
 
 **Ham veri:** `automation/SES_GECIKMESI_20260909-2218.json` (5 tur, mikrofonlu,

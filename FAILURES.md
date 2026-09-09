@@ -80,6 +80,60 @@ nasıl görüneceği** de yazılır. İkisi ayırt edilemiyorsa sinyal işe yara
 
 ## Kayıtlar
 
+### [2026-09-09] Gecikme ölçümü dolu makinede alındı ve "JARVIS yavaş" diye okundu
+
+- **Alan:** J0 ses hattı / ölçüm koşulları
+- **Şiddet:** CONCERN
+- **Tuzak:** 2026-09-09 akşamı alınan 5 turluk ses ölçümü, sentetik ölçümün
+  öngördüğünden turda ortalama **+2.615 ms** fazla verdi ve fark beş noktanın
+  hepsinde aynı yöndeydi. Sayı "gerçek bir gecikme" gibi okundu. Aynı koşuda
+  `model_ms` 4.367 ms'lik bir sıçrama da vardı. O sırada makinede üç ajan ve
+  `pytest` aynı anda dönüyordu.
+- **Kök neden:** Ölçüm koşulu kaydedilmiyordu, dolayısıyla yük bir değişken
+  olarak hiç görünmüyordu. A/B ile ölçüldüğünde yükün payı belirgin çıktı:
+  iki paralel `pytest` koşusu altında aynı soru için `sentez_ms` p50
+  615,5 → 1.141,8 ms (**1,9×**), `model_ms` p50 199,1 → 630,1 ms (**3,2×**),
+  ve bir turda `model_ms` **59.813 ms**. Sessiz makinede aynı iş
+  p50 199 ms sürüyordu.
+- **Kural:** Gecikme ölçümü paralel `pytest`, ajan koşusu veya başka bir ağır
+  süreç varken **alınmaz**; alınmışsa rapora yük durumu yazılmadan sayı
+  kullanılmaz. Ölçüm aracı ölçtüğü **girdiyi** (cevap metni) ve mümkünse
+  koşul bilgisini ham veriye yazar.
+- **Kanıt:** `automation/GECIKME_ACIKLAMASI_2026-09-09.md` §4;
+  ham veri `automation/SES_GECIKMESI_20260909-2345.json`.
+  Aynı desen üç bağımsız ölçümde göründü (mutasyon kapısı, kalite koşusu,
+  ses hattı) — ama sessiz makinede de bir sıçrama gözlendi (7.304,5 ms),
+  yani yük tek başına sıçramanın **tamamını açıklamıyor**.
+- **Regresyon testi:** YOK — açık borç. Makine yükü bir birim testiyle
+  yeniden üretilemez; kural belge ve gözden geçirme disiplinidir.
+
+### [2026-09-09] Sentetik ölçüm gerçek girdiyi temsil etmedi, "senin regresyonun yanlış" dedirtti
+
+- **Alan:** J0 ses hattı / TTS ölçümü
+- **Şiddet:** CONCERN
+- **Tuzak:** `TTS_ANATOMISI_2026-09-09.md` dört sentetik Türkçe cümleyle
+  oynatma hızını **58,52 ms/karakter** ölçtü ve Ahmet'in canlı veriden
+  çıkardığı **72,22 ms/karakter** eğimi için "%23 dik, model yanlış" dedi.
+  Gerçek JARVIS cevaplarıyla ölçüldüğünde hız **73,77 ms/karakter** çıktı
+  (22 tur, R² 0,9975) — yani Ahmet'in eğimi doğruydu, sapma **%2,1**.
+- **Kök neden:** Sentetik korpus düz nesirdi; gerçek cevaplar noktalama,
+  kısaltma ve teknik terim yoğunluğu taşıyor ve TTS bunları daha yavaş
+  okuyor. Ölçümün kendisi doğruydu, **örneklemi** temsili değildi. İkinci
+  katman: bağımsız değişken olarak `cevap_uzunluk` kullanıldı; oysa TTS'e
+  giden metin `speech_text()`'ten geçip **600 karakterde kesiliyor**
+  (`SPEECH_MAX_CHARS`), yani 2.079 ve 2.358 karakterlik iki cevap aynı sesi
+  üretiyor.
+- **Kural:** Bir ölçüm sentetik girdiyle alındıysa sonucu **gerçek girdiyle
+  bir kez doğrulanmadan** başka bir ölçümü çürütmek için kullanılmaz. Ve
+  bağımsız değişken, sistemin gerçekten tükettiği şey olmalıdır — TTS için
+  `len(speech_text(cevap))`, `len(cevap)` değil.
+- **Kanıt:** `automation/GECIKME_ACIKLAMASI_2026-09-09.md` §3, §6;
+  düzeltme başlıkları `TTS_ANATOMISI_2026-09-09.md` ve
+  `SES_HATTI_COZUMLEME_2026-09-09.md` başında duruyor.
+- **Regresyon testi:** `tests/test_ses_turu_tts_damgalari.py` —
+  `test_tur_kaydi_cevap_metnini_tasir` cevap metninin kaydedilmesini
+  zorunlu kılar; metin kaydedilmeseydi bu tuzak bir daha çözülemezdi.
+
 ### [2026-09-08] Mutation gate, koşmayan bir test komutuna "kusursuz" dedi
 
 - **Alan:** `scripts/mutation_gate.py` — anti-test-gaming kapısı
