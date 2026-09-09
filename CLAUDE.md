@@ -46,8 +46,62 @@
 - Türkçe sondan eklemeli: "rapor" → "raporu/raporları". Exact match değil **substring/contains** kullan (kısa köklerde false-positive'e dikkat).
 
 ## 7. Mimari anayasa (v5.9 — kısa)
-- Yerel-önce cascade: cache → RAG → local LLM → (sufficiency) → cost-ledger kapısı → external. Redaction'dan sonra.
-- İki eksenli güvenlik: veri sınıfı (ne dışarı çıkar) × güven (içerik nereden). **Untrusted içerik asla otomatik kalıcı hafıza olmaz → approval queue.**
+
+### 7.0 Yön değişikliği — "yerel-önce" bitti, yerine "işe göre yerleşim" (2026-09-09, Ahmet imzalı)
+
+**Eski madde:** *"Yerel-önce cascade: cache → RAG → local LLM → (sufficiency) →
+cost-ledger kapısı → external."* Bu cümle artık **yürürlükte değil.** Silinmedi,
+burada duruyor: yerine ne geldiğini anlamak için neyin bırakıldığı görünmeli.
+
+**Neden değişti — ölçüldü, tercih edilmedi:**
+
+| | llama3.1 (yerel) | DeepSeek (bulut) |
+|---|---|---|
+| 64 vaka | **49/64** | **54/64** |
+| turkish | 10/15 | **14/15** |
+| düşme sebebi | tekrar 6, prompt sızıntısı 7 | kesilme 4, kalıp 3 |
+
+Fark 5 vaka ve A11'in ölçtüğü ±1 oynaklık bandının **dışında**. Kritik olan
+sebep dağılımı: yerel modelin kusurları **modelin tavanı** (dejenerasyon,
+sızıntı), DeepSeek'inkiler **bizim ayarımız** (token bütçesi, persona).
+Yerelin tavanı görüldü ve 8 GB'a sığan daha iyisi yok — Turkish-Gemma 54/64
+alıyor ama tepe VRAM 7076 MB. Kaynak:
+`automation/KALITE_deepseek_deepseek-chat_20260909-2208.json`.
+
+**Yerine gelen kural — yerleşim ideolojiyle değil, işin gereğiyle seçilir:**
+
+| İş | Nerede | Neden (ölçülmüş gerekçe) |
+|---|---|---|
+| **Ev kontrolü** (ışık, perde, klima) | **Yerel + deterministik** | Gecikme: bulut gidiş-dönüşü ~500-2000 ms, kural ~5 ms. Erişilebilirlik: internet kesikse ev çalışmalı. Bu bir zekâ işi değil, eşleştirme işi. |
+| **Günlük sohbet, araştırma** | **Bulut (DeepSeek)** | Ölçülen 5 vakalık kalite farkı; yerelin tavanı donanımla sınırlı. |
+| **Zor iş** | **Tek bir üst katman** | Hangisi olduğu **ölçülmeden** seçilmez. Çok katmanlı kaskad varsayılan değildir (7.0a). |
+
+**7.0a — Çok modelli kaskad varsayılan DEĞİLDİR.** Yeni bir katman eklemeden
+önce iki şey ölçülür: (1) aynı 64 vakada gerçek fark, (2) tek modelde `effort`
+ayarının aynı işi yapıp yapmadığı. Gerekçe: prompt önbelleği **modele bağlıdır**
+ve JARVIS'in sistem prompt'u büyük ve sabittir; N modele bölmek N ayrı önbellek
+demektir ve kaskadın kazandırdığını önbellek kaybı geri alır.
+
+**7.0b — Maliyet kapısı artık zorunlu.** Yerel çağdayken bütçe kapısının bağlı
+olmaması zararsızdı; bulut temelli bir asistanda değildir. Ölçüldü (Codex,
+2026-09-09): `CostLedger(daily_limit=0)` **"unlimited"** dönüyor
+(`agents/cost_ledger.py:78`) ve `APIBudgetGate` üretim yolunda enjekte
+edilmiyor. **Pahalı bir sağlayıcı, kapı bağlanmadan bağlanmaz.**
+
+**7.0c — (sufficiency) halkası hâlâ YOK.** Ölçüldü: `ModelCascade.select()`
+kural tabanlıdır, **0 LLM çağrısı** yapar (p50 0,0016 ms). Yani "yerele sor →
+cevabı değerlendir → yetmezse yukarı çık" diye bir mekanizma kurulmamıştır;
+olan şey soruya bakıp baştan seviye seçmektir. Katman eklemek bu halkayı
+kurmaz — adı "cascade" olan bir `if` bloğuna katman eklemek, yanılmanın yolunu
+çoğaltır.
+
+**Bilerek kabul edilen bedel:** internet kesikse sohbet ve araştırma durur;
+ev kontrolü durmaz. Geri dönülebilir — yerel modeller kurulu kalır, terazi
+ikisini de ölçer.
+
+### 7.1 Değişmeyenler
+
+- İki eksenli güvenlik: veri sınıfı (ne dışarı çıkar) × güven (içerik nereden). **Untrusted içerik asla otomatik kalıcı hafıza olmaz → approval queue.** Bulut temelli mimaride bu madde **daha kritiktir**, daha az değil: artık her sohbet turu bir egress'tir.
 - Deterministik routing = güvenlik özelliği. Vector skor *girdi*, karar değil. Router kararı `confidence` + `route_reason` ile C4'e yazılır.
 - **Human override her katmandan üstün:** kullanıcı her an dur/iptal/unut/yerel-kal diyebilir.
 - ESHOT: pandas hesaplar, LLM anlatır; kurallar Rules.json'da.
