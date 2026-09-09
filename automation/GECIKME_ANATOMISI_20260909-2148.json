@@ -1,0 +1,646 @@
+{
+  "schema_version": 1,
+  "olculdu": "2026-09-09T21:48:20",
+  "model": "llama3.2:latest",
+  "voice_mode": true,
+  "hafiza_kopyasi": "C:\\Users\\Ahmedov\\AppData\\Local\\Temp\\jarvis_olcum_1dffyqk5",
+  "olculmeyen": "STT ve TTS bu betikte YOK. Egress kapisinin payi `arac_calistirma_ms` icindedir, ayrilmadi.",
+  "siniflar": {
+    "kisa_olgusal": {
+      "soru": "Bir metrede kac santimetre vardir?",
+      "turlar": [
+        {
+          "soru": "Bir metrede kac santimetre vardir?",
+          "arac": null,
+          "cevap_uzunluk": 29,
+          "arac_tespiti_ms": 0.2,
+          "arac_calistirma_ms": null,
+          "prompt_insa_ms": 24.0,
+          "model_duvar_ms": 4636.2,
+          "sonrasi_ms": 5.8,
+          "toplam_ms": 4666.3,
+          "model_yukleme_ms": 4170.8,
+          "model_prompt_eval_ms": 379.2,
+          "model_uretim_ms": 75.0,
+          "model_bildirilen_toplam_ms": 4634.8,
+          "prompt_token": 2159,
+          "uretilen_token": 11,
+          "token_saniye": 146.6,
+          "prompt_karakter": 6360,
+          "model": "llama3.2:latest"
+        },
+        {
+          "soru": "Bir metrede kac santimetre vardir?",
+          "arac": null,
+          "cevap_uzunluk": 29,
+          "arac_tespiti_ms": 0.1,
+          "arac_calistirma_ms": null,
+          "prompt_insa_ms": 1.3,
+          "model_duvar_ms": 145.1,
+          "sonrasi_ms": 3.0,
+          "toplam_ms": 149.6,
+          "model_yukleme_ms": 1.6,
+          "model_prompt_eval_ms": 59.5,
+          "model_uretim_ms": 73.2,
+          "model_bildirilen_toplam_ms": 144.0,
+          "prompt_token": 2181,
+          "uretilen_token": 11,
+          "token_saniye": 150.2,
+          "prompt_karakter": 6393,
+          "model": "llama3.2:latest"
+        },
+        {
+          "soru": "Bir metrede kac santimetre vardir?",
+          "arac": null,
+          "cevap_uzunluk": 29,
+          "arac_tespiti_ms": 0.1,
+          "arac_calistirma_ms": null,
+          "prompt_insa_ms": 1.4,
+          "model_duvar_ms": 153.1,
+          "sonrasi_ms": 3.1,
+          "toplam_ms": 157.6,
+          "model_yukleme_ms": 1.8,
+          "model_prompt_eval_ms": 65.9,
+          "model_uretim_ms": 74.6,
+          "model_bildirilen_toplam_ms": 152.0,
+          "prompt_token": 2203,
+          "uretilen_token": 11,
+          "token_saniye": 147.5,
+          "prompt_karakter": 6436,
+          "model": "llama3.2:latest"
+        },
+        {
+          "soru": "Bir metrede kac santimetre vardir?",
+          "arac": null,
+          "cevap_uzunluk": 29,
+          "arac_tespiti_ms": 0.1,
+          "arac_calistirma_ms": null,
+          "prompt_insa_ms": 1.5,
+          "model_duvar_ms": 164.3,
+          "sonrasi_ms": 2.5,
+          "toplam_ms": 168.4,
+          "model_yukleme_ms": 2.1,
+          "model_prompt_eval_ms": 73.6,
+          "model_uretim_ms": 74.3,
+          "model_bildirilen_toplam_ms": 163.3,
+          "prompt_token": 2230,
+          "uretilen_token": 11,
+          "token_saniye": 148.1,
+          "prompt_karakter": 6478,
+          "model": "llama3.2:latest"
+        },
+        {
+          "soru": "Bir metrede kac santimetre vardir?",
+          "arac": null,
+          "cevap_uzunluk": 29,
+          "arac_tespiti_ms": 0.1,
+          "arac_calistirma_ms": null,
+          "prompt_insa_ms": 1.3,
+          "model_duvar_ms": 100.2,
+          "sonrasi_ms": 2.2,
+          "toplam_ms": 103.7,
+          "model_yukleme_ms": 1.5,
+          "model_prompt_eval_ms": 13.7,
+          "model_uretim_ms": 73.2,
+          "model_bildirilen_toplam_ms": 99.1,
+          "prompt_token": 2262,
+          "uretilen_token": 11,
+          "token_saniye": 150.2,
+          "prompt_karakter": 6541,
+          "model": "llama3.2:latest"
+        }
+      ],
+      "ozet": {
+        "tur": 5,
+        "arac_tespiti_ms": {
+          "p50": 0.1,
+          "p95": 0.2,
+          "min": 0.1,
+          "max": 0.2,
+          "ort": 0.1,
+          "olculen_tur": 5
+        },
+        "prompt_insa_ms": {
+          "p50": 1.4,
+          "p95": 19.5,
+          "min": 1.3,
+          "max": 24.0,
+          "ort": 5.9,
+          "olculen_tur": 5
+        },
+        "model_duvar_ms": {
+          "p50": 153.1,
+          "p95": 3741.8,
+          "min": 100.2,
+          "max": 4636.2,
+          "ort": 1039.8,
+          "olculen_tur": 5
+        },
+        "model_yukleme_ms": {
+          "p50": 1.8,
+          "p95": 3337.1,
+          "min": 1.5,
+          "max": 4170.8,
+          "ort": 835.6,
+          "olculen_tur": 5
+        },
+        "model_prompt_eval_ms": {
+          "p50": 65.9,
+          "p95": 318.1,
+          "min": 13.7,
+          "max": 379.2,
+          "ort": 118.4,
+          "olculen_tur": 5
+        },
+        "model_uretim_ms": {
+          "p50": 74.3,
+          "p95": 74.9,
+          "min": 73.2,
+          "max": 75.0,
+          "ort": 74.1,
+          "olculen_tur": 5
+        },
+        "model_bildirilen_toplam_ms": {
+          "p50": 152.0,
+          "p95": 3740.5,
+          "min": 99.1,
+          "max": 4634.8,
+          "ort": 1038.6,
+          "olculen_tur": 5
+        },
+        "sonrasi_ms": {
+          "p50": 3.0,
+          "p95": 5.3,
+          "min": 2.2,
+          "max": 5.8,
+          "ort": 3.3,
+          "olculen_tur": 5
+        },
+        "prompt_token": {
+          "p50": 2203.0,
+          "p95": 2255.6,
+          "min": 2159,
+          "max": 2262,
+          "ort": 2207,
+          "olculen_tur": 5
+        },
+        "uretilen_token": {
+          "p50": 11.0,
+          "p95": 11.0,
+          "min": 11,
+          "max": 11,
+          "ort": 11,
+          "olculen_tur": 5
+        },
+        "token_saniye": {
+          "p50": 148.1,
+          "p95": 150.2,
+          "min": 146.6,
+          "max": 150.2,
+          "ort": 148.5,
+          "olculen_tur": 5
+        },
+        "cevap_uzunluk": {
+          "p50": 29.0,
+          "p95": 29.0,
+          "min": 29,
+          "max": 29,
+          "ort": 29,
+          "olculen_tur": 5
+        },
+        "toplam_ms": {
+          "p50": 157.6,
+          "p95": 3766.7,
+          "min": 103.7,
+          "max": 4666.3,
+          "ort": 1049.1,
+          "olculen_tur": 5
+        }
+      }
+    },
+    "proje_durumu": {
+      "soru": "nerede kaldik",
+      "turlar": [
+        {
+          "soru": "nerede kaldik",
+          "arac": null,
+          "cevap_uzunluk": 40,
+          "arac_tespiti_ms": 0.1,
+          "arac_calistirma_ms": null,
+          "prompt_insa_ms": 1.2,
+          "model_duvar_ms": 157.6,
+          "sonrasi_ms": 2.7,
+          "toplam_ms": 161.6,
+          "model_yukleme_ms": 2.1,
+          "model_prompt_eval_ms": 13.1,
+          "model_uretim_ms": 131.4,
+          "model_bildirilen_toplam_ms": 156.5,
+          "prompt_token": 2127,
+          "uretilen_token": 19,
+          "token_saniye": 144.6,
+          "prompt_karakter": 6268,
+          "model": "llama3.2:latest"
+        },
+        {
+          "soru": "nerede kaldik",
+          "arac": null,
+          "cevap_uzunluk": 40,
+          "arac_tespiti_ms": 0.1,
+          "arac_calistirma_ms": null,
+          "prompt_insa_ms": 1.3,
+          "model_duvar_ms": 196.9,
+          "sonrasi_ms": 2.7,
+          "toplam_ms": 201.0,
+          "model_yukleme_ms": 1.6,
+          "model_prompt_eval_ms": 53.3,
+          "model_uretim_ms": 130.6,
+          "model_bildirilen_toplam_ms": 195.5,
+          "prompt_token": 2162,
+          "uretilen_token": 19,
+          "token_saniye": 145.5,
+          "prompt_karakter": 6311,
+          "model": "llama3.2:latest"
+        },
+        {
+          "soru": "nerede kaldik",
+          "arac": null,
+          "cevap_uzunluk": 40,
+          "arac_tespiti_ms": 0.1,
+          "arac_calistirma_ms": null,
+          "prompt_insa_ms": 1.6,
+          "model_duvar_ms": 202.7,
+          "sonrasi_ms": 2.7,
+          "toplam_ms": 207.1,
+          "model_yukleme_ms": 2.1,
+          "model_prompt_eval_ms": 59.2,
+          "model_uretim_ms": 130.5,
+          "model_bildirilen_toplam_ms": 201.5,
+          "prompt_token": 2197,
+          "uretilen_token": 19,
+          "token_saniye": 145.6,
+          "prompt_karakter": 6354,
+          "model": "llama3.2:latest"
+        },
+        {
+          "soru": "nerede kaldik",
+          "arac": null,
+          "cevap_uzunluk": 40,
+          "arac_tespiti_ms": 0.1,
+          "arac_calistirma_ms": null,
+          "prompt_insa_ms": 1.5,
+          "model_duvar_ms": 220.9,
+          "sonrasi_ms": 2.7,
+          "toplam_ms": 225.1,
+          "model_yukleme_ms": 1.8,
+          "model_prompt_eval_ms": 76.2,
+          "model_uretim_ms": 130.9,
+          "model_bildirilen_toplam_ms": 219.8,
+          "prompt_token": 2232,
+          "uretilen_token": 19,
+          "token_saniye": 145.2,
+          "prompt_karakter": 6397,
+          "model": "llama3.2:latest"
+        },
+        {
+          "soru": "nerede kaldik",
+          "arac": null,
+          "cevap_uzunluk": 40,
+          "arac_tespiti_ms": 0.1,
+          "arac_calistirma_ms": null,
+          "prompt_insa_ms": 1.3,
+          "model_duvar_ms": 156.5,
+          "sonrasi_ms": 2.7,
+          "toplam_ms": 160.6,
+          "model_yukleme_ms": 1.6,
+          "model_prompt_eval_ms": 13.0,
+          "model_uretim_ms": 130.0,
+          "model_bildirilen_toplam_ms": 154.5,
+          "prompt_token": 2265,
+          "uretilen_token": 19,
+          "token_saniye": 146.1,
+          "prompt_karakter": 6450,
+          "model": "llama3.2:latest"
+        }
+      ],
+      "ozet": {
+        "tur": 5,
+        "arac_tespiti_ms": {
+          "p50": 0.1,
+          "p95": 0.1,
+          "min": 0.1,
+          "max": 0.1,
+          "ort": 0.1,
+          "olculen_tur": 5
+        },
+        "prompt_insa_ms": {
+          "p50": 1.3,
+          "p95": 1.6,
+          "min": 1.2,
+          "max": 1.6,
+          "ort": 1.4,
+          "olculen_tur": 5
+        },
+        "model_duvar_ms": {
+          "p50": 196.9,
+          "p95": 217.3,
+          "min": 156.5,
+          "max": 220.9,
+          "ort": 186.9,
+          "olculen_tur": 5
+        },
+        "model_yukleme_ms": {
+          "p50": 1.8,
+          "p95": 2.1,
+          "min": 1.6,
+          "max": 2.1,
+          "ort": 1.8,
+          "olculen_tur": 5
+        },
+        "model_prompt_eval_ms": {
+          "p50": 53.3,
+          "p95": 72.8,
+          "min": 13.0,
+          "max": 76.2,
+          "ort": 43.0,
+          "olculen_tur": 5
+        },
+        "model_uretim_ms": {
+          "p50": 130.6,
+          "p95": 131.3,
+          "min": 130.0,
+          "max": 131.4,
+          "ort": 130.7,
+          "olculen_tur": 5
+        },
+        "model_bildirilen_toplam_ms": {
+          "p50": 195.5,
+          "p95": 216.1,
+          "min": 154.5,
+          "max": 219.8,
+          "ort": 185.6,
+          "olculen_tur": 5
+        },
+        "sonrasi_ms": {
+          "p50": 2.7,
+          "p95": 2.7,
+          "min": 2.7,
+          "max": 2.7,
+          "ort": 2.7,
+          "olculen_tur": 5
+        },
+        "prompt_token": {
+          "p50": 2197.0,
+          "p95": 2258.4,
+          "min": 2127,
+          "max": 2265,
+          "ort": 2196.6,
+          "olculen_tur": 5
+        },
+        "uretilen_token": {
+          "p50": 19.0,
+          "p95": 19.0,
+          "min": 19,
+          "max": 19,
+          "ort": 19,
+          "olculen_tur": 5
+        },
+        "token_saniye": {
+          "p50": 145.5,
+          "p95": 146.0,
+          "min": 144.6,
+          "max": 146.1,
+          "ort": 145.4,
+          "olculen_tur": 5
+        },
+        "cevap_uzunluk": {
+          "p50": 40.0,
+          "p95": 40.0,
+          "min": 40,
+          "max": 40,
+          "ort": 40,
+          "olculen_tur": 5
+        },
+        "toplam_ms": {
+          "p50": 201.0,
+          "p95": 221.5,
+          "min": 160.6,
+          "max": 225.1,
+          "ort": 191.1,
+          "olculen_tur": 5
+        }
+      }
+    },
+    "uzun_anlatim": {
+      "soru": "Bir yazilim projesinde teknik borcun nasil biriktigini, hangi belirtilerle fark edildigini ve nasil geri odendigini adim adim, ornekler vererek uzun uzun anlat.",
+      "turlar": [
+        {
+          "soru": "Bir yazilim projesinde teknik borcun nasil biriktigini, hangi belirtilerle fark edildigini ve nasil geri odendigini adim adim, ornekler vererek uzun uzun anlat.",
+          "arac": null,
+          "cevap_uzunluk": 3338,
+          "arac_tespiti_ms": 0.1,
+          "arac_calistirma_ms": null,
+          "prompt_insa_ms": 1.4,
+          "model_duvar_ms": 7467.8,
+          "sonrasi_ms": 3.5,
+          "toplam_ms": 7472.7,
+          "model_yukleme_ms": 2.1,
+          "model_prompt_eval_ms": 20.0,
+          "model_uretim_ms": 7436.0,
+          "model_bildirilen_toplam_ms": 7466.4,
+          "prompt_token": 2175,
+          "uretilen_token": 1024,
+          "token_saniye": 137.7,
+          "prompt_karakter": 6385,
+          "model": "llama3.2:latest"
+        },
+        {
+          "soru": "Bir yazilim projesinde teknik borcun nasil biriktigini, hangi belirtilerle fark edildigini ve nasil geri odendigini adim adim, ornekler vererek uzun uzun anlat.",
+          "arac": null,
+          "cevap_uzunluk": 3635,
+          "arac_tespiti_ms": 0.1,
+          "arac_calistirma_ms": null,
+          "prompt_insa_ms": 1.6,
+          "model_duvar_ms": 8001.9,
+          "sonrasi_ms": 3.5,
+          "toplam_ms": 8007.0,
+          "model_yukleme_ms": 2.1,
+          "model_prompt_eval_ms": 240.1,
+          "model_uretim_ms": 7745.1,
+          "model_bildirilen_toplam_ms": 8000.6,
+          "prompt_token": 3274,
+          "uretilen_token": 1024,
+          "token_saniye": 132.2,
+          "prompt_karakter": 9990,
+          "model": "llama3.2:latest"
+        },
+        {
+          "soru": "Bir yazilim projesinde teknik borcun nasil biriktigini, hangi belirtilerle fark edildigini ve nasil geri odendigini adim adim, ornekler vererek uzun uzun anlat.",
+          "arac": null,
+          "cevap_uzunluk": 3632,
+          "arac_tespiti_ms": 0.1,
+          "arac_calistirma_ms": null,
+          "prompt_insa_ms": 1.8,
+          "model_duvar_ms": 8452.0,
+          "sonrasi_ms": 3.1,
+          "toplam_ms": 8457.0,
+          "model_yukleme_ms": 2.8,
+          "model_prompt_eval_ms": 544.0,
+          "model_uretim_ms": 7829.6,
+          "model_bildirilen_toplam_ms": 8451.3,
+          "prompt_token": 3297,
+          "uretilen_token": 1024,
+          "token_saniye": 130.8,
+          "prompt_karakter": 13892,
+          "model": "llama3.2:latest"
+        },
+        {
+          "soru": "Bir yazilim projesinde teknik borcun nasil biriktigini, hangi belirtilerle fark edildigini ve nasil geri odendigini adim adim, ornekler vererek uzun uzun anlat.",
+          "arac": null,
+          "cevap_uzunluk": 3635,
+          "arac_tespiti_ms": 0.1,
+          "arac_calistirma_ms": null,
+          "prompt_insa_ms": 1.5,
+          "model_duvar_ms": 8643.4,
+          "sonrasi_ms": 3.2,
+          "toplam_ms": 8648.1,
+          "model_yukleme_ms": 1.6,
+          "model_prompt_eval_ms": 550.8,
+          "model_uretim_ms": 7997.6,
+          "model_bildirilen_toplam_ms": 8642.2,
+          "prompt_token": 3317,
+          "uretilen_token": 1024,
+          "token_saniye": 128.0,
+          "prompt_karakter": 17791,
+          "model": "llama3.2:latest"
+        },
+        {
+          "soru": "Bir yazilim projesinde teknik borcun nasil biriktigini, hangi belirtilerle fark edildigini ve nasil geri odendigini adim adim, ornekler vererek uzun uzun anlat.",
+          "arac": null,
+          "cevap_uzunluk": 3635,
+          "arac_tespiti_ms": 0.1,
+          "arac_calistirma_ms": null,
+          "prompt_insa_ms": 1.3,
+          "model_duvar_ms": 8576.4,
+          "sonrasi_ms": 3.1,
+          "toplam_ms": 8580.9,
+          "model_yukleme_ms": 1.5,
+          "model_prompt_eval_ms": 552.1,
+          "model_uretim_ms": 7915.2,
+          "model_bildirilen_toplam_ms": 8575.3,
+          "prompt_token": 3316,
+          "uretilen_token": 1024,
+          "token_saniye": 129.4,
+          "prompt_karakter": 21586,
+          "model": "llama3.2:latest"
+        }
+      ],
+      "ozet": {
+        "tur": 5,
+        "arac_tespiti_ms": {
+          "p50": 0.1,
+          "p95": 0.1,
+          "min": 0.1,
+          "max": 0.1,
+          "ort": 0.1,
+          "olculen_tur": 5
+        },
+        "prompt_insa_ms": {
+          "p50": 1.5,
+          "p95": 1.8,
+          "min": 1.3,
+          "max": 1.8,
+          "ort": 1.5,
+          "olculen_tur": 5
+        },
+        "model_duvar_ms": {
+          "p50": 8452.0,
+          "p95": 8630.0,
+          "min": 7467.8,
+          "max": 8643.4,
+          "ort": 8228.3,
+          "olculen_tur": 5
+        },
+        "model_yukleme_ms": {
+          "p50": 2.1,
+          "p95": 2.7,
+          "min": 1.5,
+          "max": 2.8,
+          "ort": 2.0,
+          "olculen_tur": 5
+        },
+        "model_prompt_eval_ms": {
+          "p50": 544.0,
+          "p95": 551.8,
+          "min": 20.0,
+          "max": 552.1,
+          "ort": 381.4,
+          "olculen_tur": 5
+        },
+        "model_uretim_ms": {
+          "p50": 7829.6,
+          "p95": 7981.1,
+          "min": 7436.0,
+          "max": 7997.6,
+          "ort": 7784.7,
+          "olculen_tur": 5
+        },
+        "model_bildirilen_toplam_ms": {
+          "p50": 8451.3,
+          "p95": 8628.8,
+          "min": 7466.4,
+          "max": 8642.2,
+          "ort": 8227.2,
+          "olculen_tur": 5
+        },
+        "sonrasi_ms": {
+          "p50": 3.2,
+          "p95": 3.5,
+          "min": 3.1,
+          "max": 3.5,
+          "ort": 3.3,
+          "olculen_tur": 5
+        },
+        "prompt_token": {
+          "p50": 3297.0,
+          "p95": 3316.8,
+          "min": 2175,
+          "max": 3317,
+          "ort": 3075.8,
+          "olculen_tur": 5
+        },
+        "uretilen_token": {
+          "p50": 1024.0,
+          "p95": 1024.0,
+          "min": 1024,
+          "max": 1024,
+          "ort": 1024,
+          "olculen_tur": 5
+        },
+        "token_saniye": {
+          "p50": 130.8,
+          "p95": 136.6,
+          "min": 128.0,
+          "max": 137.7,
+          "ort": 131.6,
+          "olculen_tur": 5
+        },
+        "cevap_uzunluk": {
+          "p50": 3635.0,
+          "p95": 3635.0,
+          "min": 3338,
+          "max": 3635,
+          "ort": 3575,
+          "olculen_tur": 5
+        },
+        "toplam_ms": {
+          "p50": 8457.0,
+          "p95": 8634.7,
+          "min": 7472.7,
+          "max": 8648.1,
+          "ort": 8233.1,
+          "olculen_tur": 5
+        }
+      }
+    }
+  }
+}
