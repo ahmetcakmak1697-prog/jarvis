@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "olculdu": "2026-09-09T22:16:46",
+  "mod": "tam",
+  "model": "llama3.1:latest",
+  "gecersiz_tur": 0,
+  "uyarilar": [
+    "[duydum] Ne haber nasılsın?",
+    "[ses] stt_no_input: no_speech_detected"
+  ],
+  "turlar": [
+    {
+      "soru": "Ne haber nasılsın?",
+      "cevap_uzunluk": 115,
+      "ses_kaniti": true,
+      "girdi_ms": 11574.1,
+      "model_ms": 3473.1,
+      "sentez_ve_oynatma_ms": 12976.1,
+      "tur_ms": 28023.3
+    }
+  ],
+  "ozet": {
+    "tur": 1,
+    "girdi_ms": {
+      "p50": 11574.1,
+      "p95": 11574.1,
+      "min": 11574.1,
+      "max": 11574.1,
+      "ort": 11574.1
+    },
+    "model_ms": {
+      "p50": 3473.1,
+      "p95": 3473.1,
+      "min": 3473.1,
+      "max": 3473.1,
+      "ort": 3473.1
+    },
+    "sentez_ve_oynatma_ms": {
+      "p50": 12976.1,
+      "p95": 12976.1,
+      "min": 12976.1,
+      "max": 12976.1,
+      "ort": 12976.1
+    },
+    "tur_ms": {
+      "p50": 28023.3,
+      "p95": 28023.3,
+      "min": 28023.3,
+      "max": 28023.3,
+      "ort": 28023.3
+    },
+    "hedef_ms": 1500,
+    "pusula_araligi_olculdu": false,
+    "olculmeyen_sinirlar": "VAD konusma-sonu ani ve ilk ses olayi OLCULMUYOR: STTResult VAD sonunu vermiyor, TTSResult.first_audio_hint_ms yalniz sentez suresi (kendi uyarisi: 'playback start is not measured'). Olculen tur_ms PUSULA araligini kapsar, yani onun UST SINIRIDIR.",
+    "p50_hukum": "BELIRSIZ",
+    "p95_hukum": "BELIRSIZ"
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "olculdu": "2026-09-09T22:18:35",
+  "mod": "tam",
+  "model": "llama3.1:latest",
+  "gecersiz_tur": 0,
+  "uyarilar": [
+    "[duydum] Daha bir ver nasılsın, iyi misin?",
+    "[duydum] Sadece pazıpanko'nun stünyü ne ya?",
+    "[duydum] Saçma sapan konuşuyorsun.  Buna ne diyorsun?",
+    "[duydum] Neden Türkçe bu kadar kötü?",
+    "[duydum] Türkiye'de konuşmak için çok daha iyi konuşmaya çalışıyor."
+  ],
+  "turlar": [
+    {
+      "soru": "Daha bir ver nasılsın, iyi misin?",
+      "cevap_uzunluk": 194,
+      "ses_kaniti": true,
+      "girdi_ms": 9109.7,
+      "model_ms": 1067.5,
+      "sentez_ve_oynatma_ms": 17634.4,
+      "tur_ms": 27811.6
+    },
+    {
+      "soru": "Sadece pazıpanko'nun stünyü ne ya?",
+      "cevap_uzunluk": 133,
+      "ses_kaniti": true,
+      "girdi_ms": 6939.3,
+      "model_ms": 4367.4,
+      "sentez_ve_oynatma_ms": 12522.9,
+      "tur_ms": 23829.7
+    },
+    {
+      "soru": "Saçma sapan konuşuyorsun.  Buna ne diyorsun?",
+      "cevap_uzunluk": 62,
+      "ses_kaniti": true,
+      "girdi_ms": 7341.3,
+      "model_ms": 475.4,
+      "sentez_ve_oynatma_ms": 7698.2,
+      "tur_ms": 15514.8
+    },
+    {
+      "soru": "Neden Türkçe bu kadar kötü?",
+      "cevap_uzunluk": 91,
+      "ses_kaniti": true,
+      "girdi_ms": 5734.3,
+      "model_ms": 687.4,
+      "sentez_ve_oynatma_ms": 10688.3,
+      "tur_ms": 17109.9
+    },
+    {
+      "soru": "Türkiye'de konuşmak için çok daha iyi konuşmaya çalışıyor.",
+      "cevap_uzunluk": 86,
+      "ses_kaniti": true,
+      "girdi_ms": 10211.8,
+      "model_ms": 601.5,
+      "sentez_ve_oynatma_ms": 9674.7,
+      "tur_ms": 20488.0
+    }
+  ],
+  "ozet": {
+    "tur": 5,
+    "girdi_ms": {
+      "p50": 7341.3,
+      "p95": 9991.4,
+      "min": 5734.3,
+      "max": 10211.8,
+      "ort": 7867.3
+    },
+    "model_ms": {
+      "p50": 687.4,
+      "p95": 3707.4,
+      "min": 475.4,
+      "max": 4367.4,
+      "ort": 1439.8
+    },
+    "sentez_ve_oynatma_ms": {
+      "p50": 10688.3,
+      "p95": 16612.1,
+      "min": 7698.2,
+      "max": 17634.4,
+      "ort": 11643.7
+    },
+    "tur_ms": {
+      "p50": 20488.0,
+      "p95": 27015.2,
+      "min": 15514.8,
+      "max": 27811.6,
+      "ort": 20950.8
+    },
+    "hedef_ms": 1500,
+    "pusula_araligi_olculdu": false,
+    "olculmeyen_sinirlar": "VAD konusma-sonu ani ve ilk ses olayi OLCULMUYOR: STTResult VAD sonunu vermiyor, TTSResult.first_audio_hint_ms yalniz sentez suresi (kendi uyarisi: 'playback start is not measured'). Olculen tur_ms PUSULA araligini kapsar, yani onun UST SINIRIDIR.",
+    "p50_hukum": "BELIRSIZ",
+    "p95_hukum": "BELIRSIZ"
+  }
+}
