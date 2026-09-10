@@ -63,9 +63,21 @@ commit mesajları, `HUMAN_NEEDED` maddeleri, yol haritası durumu, ve
 uyguluyor. **Dışarı giden prompt'a hiçbir şey uygulanmıyor** — bugüne kadar
 gerek yoktu, çünkü model yereldi.
 
-**Gerekli:** dış modele gitmeden önce **giden yük** veri sınıfı denetiminden
-geçer. Hassas içerik varsa tur dışarı çıkmaz — yerelde kalır ya da reddedilir.
-Hangisi olduğunu ölç ve seç; sessizce göndermek yok.
+**Gerekli — karar ajana bırakılmıyor, mekanizma burada yazılı:**
+
+Dış modele gitmeden önce **giden yükün tamamı** (system prompt + kullanıcı
+mesajı) `RedactionGuard().contains_sensitive_data()` ile denetlenir.
+`agents/redaction_guard.py:103` — **yeni tespit mantığı yazma**, var olanın
+`bool` sonucunu kullan (§9 adopt-over-build).
+
+Sonuç `True` ise: **tur dışarı çıkmaz**, yerel modele düşer, ve kullanıcı
+2c'deki mekanizmayla bilgilendirilir. Reddetme yok — cevap yine gelir,
+yalnız yerelden gelir.
+
+Denetim **başarısız olursa** (guard istisna atarsa) tur yine dışarı çıkmaz.
+`voice/voice_loop.py:158-164` bu deseni zaten uyguluyor ve gerekçesi orada
+yazılı: *"Codex B10 router'da bunun tersini buldu: guard hatası yutulup dış
+çağrı yine de yapılıyordu."* Aynı hatayı burada tekrarlama.
 
 Bu maddenin testi kartın en önemli testidir.
 
@@ -88,6 +100,27 @@ düşme).
 **Ama sessiz olmaz.** Sessizce llama'ya düşmek, PUSULA'nın sessizce yeniden
 kırılması demektir — bugün öğrendiğimiz tam olarak bu. Kullanıcı hangi
 modelde olduğunu **bilecek**.
+
+**Mekanizma — yeni bir şey icat etme.** `voice/voice_loop.py` bunu zaten
+yapıyor: `_duyur()` kullanıcıya `[ses] ...` önekli, **seslendirilmeyen** bir
+uyarı basıyor. Ve bu senaryonun tam kardeşi orada duruyor:
+
+```
+"[ses] Bu cevap hassas veri iceriyor; bulut sentezine gondermedim,
+ ekranda birakiyorum."
+```
+
+Aynı deseni kullan. **Yapılandırmadan mesaj okuma** — bu proje kullanıcıya
+dönük metinleri kodda tutuyor (`agents/persona.py` de öyle). §7.1'in "koda
+gömülmez" kuralı **model adları** içindir, kullanıcı mesajları için değil.
+
+Bildirim üç durumda çıkar ve **üçü ayırt edilebilir olmalı:**
+
+1. hassas içerik yüzünden yerelde kalındı (2a)
+2. ağ/API hatası yüzünden yerele düşüldü (2c)
+3. kullanıcı "yerel kal" dedi (2b)
+
+Üçüne aynı cümleyi kullanma — kullanıcı hangisinin olduğunu bilmeli.
 
 ---
 
@@ -114,6 +147,16 @@ Başka alanına dokunma; diff'i raporda göster.
   kullanıcı bilgilendirilmeli. Sessiz düşme testi kırmızı yanmalı.
 
 Dış çağrı sahte uçla sayılır; testler ağa çıkmaz.
+
+**Testin kendisi de sınanacak — bu madde atlanamaz.** `call_count == 0`
+iddia eden bir test, kapı hiç kurulmamışken de yeşil yanabilir; o zaman
+test kusuru değil kendi kurgusunu ölçer. Her üç test için **kapıyı bellekte
+devre dışı bırak** (guard'ı `False` döndür, "yerel kal" tespitini kapat,
+hata yolunu kaldır) ve testin **kırmızı yandığını GÖR**. Yanmıyorsa test
+değersizdir ve yeniden yazılır.
+
+Bu, `scripts/mutation_gate.py`'nin mantığının elle uygulanmasıdır: bir test
+ancak kusur geri konduğunda düşüyorsa o kusuru koruyor demektir.
 
 ### ADIM 3 — Canlı doğrulama: PUSULA his-testi
 
@@ -145,8 +188,17 @@ değil, ama sürekli açık bir ev asistanı **yeni bir harcama deseni**.
 Bu kart hard limit istemiyor. İstediği: **günlük çağrı sayısı ve token
 toplamı sayılsın ve görünür olsun.** Ölçülmeyen harcama, yönetilemeyen
 harcamadır. `CostLedger(daily_limit=0)`'ın "unlimited" döndüğü ölçüldü
-(`cost_ledger.py:78`) — sayaç bunu bilerek kullanabilir, ama **sayı bir
-yerde yazmalı.**
+(`cost_ledger.py:78`) — sayaç bunu bilerek kullanabilir.
+
+**Hedef belirsiz bırakılmıyor:** `CostLedger` zaten
+`cost_ledger.jsonl`'e append ediyor (`agents/cost_ledger.py`,
+`DEFAULT_FILENAME`, `_append()`). **Yeni dosya, yeni dizin, yeni tablo
+açma; `print()` ile geçiştirme.** Var olan ledger'a yaz (§9
+adopt-over-build). Token toplamı ledger'ın kaydına sığmıyorsa alan ekle,
+mekanizmayı değiştirme.
+
+Kabul ölçütü: koşudan sonra `cost_ledger.jsonl` o günün çağrılarını
+içeriyor ve sayı testle doğrulanıyor.
 
 ---
 
@@ -167,8 +219,17 @@ yerde yazmalı.**
 
 - Model seçimi yapılandırmadan geliyor; `local_agent.py`'de model adı yok.
 - 2a / 2b / 2c için testler var, üçü de önce kırmızı görüldü.
+- **Üç testin üçü de mutasyon sınamasından geçti:** kapı bellekte devre dışı
+  bırakıldığında test **kırmızı yanıyor**. Yanmayan test yeniden yazıldı.
+- Giden yük denetimi `RedactionGuard.contains_sensitive_data()` kullanıyor;
+  **yeni tespit mantığı yazılmadı**. Guard istisna atınca da tur dışarı
+  çıkmıyor ve bunun testi var.
+- Üç geri-düşme bildirimi (hassas / ağ hatası / "yerel kal") **birbirinden
+  ayırt edilebilir** ve `_duyur()` deseniyle veriliyor; seslendirilmiyor.
+- Günlük çağrı ve token sayısı **`cost_ledger.jsonl`'e** yazılıyor
+  (yeni dosya/dizin açılmadı, `print()` ile geçiştirilmedi) ve sayı testle
+  doğrulanıyor.
 - **Raporda gerçek bir "nerede kaldık" cevabı var** ve his-testini geçiyor.
 - Gecikme üç sınıf için ölçüldü ve dünkü sayıların yanında.
-- Günlük çağrı/token sayacı çalışıyor ve bir yere yazıyor.
 - Kapı iki sırada yeşil, ruff ≤ 283.
 - `git diff` yalnız isimli dosyaları gösteriyor.

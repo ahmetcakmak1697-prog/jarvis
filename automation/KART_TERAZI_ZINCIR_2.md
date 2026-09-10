@@ -77,17 +77,31 @@ sayılmadığını** iddia eden test. Şu an geçmemeli.
 
 Bu adım isteğe bağlı değil ve kartın asıl işi budur.
 
-Korpusu daraltmak, gerçek bir sızıntıyı **görünmez** yapabilir. Ölç:
+Korpusu daraltmak, gerçek bir sızıntıyı **görünmez** yapabilir.
 
-- Kayıtlı tüm koşuları (`automation/KALITE_*.json`) yeni korpusla yeniden
-  puanla.
-- **Daha önce yakalanan hangi gerçek sızıntı artık yakalanmıyor?** Varsa
-  adıyla yaz. Bir tane bile varsa **DUR ve söyle** — o zaman blok bazlı
-  değil daha dar bir çıkarma gerekir.
-- `t1_mix_003` gibi persona'yı bütünüyle döken bir cevap **hâlâ**
-  yakalanmalı. Bunu testle kilitle.
+**Ölçüm MEKANİK olacak — "hangisi gerçek sızıntıydı" diye yorum yapma.**
+Ajan eski koşulara bakıp bir yakalamanın "gerçek" mi "yanlış alarm" mı
+olduğuna karar veremez; öyle bir etiket veride yok. Bunun yerine küme
+farkına bak:
 
-Mevcut testleri (`test_style_examples_are_not_leaks` vb.) bozma.
+1. `_LEAK_NGRAMS` kümesini **değişiklikten önce ve sonra** hesapla.
+2. **Kaybolan n-gram kümesi**, yalnız `_YONTEM` bloğundan türeyenlerin
+   kümesine eşit olmalı. Fazlası varsa çıkarma çok geniş demektir → **DUR.**
+3. Kayıtlı tüm koşuları (`automation/KALITE_*.json`) yeni korpusla yeniden
+   puanla. `prompt_leak` değeri **True→False** dönen her vakayı listele.
+4. Bu vakaların her birinin eski `prompt_leak_hits` listesi, adım 2'deki
+   kaybolan kümenin **alt kümesi** olmalı. Olmayan tek bir vaka bile
+   varsa → **DUR ve söyle.**
+5. Dönen vakaları `id` + eski `hits` ile rapora yaz. Bu liste insan gözüyle
+   okunacak; ajanın hüküm vermesi istenmiyor, **görünür kılması** isteniyor.
+
+Ayrıca `t1_mix_003` gibi persona'yı bütünüyle döken bir cevap **hâlâ**
+yakalanmalı — bunu testle kilitle.
+
+Mevcut iki testi bozma: `test_style_examples_are_not_leaks` ve
+`test_leak_corpus_is_derived_from_the_persona_ssot`. İkincisi korpusun
+SSOT'tan **türetilmesini** şart koşuyor; blok çıkarma da türetmenin parçası
+olmalı, elle yazılmış bir liste değil.
 
 ### 3. Kapı
 
@@ -108,6 +122,11 @@ Bu söz ödenmedi çünkü zincir haklı olarak durdu. Şimdi ödenecek.
 kusuru betona gömer. Sıra: sızıntı düzeltilir → **iki model de yeniden
 koşulur** (llama3.1 + deepseek-chat, yeni tanım + düzeltilmiş dedektör) →
 taban o sayılarla kaydedilir.
+
+**DeepSeek koşusu `runtime_profiles.json` GEREKTİRMEZ.** Kalite koşucusu
+sağlayıcıyı bayrakla alıyor: `--saglayici deepseek`, model gerekiyorsa
+`--model deepseek/deepseek-chat`. Aşağıdaki "dokunma" sınırıyla çelişki
+yoktur — profil dosyasına dokunmadan koşuyu izole çalıştır.
 
 Kurallar:
 
@@ -139,6 +158,15 @@ meselesinden bağımsızdır, plumbing işidir.
 
 Gemini OpenAI-uyumlu **değildir**; `sekil` alanıyla ayır.
 
+**"Gerçek çağrı yapılmadı" iddiası KANITLANACAK, beyan edilmeyecek.**
+Testlerde `_http_json` yerine, çağrıldığı anda `AssertionError` atan bir
+sahte uç koy. Böylece ağa çıkmaya çalışan her kod yolu **gürültülü** düşer;
+sessizce başarılı olamaz. Yeni sağlayıcıların hiçbiri için gerçek uç
+kullanılmadığı bu şekilde mekanik olarak gösterilir.
+
+Bu, `--tahmin` bayrağı için de geçerli: tahmin **hiçbir çağrı yapmadan**
+hesaplanır ve testi bunu aynı sahte uçla kanıtlar.
+
 ---
 
 ## Zincir boyunca sınırlar
@@ -152,12 +180,20 @@ Gemini OpenAI-uyumlu **değildir**; `sekil` alanıyla ayır.
 
 ## Bitti sayılma ölçütü
 
-- ETAP 4: sızıntı testi önce kırmızı görüldü; `_YONTEM` korpustan çıktı;
-  **kapsam kaybı ölçüldü ve raporda yazılı**; `t1_mix_003` hâlâ yakalanıyor.
-- ETAP 5: iki model yeni tanımla koşuldu; `passing_threshold` gerçek
+- ETAP 4: sızıntı testi önce kırmızı görüldü; `_YONTEM` korpustan çıktı.
+- ETAP 4 — **kapsam kaybı MEKANİK olarak ölçüldü:** kaybolan n-gram kümesi
+  `_YONTEM`'den türeyenlere eşit; `prompt_leak` True→False dönen her vakanın
+  eski `hits` listesi o kümenin alt kümesi; dönen vakalar `id` + eski `hits`
+  ile raporda listeli. Hiçbir yerde "bu gerçek sızıntıydı" hükmü verilmedi.
+- ETAP 4: `t1_mix_003` hâlâ yakalanıyor; `test_style_examples_are_not_leaks`
+  ve `test_leak_corpus_is_derived_from_the_persona_ssot` yeşil.
+- ETAP 5: iki model yeni tanımla koşuldu (`--saglayici` bayrağıyla,
+  `runtime_profiles.json`'a **dokunulmadan**); `passing_threshold` gerçek
   sayıları taşıyor; `olcum_tanimi` dedektör sürümünü de içeriyor;
   `CLAUDE.md` §13.2 güncel; eski sayılar tanımlarıyla duruyor.
 - ETAP 6: dört sağlayıcı kayıtlı, doğrulanmamış alanlar `None` ve listeli,
-  `config/model_fiyatlari.json` `null` sayılarla var, **hiçbir gerçek çağrı
-  yapılmamış**.
+  `config/model_fiyatlari.json` `null` sayılarla var.
+- ETAP 6 — **"gerçek çağrı yok" KANITLANDI:** `_http_json` yerine çağrıldığı
+  anda `AssertionError` atan sahte uç kondu; süit bununla yeşil geçti.
+  Beyan değil, mekanik kanıt.
 - Üç etap, üç commit, üçünde de kapı iki sırada yeşil ve ruff ≤ 283.
