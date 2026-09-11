@@ -220,7 +220,40 @@ kapanmadan envanter kör noktası tam kapanmaz.
 
 ---
 
-## K4 — Envanterin otomatik bölümü bayat: `gui.py` hâlâ canlı giriş noktası
+## K4 — Envanterin otomatik bölümü bayat: `gui.py` hâlâ canlı giriş noktası ✅ KAPANDI
+
+**Commit:** `2195195` · test yok — yalnız belge; üretici değişmedi, yalnız
+çalıştırıldı (önce `graphify update .` ile ikinci kaynak aynı ağaca getirildi).
+
+Otomatik bölüm `4824760`'ta (2026-09-06 13:33) üretilmiş ve bir daha hiç
+üretilmemişti — `gui.py`'nin emekliliğinden (B02) **6 saat önce**.
+
+```
+izlenen .py                  306 -> 335   (test 151 -> 176, test disi 155 -> 159)
+CANLI / YALNIZ-TEST / YETIM  118/175/13 -> 121/200/14
+main.py erisir                24 -> 27    (agent/cloud_llm.py dahil)
+agent/local_agent.py          14 -> 18
+jarvis_desktop.py             15 -> 19
+gui.py                        15 -> satir yok (diskte yok)
+ayristirilamayan               3 -> 1     (agents/api_executor.py -- Codex'te)
+```
+
+`gui.py` ve `agent/jarvis_agent.py` §B/§C/§E'den düştü;
+`agent/jarvis_agent.py` artık §G'de ("belgede var, kod yok") — doğru yer.
+`gui.py` §G'de de görünmüyor → K15.
+
+**B08 bu bölümü elle düzenlemişti** (`61bdbf4`): `agent/jarvis_agent.py`
+satırlarını silip "agent — 4 dosya" başlığını bırakmıştı (3 satırlık
+tabloda 4). Yeniden üretim bunu kendiliğinden kapattı.
+
+İşaretçinin üstü korundu: satır sonu normalize edilince 205/205 satır aynı.
+
+Kapı: 1978 passed / 2 xfailed (iki sırada), uyarı 2, ruff 283.
+
+**Yan bulgular:** K15 (üretici §G'yi yanlış ölçüyor), K16 (elle yazılmış
+bölüm artık otomatik bölümle çelişiyor — ses yolu değişti).
+
+*Aşağısı maddenin yazıldığı andaki kayıttır.*
 
 **Nerede:** `docs/JARVIS_ENVANTER.md` §B (giriş noktaları tablosu)
 
@@ -294,6 +327,9 @@ kurulmadığı testle gösterildi; `self.memory` hâlâ `JarvisMemory`.
 ---
 
 ## K7 — Öneri belgeleri tamamlanmış iş gibi okunuyor
+
+> **Önce K15** (2026-09-11'de eklendi): bu maddenin listesi envanter
+> §G'den üretilecek ve §G şu an kendi çıktısını tarıyor — K4'te ölçüldü.
 
 **Nerede:** `docs/OSS_HARVEST_REPORT_2026-08.md` ·
 `automation/FAZ4_ADIM_ONERISI.md` — envanter §G, Ç4
@@ -458,6 +494,80 @@ komutu gerektirmeden çalışıyor; ortam değişkeni zaten tanımlıysa
 **`.env` onu ezmiyor** (öncelik: gerçek ortam > dosya); `.env` yoksa
 davranış değişmiyor. Anahtarın hiçbir kod yolunda loglanmadığı testle
 kilitli. **`.env` dosyasının içeriği hiçbir teste girmez** (§9).
+
+**Büyüklük:** küçük
+
+---
+
+## K15 — Envanter §G'yi yanlış ölçüyor: kendi çıktısını tarıyor, `.venv`'i "var" sayıyor
+
+**Nerede:** `scripts/envanter_uret.py` → `belgede_gecen_olmayan_py()`
+
+**Ölçüldü (2026-09-11, K4 sırasında yan bulgu):**
+
+1. **Kendi çıktısını tarıyor.** Taranan `.md` listesi (`git ls-files
+   *.md`) `docs/JARVIS_ENVANTER.md`'yi dışlamıyor. K4 koşusunda eski
+   §G'nin 21 satırının 21'ine de "nerede anılıyor" olarak envanterin
+   kendisi girdi. Kodun doğrudan sonucu (deneyle ayrıca sınanmadı): §G'ye
+   bir kez giren dosya, onu anan belge düzeltilse bile **bir daha
+   düşmez** — envanterin eski §G'si onu anmaya devam eder.
+2. **`.venv`'i repo sayıyor.** "Var mı" kontrolü basename glob'unu
+   (`**/<ad>`) tüm ağaçta, `.venv` dahil yapıyor. `gui.py` 9 izlenen
+   belgede anılıyor ve diskte yok, ama
+   `.venv/Lib/site-packages/fsspec/gui.py` ile `tqdm/gui.py` eşleştiği
+   için §G'de **görünmüyor**. Aynı ayrımı `tests/test_kaynak_hijyeni.py`
+   `_ATLANAN` kümesiyle zaten yapıyor.
+
+**Neden imza gerekmiyor:** Doğru davranış tartışmalı değil — envanter
+kendi çıktısını kanıt sayamaz, üçüncü parti paket repo dosyası değildir.
+Ama §G'nin sayısı değişir (ölçüm tanımı); bu yüzden K4'e katılmadı ve
+commit mesajında öncesi/sonrası yazılır.
+
+**Neden önemli:** K7 bu listeyi girdi olarak kullanıyor. Kendini besleyen
+bir liste, "bu belge düzeltildi" anını hiç göstermez.
+
+**Kabul ölçütü:** Envanter kendi çıktısını taramıyor (testle); `.venv` ve
+üçüncü parti dizinler varlık kontrolüne girmiyor, `gui.py` §G'de
+görünüyor (testle); envanter yeniden üretildi, §G öncesi/sonrası commit
+mesajında.
+
+**Büyüklük:** küçük
+
+**Sıra:** K7'den önce.
+
+---
+
+## K16 — Envanterin elle yazılmış bölümü artık otomatik bölümle çelişiyor
+
+**Nerede:** `docs/JARVIS_ENVANTER.md`, işaretçinin üstü (§0–§4)
+
+**Ölçüldü (2026-09-11, K4'ün tazelediği otomatik bölüme karşı):**
+
+| Elle yazılmış (2026-09-06) | Şimdi ölçülen |
+|---|---|
+| §0: `main.py` 24 dosyaya ulaşıyor | 27 |
+| §0: ortak küme 8, "hiçbir karar katmanı paylaşılmıyor" | 11 — `cost_ledger`, `redaction_guard`, `web_research_policy` artık ses yolunda (`agent/local_agent.py` doğrudan import ediyor) |
+| §0: "`local_agent.py` doğrudan Ollama'ya gidiyor" | `agent/cloud_llm.py`'yi import ediyor (`23943c6`) |
+| §1: "bu hatta olmayanlar" arasında `cost_ledger`, `redaction_guard` | ikisi de `main.py`'den 2 adım |
+| §2: "`.env` diskte yok" | var (§F: EVET — yalnız varlık kontrol edildi) |
+| §4.2: `tools/tools.py` `exec`/`eval`, L482/L509 | yok — B09 (`4778d72`) kaldırdı, §E'den düştü |
+| §1 ve §4.1: `voice/voice_loop.py:165` `sys.path` | artık L204 |
+
+Bunlar **statik** ölçüm. `cost_ledger`'ın ses yolunda import edilmesi
+bütçe kapısının bağlı olduğunu kanıtlamaz — `agents/api_budget_gate.py`
+hâlâ YALNIZ-TEST. §1'deki `main.py:NNN` satır numaraları yeniden
+doğrulanmadı [DOĞRULANMADI].
+
+**Neden imza gerekmiyor:** Ölçülmüş olgunun belgeye işlenmesi; hüküm
+yok. Eski cümleler silinmez, tarihiyle durur (`CLAUDE.md` §7.0 deseni).
+
+**Neden önemli:** §0 belgenin manşeti. "Maliyet defteri yalnız Telegram
+tarafında" diyen bir envanter, §7.0b'yi (maliyet kapısı zorunlu)
+değerlendiren birini yanlış yere baktırır.
+
+**Kabul ölçütü:** §0–§4'teki her sayısal ve yapısal iddia ya tazelendi
+ya "2026-09-06 ölçümü" diye tarihli işaretlendi; hiçbir cümle silinmedi;
+yeni sayılar otomatik bölümden alındı, elle sayılmadı.
 
 **Büyüklük:** küçük
 
