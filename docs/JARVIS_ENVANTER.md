@@ -209,21 +209,21 @@ Asagidaki eski httpx gozlemi tarihseldir.
 
 ## A. Sayilar
 
-Izlenen `.py`: **306** (test: 151, test disi: 155)
+Izlenen `.py`: **335** (test: 176, test disi: 159)
 
 | Sinif | Adet |
 |---|---|
-| CANLI | 118 |
-| YALNIZ-TEST | 175 |
-| YETIM | 13 |
+| CANLI | 121 |
+| YALNIZ-TEST | 200 |
+| YETIM | 14 |
 
 Test disi dosyalarin sinif dagilimi:
 
 | Sinif | Adet |
 |---|---|
-| CANLI | 118 |
+| CANLI | 121 |
 | YALNIZ-TEST | 24 |
-| YETIM | 13 |
+| YETIM | 14 |
 
 ## B. Giris noktalari
 
@@ -231,12 +231,11 @@ Test disi dosyalarin sinif dagilimi:
 
 | Dosya | Buradan erisilen dosya sayisi |
 |---|---|
-| `main.py` | 24 |
-| `gui.py` | 15 |
-| `jarvis_desktop.py` | 15 |
+| `main.py` | 27 |
+| `jarvis_desktop.py` | 19 |
 | `jarvis_server.py` | 35 |
 | `jarvis_brain.py` | 22 |
-| `agent/local_agent.py` | 14 |
+| `agent/local_agent.py` | 18 |
 | `tools/telegram_agent.py` | 49 |
 
 **PARK EDILMIS (CLAUDE.md §9 — CALISTIRMA).** Grafige neyi besledigi gorunsun diye dahil edildi.
@@ -245,27 +244,26 @@ Test disi dosyalarin sinif dagilimi:
 |---|---|
 | `auto_runner.py` | 2 |
 
-**B — arac kapilari** (29 dosya): olcum, kurulum, bakim. Bunlardan erisilen bir modul CANLI'dir ama ses hattinda olmayabilir; kanit sutunu hangisinden geldigini soyler.
+**B — arac kapilari** (33 dosya): olcum, kurulum, bakim. Bunlardan erisilen bir modul CANLI'dir ama ses hattinda olmayabilir; kanit sutunu hangisinden geldigini soyler.
 
 ## C. Her `.py` dosyasinin sinifi
 
 `kanit` sutunu erisilebilirligin NASIL hesaplandigini soyler: hangi giris noktasindan kac adim.
 
-### `(kok)` — 12 dosya
+### `(kok)` — 11 dosya
 
 | Dosya | Sinif | Kanit | Not |
 |---|---|---|---|
 | `auto_runner.py` | CANLI | giris noktasi (PARK EDILMIS) |  |
-| `config.py` | CANLI | main.py -> 1 adim | `.env` bekliyor |
-| `gui.py` | CANLI | giris noktasi (A) |  |
+| `config.py` | CANLI | main.py -> 1 adim |  |
 | `indir.py` | CANLI | giris noktasi (B: arac) |  |
 | `jarvis_brain.py` | CANLI | giris noktasi (A) |  |
-| `jarvis_desktop.py` | CANLI | giris noktasi (A) | `.env` bekliyor |
-| `jarvis_server.py` | CANLI | giris noktasi (A) | `.env` bekliyor |
-| `jarvis_snapshot.py` | CANLI | giris noktasi (B: arac) | `.env` bekliyor |
-| `main.py` | CANLI | giris noktasi (A) | `.env` bekliyor |
+| `jarvis_desktop.py` | CANLI | giris noktasi (A) |  |
+| `jarvis_server.py` | CANLI | giris noktasi (A) |  |
+| `jarvis_snapshot.py` | CANLI | giris noktasi (B: arac) |  |
+| `main.py` | CANLI | giris noktasi (A) |  |
 | `setup.py` | CANLI | giris noktasi (B: arac) |  |
-| `setup_password.py` | CANLI | giris noktasi (B: arac) | `.env` bekliyor |
+| `setup_password.py` | CANLI | giris noktasi (B: arac) |  |
 | `voice_test.py` | CANLI | giris noktasi (B: arac) |  |
 
 ### `agent` — 4 dosya
@@ -273,6 +271,7 @@ Test disi dosyalarin sinif dagilimi:
 | Dosya | Sinif | Kanit | Not |
 |---|---|---|---|
 | `agent/__init__.py` | CANLI | main.py -> 1 adim |  |
+| `agent/cloud_llm.py` | CANLI | agent/local_agent.py -> 1 adim |  |
 | `agent/local_agent.py` | CANLI | giris noktasi (A) |  |
 | `agent/local_agent_memory.py` | CANLI | agent/local_agent.py -> 1 adim |  |
 
@@ -282,14 +281,14 @@ Test disi dosyalarin sinif dagilimi:
 |---|---|---|---|
 | `agents/__init__.py` | CANLI | main.py -> 1 adim |  |
 | `agents/answer_crystallizer.py` | CANLI | tools/telegram_agent.py -> 1 adim |  |
-| `agents/api_budget_gate.py` | YALNIZ-TEST | yalniz testlerden: tests/test_api_budget_gate.py -> 1 adim |  |
-| `agents/api_executor.py` | CANLI | tools/telegram_agent.py -> 3 adim | `.env` bekliyor |
+| `agents/api_budget_gate.py` | YALNIZ-TEST | yalniz testlerden: tests/b10_execution_support.py -> 1 adim |  |
+| `agents/api_executor.py` | CANLI | tools/telegram_agent.py -> 3 adim |  |
 | `agents/api_executor_adapter.py` | CANLI | tools/telegram_agent.py -> 3 adim |  |
 | `agents/assistant_executor.py` | CANLI | tools/telegram_agent.py -> 1 adim | `config/provider_profiles.json` bekliyor |
 | `agents/audit_logger.py` | CANLI | tools/telegram_agent.py -> 1 adim |  |
 | `agents/auto_updater.py` | CANLI | jarvis_server.py -> 1 adim |  |
-| `agents/blackbox_log.py` | YALNIZ-TEST | yalniz testlerden: tests/test_blackbox_log.py -> 1 adim | `.env` bekliyor |
-| `agents/cost_ledger.py` | CANLI | tools/telegram_agent.py -> 1 adim |  |
+| `agents/blackbox_log.py` | YALNIZ-TEST | yalniz testlerden: tests/test_blackbox_log.py -> 1 adim |  |
+| `agents/cost_ledger.py` | CANLI | agent/local_agent.py -> 1 adim |  |
 | `agents/daily_digest.py` | CANLI | jarvis_server.py -> 1 adim |  |
 | `agents/data_classifier.py` | CANLI | agent/local_agent.py -> 1 adim |  |
 | `agents/e1_s4_smoke_sender.py` | YALNIZ-TEST | yalniz testlerden: tests/test_e1_s4_live_smoke_wiring.py -> 1 adim |  |
@@ -320,13 +319,13 @@ Test disi dosyalarin sinif dagilimi:
 | `agents/ollama_executor.py` | CANLI | tools/telegram_agent.py -> 2 adim |  |
 | `agents/orchestrator.py` | CANLI | jarvis_brain.py -> 1 adim |  |
 | `agents/organ_base.py` | YALNIZ-TEST | yalniz testlerden: tests/test_h1_5_organ_contract.py -> 1 adim |  |
-| `agents/persona.py` | CANLI | agent/local_agent.py -> 1 adim | `.env` bekliyor |
+| `agents/persona.py` | CANLI | agent/local_agent.py -> 1 adim |  |
 | `agents/privacy_level_bridge.py` | CANLI | tools/telegram_agent.py -> 2 adim |  |
 | `agents/proactive_agent.py` | CANLI | jarvis_server.py -> 1 adim |  |
 | `agents/proactive_core.py` | CANLI | jarvis_server.py -> 1 adim |  |
 | `agents/proactive_delivery.py` | YALNIZ-TEST | yalniz testlerden: tests/test_e1_6b_delivery_result.py -> 1 adim |  |
-| `agents/proactive_policy.py` | YALNIZ-TEST | yalniz testlerden: tests/test_e1_6b_delivery_result.py -> 1 adim | `.env` bekliyor |
-| `agents/proactive_runner.py` | YALNIZ-TEST | yalniz testlerden: tests/test_e1_6a_proactive_runner.py -> 1 adim | `.env` bekliyor |
+| `agents/proactive_policy.py` | YALNIZ-TEST | yalniz testlerden: tests/test_e1_6b_delivery_result.py -> 1 adim |  |
+| `agents/proactive_runner.py` | YALNIZ-TEST | yalniz testlerden: tests/test_e1_6a_proactive_runner.py -> 1 adim |  |
 | `agents/proactive_runtime.py` | YALNIZ-TEST | yalniz testlerden: tests/test_e1_6b_delivery_result.py -> 1 adim |  |
 | `agents/proactive_telegram_adapter.py` | YALNIZ-TEST | yalniz testlerden: tests/test_proactive_telegram_adapter.py -> 1 adim |  |
 | `agents/project_intelligence.py` | CANLI | tools/telegram_agent.py -> 1 adim |  |
@@ -334,12 +333,12 @@ Test disi dosyalarin sinif dagilimi:
 | `agents/project_state.py` | CANLI | tools/telegram_agent.py -> 1 adim |  |
 | `agents/project_summarizer.py` | CANLI | tools/telegram_agent.py -> 1 adim |  |
 | `agents/project_workspace.py` | YALNIZ-TEST | yalniz testlerden: tests/test_m0_4_project_workspace.py -> 1 adim |  |
-| `agents/provider_decision.py` | CANLI | tools/telegram_agent.py -> 2 adim | `.env` bekliyor |
+| `agents/provider_decision.py` | CANLI | tools/telegram_agent.py -> 2 adim |  |
 | `agents/provider_profiles.py` | CANLI | agent/local_agent.py -> 2 adim |  |
 | `agents/provider_selector.py` | CANLI | tools/telegram_agent.py -> 2 adim |  |
-| `agents/provider_smoke.py` | YALNIZ-TEST | yalniz testlerden: tests/test_provider_smoke.py -> 1 adim | `.env` bekliyor |
+| `agents/provider_smoke.py` | YALNIZ-TEST | yalniz testlerden: tests/test_provider_smoke.py -> 1 adim |  |
 | `agents/query_cache.py` | YALNIZ-TEST | yalniz testlerden: tests/jarvis_system_audit.py -> 1 adim |  |
-| `agents/redaction_guard.py` | CANLI | tools/telegram_agent.py -> 2 adim | `.env` bekliyor |
+| `agents/redaction_guard.py` | CANLI | agent/local_agent.py -> 1 adim |  |
 | `agents/reporting_state.py` | YALNIZ-TEST | yalniz testlerden: tests/test_c3_1_reporting_state.py -> 1 adim |  |
 | `agents/retrieval_priority.py` | CANLI | tools/telegram_agent.py -> 2 adim |  |
 | `agents/roadmap_detector.py` | CANLI | tools/telegram_agent.py -> 1 adim |  |
@@ -352,9 +351,15 @@ Test disi dosyalarin sinif dagilimi:
 | `agents/task_executor.py` | CANLI | jarvis_server.py -> 1 adim |  |
 | `agents/telemetry_event_store.py` | CANLI | tools/telegram_agent.py -> 2 adim |  |
 | `agents/tiered_memory.py` | CANLI | tools/telegram_agent.py -> 2 adim |  |
-| `agents/web_research_policy.py` | CANLI | jarvis_brain.py -> 1 adim | `.env` bekliyor |
+| `agents/web_research_policy.py` | CANLI | jarvis_brain.py -> 1 adim |  |
 | `agents/world_inventory_linker.py` | YALNIZ-TEST | yalniz testlerden: tests/test_m0_3_world_inventory_linker.py -> 1 adim |  |
 | `agents/world_model.py` | YALNIZ-TEST | yalniz testlerden: tests/test_m0_world_model.py -> 1 adim |  |
+
+### `automation` — 1 dosya
+
+| Dosya | Sinif | Kanit | Not |
+|---|---|---|---|
+| `automation/TERAZI_ETAP4_2026-09-10/kapsam_olc.py` | YETIM | hicbir giristen ve testten erisilemiyor |  |
 
 ### `dev_patches` — 1 dosya
 
@@ -393,16 +398,17 @@ Test disi dosyalarin sinif dagilimi:
 | Dosya | Sinif | Kanit | Not |
 |---|---|---|---|
 | `rag/__init__.py` | CANLI | main.py -> 1 adim |  |
-| `rag/indexer.py` | CANLI | main.py -> 1 adim | `.env` bekliyor |
+| `rag/indexer.py` | CANLI | main.py -> 1 adim |  |
 | `rag/rag_engine.py` | CANLI | agent/local_agent.py -> 1 adim |  |
 
-### `scripts` — 14 dosya
+### `scripts` — 18 dosya
 
 | Dosya | Sinif | Kanit | Not |
 |---|---|---|---|
 | `scripts/_utf8io.py` | CANLI | giris noktasi (B: arac) |  |
 | `scripts/checkpoint_summary.py` | CANLI | giris noktasi (B: arac) |  |
 | `scripts/daily_report.py` | CANLI | giris noktasi (B: arac) |  |
+| `scripts/envanter_uret.py` | CANLI | giris noktasi (B: arac) |  |
 | `scripts/escalation_policy.py` | CANLI | giris noktasi (B: arac) |  |
 | `scripts/j0_live_status.py` | CANLI | giris noktasi (B: arac) |  |
 | `scripts/j0_mic_check.py` | CANLI | giris noktasi (B: arac) |  |
@@ -410,12 +416,15 @@ Test disi dosyalarin sinif dagilimi:
 | `scripts/j0_tts_adapters.py` | CANLI | giris noktasi (B: arac) |  |
 | `scripts/j0_voice_adapters.py` | CANLI | giris noktasi (B: arac) |  |
 | `scripts/j0_voice_latency_probe.py` | CANLI | giris noktasi (B: arac) |  |
-| `scripts/j0_voice_loop.py` | CANLI | giris noktasi (B: arac) | `.env` bekliyor |
+| `scripts/j0_voice_loop.py` | CANLI | giris noktasi (B: arac) |  |
 | `scripts/mutation_gate.py` | CANLI | giris noktasi (B: arac) |  |
-| `scripts/orchestrator.py` | CANLI | giris noktasi (B: arac) | `.env` bekliyor |
+| `scripts/olc_llm_anatomisi.py` | CANLI | giris noktasi (B: arac) |  |
+| `scripts/olc_ses_gecikmesi.py` | CANLI | giris noktasi (B: arac) |  |
+| `scripts/olc_tts_anatomisi.py` | CANLI | giris noktasi (B: arac) |  |
+| `scripts/orchestrator.py` | CANLI | giris noktasi (B: arac) |  |
 | `scripts/verifier_runner.py` | CANLI | giris noktasi (B: arac) |  |
 
-### `tests/` — 151 dosya
+### `tests/` — 176 dosya
 
 Hepsi **YALNIZ-TEST**: test kosucusundan baska cagirani yok. Bu bir kusur degil, tanim. Tek tek listelenmedi.
 
@@ -423,13 +432,13 @@ Hepsi **YALNIZ-TEST**: test kosucusundan baska cagirani yok. Bu bir kusur degil,
 
 | Dosya | Sinif | Kanit | Not |
 |---|---|---|---|
-| `tools/__init__.py` | CANLI | gui.py -> 1 adim |  |
+| `tools/__init__.py` | CANLI | jarvis_desktop.py -> 1 adim |  |
 | `tools/browser_agent.py` | YETIM | hicbir giristen ve testten erisilemiyor |  |
 | `tools/diagnostics.py` | CANLI | jarvis_brain.py -> 1 adim |  |
 | `tools/document_analyst.py` | YETIM | hicbir giristen ve testten erisilemiyor |  |
 | `tools/document_reader.py` | CANLI | jarvis_server.py -> 1 adim |  |
 | `tools/document_writer.py` | YETIM | hicbir giristen ve testten erisilemiyor |  |
-| `tools/file_tools.py` | CANLI | jarvis_brain.py -> 1 adim | `.env` bekliyor |
+| `tools/file_tools.py` | CANLI | jarvis_brain.py -> 1 adim |  |
 | `tools/jarvis_interpreter.py` | YETIM | hicbir giristen ve testten erisilemiyor |  |
 | `tools/project_analyst.py` | YETIM | hicbir giristen ve testten erisilemiyor |  |
 | `tools/save_conversation.py` | YETIM | hicbir giristen ve testten erisilemiyor |  |
@@ -437,9 +446,9 @@ Hepsi **YALNIZ-TEST**: test kosucusundan baska cagirani yok. Bu bir kusur degil,
 | `tools/system_control.py` | CANLI | jarvis_brain.py -> 1 adim |  |
 | `tools/system_intelligence.py` | CANLI | jarvis_server.py -> 1 adim |  |
 | `tools/task_snapshot.py` | CANLI | jarvis_server.py -> 2 adim |  |
-| `tools/telegram_agent.py` | CANLI | giris noktasi (A) | `.env` bekliyor |
+| `tools/telegram_agent.py` | CANLI | giris noktasi (A) |  |
 | `tools/telegram_formatter.py` | CANLI | tools/telegram_agent.py -> 1 adim |  |
-| `tools/tools.py` | CANLI | gui.py -> 1 adim |  |
+| `tools/tools.py` | CANLI | jarvis_desktop.py -> 1 adim |  |
 | `tools/vector_memory.py` | CANLI | jarvis_brain.py -> 1 adim |  |
 | `tools/vision_analyst.py` | YETIM | hicbir giristen ve testten erisilemiyor |  |
 | `tools/voice_io.py` | CANLI | jarvis_server.py -> 1 adim |  |
@@ -464,7 +473,7 @@ Hepsi **YALNIZ-TEST**: test kosucusundan baska cagirani yok. Bu bir kusur degil,
 | Dosya | Sinif | Kanit | Not |
 |---|---|---|---|
 | `voice/__init__.py` | CANLI | main.py -> 1 adim |  |
-| `voice/stt.py` | CANLI | main.py -> 2 adim | `.env` bekliyor |
+| `voice/stt.py` | CANLI | main.py -> 2 adim |  |
 | `voice/voice_engine.py` | CANLI | voice_test.py -> 1 adim (arac hatti) |  |
 | `voice/voice_interface.py` | YETIM | hicbir giristen ve testten erisilemiyor |  |
 | `voice/voice_loop.py` | CANLI | main.py -> 1 adim |  |
@@ -475,6 +484,7 @@ CLAUDE.md §3: *"onceden var olan dead code'a dokunma (gor, soyle, silme)."* Bu 
 
 | Dosya | Boyut | Son commit |
 |---|---|---|
+| `automation/TERAZI_ETAP4_2026-09-10/kapsam_olc.py` | 3,594 B | 2026-09-11 |
 | `dev_patches/project_inspect_v2.py` | 13,170 B | 2026-05-17 |
 | `mcp/__init__.py` | 0 B | 2026-05-12 |
 | `memory/jarvis_db.py` | 2,209 B | 2026-05-17 |
@@ -510,13 +520,11 @@ Dinamik cagri (`importlib`, `__import__`, `exec`, `getattr`) statik grafikte gor
 - `eval/run_d2_web_policy_eval.py`
   - `L36: sys.path.insert(0, str(ROOT))`
 - `eval/run_turkish_quality.py`
-  - `L35: sys.path.insert(0, str(_REPO))`
-- `gui.py`
-  - `L11: sys.path.insert(0, str(Path(__file__).parent))`
+  - `L36: sys.path.insert(0, str(_REPO))`
 - `jarvis_desktop.py`
   - `L10: sys.path.insert(0, str(JARVIS_DIR))`
 - `main.py`
-  - `L9: sys.path.insert(0, str(Path(__file__).parent))`
+  - `L8: sys.path.insert(0, str(Path(__file__).parent))`
 - `scripts/j0_mic_check.py`
   - `L25: sys.path.insert(0, str(Path(__file__).resolve().parents[1]))`
 - `scripts/j0_spike_b_latency_probe.py`
@@ -527,28 +535,30 @@ Dinamik cagri (`importlib`, `__import__`, `exec`, `getattr`) statik grafikte gor
 - `scripts/j0_voice_loop.py`
   - `L102: sys.path.insert(0, str(_scripts))`
   - `L143: sys.path.insert(0, str(_scripts))`
+- `scripts/olc_llm_anatomisi.py`
+  - `L78: sys.path.insert(0, str(_REPO))`
+- `scripts/olc_ses_gecikmesi.py`
+  - `L69: sys.path.insert(0, str(_REPO))`
+- `scripts/olc_tts_anatomisi.py`
+  - `L53: sys.path.insert(0, _yol)`
 - `scripts/orchestrator.py`
   - `L48: sys.path.insert(0, str(Path(__file__).resolve().parent))`
 - `setup.py`
   - `L48: sys.path.insert(0, str(Path("training")))`
 - `tools/telegram_agent.py`
   - `L22: sys.path.insert(0, str(ROOT))`
-- `tools/tools.py`
-  - `L436: "import shutil", "__import__", "eval(", "exec(", "open("]`
-  - `L482: exec(code, safe_globals)`
-  - `L509: result = eval(expression, {"__builtins__": {}}, safe_dict)`
 - `training/data_curator.py`
   - `L7: sys.path.insert(0, str(Path(__file__).parent))`
 - `training/fine_tune.py`
   - `L69: __import__(pkg)`
 - `voice/voice_loop.py`
-  - `L165: sys.path.insert(0, _scripts)`
+  - `L204: sys.path.insert(0, _scripts)`
 
 ## F. ORNEK/SABLON — gercek yapilandirma bekleyenler
 
 | Sablon | Beklenen gercek dosya | Var mi |
 |---|---|---|
-| `.env.example` | `.env` | **YOK** |
+| `.env.example` | `.env` | EVET |
 | `.mcp.json.example` | `.mcp.json` | **YOK** |
 | `config/api_providers.example.json` | `config/api_providers.json` | **YOK** |
 | `config/provider_profiles.example.json` | `config/provider_profiles.json` | **YOK** |
@@ -563,33 +573,35 @@ Belgelerde adi gecen ama diskte bulunmayan `.py` dosyalari.
 
 | Anilan dosya | Nerede aniliyor |
 |---|---|
-| `agents/presence_model.py` | `automation/FAZ4_ADIM_ONERISI.md` |
-| `agents/proactive_throttle.py` | `automation/E1_S6_DECOMPOSITION.md` |
-| `core/log_safety.py` | `docs/OSS_HARVEST_REPORT_2026-08.md` |
-| `gen_climate.py` | `automation/FAZ4_ADIM_ONERISI.md` |
-| `hwfit/fit.py` | `docs/OSS_HARVEST_REPORT_2026-08.md` |
-| `listener.py` | `docs/OSS_HARVEST_REPORT_2026-08.md` |
-| `llm/tiers.py` | `docs/OSS_HARVEST_REPORT_2026-08.md` |
-| `memory/recall_gate.py` | `docs/OSS_HARVEST_REPORT_2026-08.md` |
-| `research_handler.py` | `docs/OSS_HARVEST_REPORT_2026-08.md` |
-| `scripts/gen_uydu.py` | `automation/FAZ4_ADIM_ONERISI.md` |
-| `src/config_parser.py` | `docs/templates/autocoder_task.example.md` |
-| `test_c1_memory_policy.py` | `docs/JARVIS_v5_MASTER_ROADMAP.md` |
-| `test_j0_tts_adapters.py` | `automation/BLACKBOX_RUNBOOK.md` |
-| `tests/test_config_parser.py` | `docs/templates/autocoder_task.example.md` |
-| `tests/test_e1_6e_throttle.py` | `automation/E1_S6_DECOMPOSITION.md` |
-| `tests/test_gen_uydu.py` | `automation/FAZ4_ADIM_ONERISI.md` |
-| `tests/test_ha_kesif.py` | `automation/FAZ4_ADIM_ONERISI.md` |
-| `tests/test_metrics.py` | `docs/automation/INTERFACE_CONTRACT.md` |
-| `tests/test_panel_model.py` | `automation/FAZ4_ADIM_ONERISI.md` |
-| `tests/test_presence_model.py` | `automation/FAZ4_ADIM_ONERISI.md` |
-| `tiers.py` | `docs/OSS_HARVEST_REPORT_2026-08.md` |
+| `Users/Ahmedov/Desktop/Jarvis/jarvis-agent-auto/agent/jarvis_agent.py` | `automation/CODEX_DENETIM_2026-09-06.md` |
+| `agent/jarvis_agent.py` | `FAILURES.md`, `automation/AHMET_ONAYI_BEKLEYENLER.md`, `automation/CODEX_V2_UYGULAMA_2026-09-07.md` (+7) |
+| `agents/presence_model.py` | `automation/FAZ4_ADIM_ONERISI.md`, `automation/IMZASIZ_IS_KUYRUGU.md`, `docs/JARVIS_ENVANTER.md` |
+| `agents/proactive_throttle.py` | `automation/E1_S6_DECOMPOSITION.md`, `docs/JARVIS_ENVANTER.md` |
+| `core/log_safety.py` | `automation/IMZASIZ_IS_KUYRUGU.md`, `docs/JARVIS_ENVANTER.md`, `docs/OSS_HARVEST_REPORT_2026-08.md` |
+| `gen_climate.py` | `automation/FAZ4_ADIM_ONERISI.md`, `docs/JARVIS_ENVANTER.md` |
+| `hwfit/fit.py` | `automation/IMZASIZ_IS_KUYRUGU.md`, `docs/JARVIS_ENVANTER.md`, `docs/OSS_HARVEST_REPORT_2026-08.md` |
+| `listener.py` | `docs/JARVIS_ENVANTER.md`, `docs/OSS_HARVEST_REPORT_2026-08.md` |
+| `llm/tiers.py` | `automation/IMZASIZ_IS_KUYRUGU.md`, `docs/JARVIS_ENVANTER.md`, `docs/OSS_HARVEST_REPORT_2026-08.md` |
+| `memory/recall_gate.py` | `automation/IMZASIZ_IS_KUYRUGU.md`, `docs/JARVIS_ENVANTER.md`, `docs/OSS_HARVEST_REPORT_2026-08.md` |
+| `research_handler.py` | `docs/JARVIS_ENVANTER.md`, `docs/OSS_HARVEST_REPORT_2026-08.md` |
+| `scripts/gen_uydu.py` | `automation/FAZ4_ADIM_ONERISI.md`, `automation/IMZASIZ_IS_KUYRUGU.md`, `docs/JARVIS_ENVANTER.md` |
+| `src/config_parser.py` | `docs/JARVIS_ENVANTER.md`, `docs/templates/autocoder_task.example.md` |
+| `test_c1_memory_policy.py` | `docs/JARVIS_ENVANTER.md`, `docs/JARVIS_v5_MASTER_ROADMAP.md` |
+| `test_j0_tts_adapters.py` | `automation/BLACKBOX_RUNBOOK.md`, `docs/JARVIS_ENVANTER.md` |
+| `tests/test_config_parser.py` | `docs/JARVIS_ENVANTER.md`, `docs/templates/autocoder_task.example.md` |
+| `tests/test_e1_6e_throttle.py` | `automation/E1_S6_DECOMPOSITION.md`, `docs/JARVIS_ENVANTER.md` |
+| `tests/test_gen_uydu.py` | `automation/FAZ4_ADIM_ONERISI.md`, `docs/JARVIS_ENVANTER.md` |
+| `tests/test_ha_kesif.py` | `automation/FAZ4_ADIM_ONERISI.md`, `docs/JARVIS_ENVANTER.md` |
+| `tests/test_metrics.py` | `docs/JARVIS_ENVANTER.md`, `docs/automation/INTERFACE_CONTRACT.md` |
+| `tests/test_panel_model.py` | `automation/FAZ4_ADIM_ONERISI.md`, `docs/JARVIS_ENVANTER.md` |
+| `tests/test_presence_model.py` | `automation/FAZ4_ADIM_ONERISI.md`, `docs/JARVIS_ENVANTER.md` |
+| `tiers.py` | `docs/JARVIS_ENVANTER.md`, `docs/OSS_HARVEST_REPORT_2026-08.md` |
 
 ## H. Kendi `__main__` blogu olan ama giris noktasi SAYILMAYAN moduller
 
-31 modul kendini-deneme blogu tasiyor. Bunlari giris noktasi saymak neredeyse her seyi CANLI gosterirdi; ayri tutuldular. Bir modul bu listedeyse **elle** calistirilabilir demektir.
+32 modul kendini-deneme blogu tasiyor. Bunlari giris noktasi saymak neredeyse her seyi CANLI gosterirdi; ayri tutuldular. Bir modul bu listedeyse **elle** calistirilabilir demektir.
 
-- `agents/audit_logger.py`, `agents/auto_updater.py`, `agents/daily_digest.py`, `agents/internal_trace.py`, `agents/memory_candidate_queue.py`, `agents/memory_candidate_writer.py`, `agents/memory_retrieval_policy.py`, `agents/memory_schema.py`, `agents/memory_scorer.py`, `agents/model_registry.py`, `agents/next_action_planner.py`, `agents/proactive_core.py`, `agents/proactive_runner.py`, `agents/project_intelligence.py`, `agents/project_reporter.py`, `agents/project_state.py`, `agents/project_summarizer.py`, `agents/provider_smoke.py`, `agents/reporting_state.py`, `agents/roadmap_detector.py`, `agents/semantic_router.py`, `agents/source_scorer.py`, `agents/web_research_policy.py`, `dev_patches/project_inspect_v2.py`, `memory/jarvis_db.py`, `tools/jarvis_interpreter.py`, `tools/save_conversation.py`, `tools/security_snapshot.py`, `tools/task_snapshot.py`, `tools/wake_word.py`, `tools/web_research_eski.py`
+- `agents/audit_logger.py`, `agents/auto_updater.py`, `agents/daily_digest.py`, `agents/internal_trace.py`, `agents/memory_candidate_queue.py`, `agents/memory_candidate_writer.py`, `agents/memory_retrieval_policy.py`, `agents/memory_schema.py`, `agents/memory_scorer.py`, `agents/model_registry.py`, `agents/next_action_planner.py`, `agents/proactive_core.py`, `agents/proactive_runner.py`, `agents/project_intelligence.py`, `agents/project_reporter.py`, `agents/project_state.py`, `agents/project_summarizer.py`, `agents/provider_smoke.py`, `agents/reporting_state.py`, `agents/roadmap_detector.py`, `agents/semantic_router.py`, `agents/source_scorer.py`, `agents/web_research_policy.py`, `automation/TERAZI_ETAP4_2026-09-10/kapsam_olc.py`, `dev_patches/project_inspect_v2.py`, `memory/jarvis_db.py`, `tools/jarvis_interpreter.py`, `tools/save_conversation.py`, `tools/security_snapshot.py`, `tools/task_snapshot.py`, `tools/wake_word.py`, `tools/web_research_eski.py`
 
 ## I. Olcumun kendisi ne kadar guvenilir
 
@@ -597,10 +609,10 @@ Erisilebilirlik iki bagimsiz kaynaktan hesaplandi ve karsilastirildi.
 
 | Kaynak | Dosya-duzeyi kenar |
 |---|---|
-| Bu betigin AST taramasi | 607 |
-| graphify `graph.json` (yalniz `ast` kokenli kod iliskileri) | 418 |
-| Yalniz AST'de var | 226 |
-| Yalniz graphify'da var | 37 |
+| Bu betigin AST taramasi | 684 |
+| graphify `graph.json` (yalniz `ast` kokenli kod iliskileri) | 472 |
+| Yalniz AST'de var | 262 |
+| Yalniz graphify'da var | 50 |
 
 Siniflandirma **AST taramasindan** hesaplandi: import iliskisi belirlenimci ve satir satir dogrulanabilir. graphify grafigi ikinci kaynak olarak tutuldu; `calls`/`method` gibi cagri kenarlari import grafiginin gormedigi baglari da tasidigi icin sayisi farklidir.
 
@@ -615,11 +627,9 @@ Yalniz graphify'da gorunen kenarlardan ornekler (cagri kenarlari — import olma
 - `scripts/j0_voice_loop.py` -> `scripts/j0_live_status.py`
 - `scripts/j0_voice_loop.py` -> `scripts/j0_tts_adapters.py`
 - `scripts/j0_voice_loop.py` -> `scripts/j0_voice_adapters.py`
-- `scripts/orchestrator.py` -> `scripts/escalation_policy.py`
+- `scripts/olc_ses_gecikmesi.py` -> `agents/provider_profiles.py`
 
 **Ayristirilamayan dosyalar (sozdizimi):**
 
 - `agents/api_executor.py: invalid non-printable character U+FEFF (<unknown>, line 1)`
-- `tests/conftest.py: invalid non-printable character U+FEFF (<unknown>, line 1)`
-- `tests/test_api_executor.py: invalid non-printable character U+FEFF (<unknown>, line 1)`
 
