@@ -28,7 +28,7 @@ from agents.data_classifier import (
     corrupted_fragments,
     keyword_present,
 )
-from agents.persona import LEVELS, build_system_prompt
+from agents.persona import LEVELS, _YONTEM, build_system_prompt
 
 __all__ = [
     "TURKISH_TOKENIZER_PENALTY",
@@ -197,7 +197,7 @@ def _instruction_ngrams() -> frozenset:
     Metin kopyalanmaz: `build_system_prompt()` ne uretiyorsa o olculur, yani
     persona degistiginde dedektor kendiliginden degisir.
 
-    Iki sey DISARIDA birakilir, ikisi de olcumle:
+    Uc sey DISARIDA birakilir, ucu de olcumle:
 
     1. **Basliksiz kimlik onsozu.** Ahmet hakkinda OLGU tasiyor (ESHOT,
        polimer, İSG) ve "hafizanda benim hakkimda ne var?" sorusuna dogru
@@ -205,6 +205,10 @@ def _instruction_ngrams() -> frozenset:
        dogru davranan bir cevabi -- kaldiriyordu.
     2. **Tirnakli ornekler** (`_QUOTED_EXAMPLE` notuna bak). Talimat degil,
        ornektirler; modelin uretmesi beklenen ya da yasaklanan metindir.
+
+    3. **Bicim/yapi yonergeleri** (`_YONTEM`). Model istenen risk/test/geri
+       alma basligini yazinca sizinti sayiliyordu. Bu blogun n-gramlari
+       da persona SSOT'undan turetilerek cikarilir; elle liste tutulmaz.
 
     Geriye kalan sey talimat cumlesidir ve hicbir kosulda geri okunmamali.
     """
@@ -219,7 +223,11 @@ def _instruction_ngrams() -> frozenset:
             # uretirdi ve dedektor olmayan bir cumleyi arardi.
             talimat = _QUOTED_EXAMPLE.sub("\n", talimat)
             parcalar |= set(_ngrams(_words(talimat), LEAK_NGRAM_WORDS))
-    return frozenset(parcalar)
+    # Metin blogunu silmek komsu bloklardan yeni n-gramlar uretebilir.
+    # Kume farki yalniz bicim blogundan tureyen uyeleri disarida birakir.
+    bicim = _QUOTED_EXAMPLE.sub("\n", _YONTEM)
+    bicim_ngramlari = set(_ngrams(_words(bicim), LEAK_NGRAM_WORDS))
+    return frozenset(parcalar - bicim_ngramlari)
 
 
 _LEAK_NGRAMS = _instruction_ngrams()
