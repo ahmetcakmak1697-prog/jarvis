@@ -148,9 +148,17 @@ saklamak, dün ödediğimiz bedelin aynısıdır.
 
 ## 4. Sınırlar ve durma koşulları
 
-- **DOKUNMA:** `agent/local_agent.py`, `agents/persona.py`,
-  `eval/` (orada başka bir oturum olabilir), kalite dedektörleri,
-  `config/runtime_profiles.json`.
+- **DOKUNMA:** `agent/local_agent.py`, `agents/persona.py`, kalite
+  dedektörleri, `config/runtime_profiles.json`.
+- **`eval/run_turkish_quality.py` — YALNIZ YORUM.** §2'nin istediği
+  "bu politika ikizdir" notu oraya eklenecek; **tek bir mantık satırı
+  değişmeyecek.** Kaygı başka bir oturumun işini bozmamaktır, dosyanın
+  kendisi değil — önce `git status` ile o dosyada açık iş olmadığını
+  doğrula, yoksa **DUR**.
+
+  > *Bu madde 2026-09-11'de düzeltildi. Kartın ilk hâli §4'te "eval/'e
+  > dokunma" derken §5'te "eval'de not olsun" diyordu; ikisi aynı anda
+  > yapılamazdı. Çelişkiyi uygulayan ajan buldu ve doğru çözdü.*
 - `DEFAULT_TIMEOUT_S = 20` **toplam tavandır ve büyümez.** İki denemenin
   toplamı bu tavanın altında kalmalı; testle kilitle.
 - `.env` okunmaz, yazılmaz (§9).
