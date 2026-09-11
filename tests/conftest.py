@@ -134,3 +134,53 @@ def _isolate_module_state():
         _purge_audio_modules()
         for name in _AMBIGUOUS_MODULE_NAMES:
             sys.modules.pop(name, None)
+
+
+# --------------------------------------------------------------------------- #
+# 3) Dis saglayici anahtarlari — testler AGA CIKMAZ
+# --------------------------------------------------------------------------- #
+#
+# OLCULDU (2026-09-11, KART_SES_YOLU_DEEPSEEK): ses yolu bulut modeline
+# baglandiktan sonra `pytest tests` GERCEK bir DeepSeek cagrisi yapti.
+# `tests/test_pdf_branch_hijack.py` "SAHTE_CEVAP" bekliyordu; gelen sey
+# DeepSeek'in canli cevabiydi ve giden yuk gercek proje baglamiydi.
+#
+# Kok neden testte degil ORTAMDA: `agents/persona.py`, `config.py` ve
+# `litellm/__init__.py` import edilirken `load_dotenv()` cagiriyor, yani
+# `.env` icindeki anahtar kabukta tanimli olmasa bile suit boyunca
+# `os.environ`'a giriyor. Anahtar oradaysa `cloud_chat_ready()` "acik"
+# der ve `chat()` disari cikar.
+#
+# Bu yuzden anahtarlar her testin basinda SILINIR. Ihtiyaci olan test
+# kendi sahte anahtarini `monkeypatch.setenv` ile koyar (bkz.
+# `tests/test_ses_yolu_bulut_kapisi.py`) — yani dis yol **acik istendigi
+# yerde** acilir, ortamda oldugu icin degil.
+
+#: Silinen anahtarlar profilden okunur; profil degisince liste kendiliginden
+#: kapsar. Sabit yazilan bir liste yeni bir saglayiciyi kacirirdi.
+def _cloud_key_env_names() -> tuple[str, ...]:
+    adlar: set[str] = set()
+    try:
+        import json
+
+        veri = json.loads(
+            (_REPO_ROOT / "config" / "runtime_profiles.json")
+            .read_text(encoding="utf-8")
+        )
+        for profil in (veri.get("profiles") or {}).values():
+            ad = (profil or {}).get("cloud_chat_key_env")
+            if isinstance(ad, str) and ad.strip():
+                adlar.add(ad.strip())
+    except Exception:
+        pass
+    return tuple(sorted(adlar))
+
+
+_CLOUD_KEY_ENV_NAMES = _cloud_key_env_names()
+
+
+@pytest.fixture(autouse=True)
+def _no_cloud_keys(monkeypatch):
+    """Hicbir test kazara dis saglayiciya cikmasin."""
+    for ad in _CLOUD_KEY_ENV_NAMES:
+        monkeypatch.delenv(ad, raising=False)

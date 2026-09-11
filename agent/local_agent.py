@@ -5,7 +5,7 @@ Doğal sohbet + temiz yanıtlar
 from __future__ import annotations
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 from rich.console import Console
 
 from agents.data_classifier import _fold_tr, keyword_present
@@ -78,6 +78,38 @@ def _yerel_kal_istendi(message: str) -> bool:
         return False
     fold = _fold_tr(message)
     return any(keyword_present(fold, k) for k in _YEREL_KAL_KOKLERI)
+
+
+#: Yerelde kalindiginda kullaniciya basilan durum satirlari.
+#:
+#: `voice/voice_loop.py:_duyur` deseni: `[...]` onekli, cevabin ICINE
+#: girmeyen, dolayisiyla SESLENDIRILMEYEN bir uyari. Metinler kodda durur --
+#: `agents/persona.py` de oyle. CLAUDE.md 7.1'in "koda gomulmez" kurali
+#: MODEL ADLARI icindir, kullaniciya donuk cumleler icin degil.
+#:
+#: Uc sebep UC AYRI cumle kullanir. Ayni cumle kullanilsaydi kullanici
+#: sirrinin mi sizmadigini, hattin mi koptugunu, yoksa kendi talimatinin mi
+#: uygulandigini ayirt edemezdi -- ve "sessiz geri dusme yasagi" (kart 2c)
+#: sadece gurultuye donusurdu.
+_BULUT_HASSAS = (
+    "[model] Bu turda hassas veri var; bulut modeline gondermedim, "
+    "cevabi yerel model verdi efendim."
+)
+_BULUT_SINIF_BELIRSIZ = (
+    "[model] Icerik sinifi belirlenemedi ({sebep}); bulut modeline "
+    "gondermedim, cevabi yerel model verdi efendim."
+)
+_BULUT_YEREL_KAL = (
+    "[model] Yerel kalmami istediginiz icin bulut modeline cikmadim; "
+    "cevabi yerel model verdi efendim."
+)
+_BULUT_AG_HATASI = (
+    "[model] Bulut modelinden cevap alinamadi ({sebep}); cevabi yerel "
+    "model verdi efendim."
+)
+_BULUT_DEFTER_HATASI = (
+    "[model] Bulut cagrisi yapildi ama harcama defterine yazilamadi: {sebep}"
+)
 
 
 #: ACIK belge isareti. B07 (Codex denetimi, 2026-09-06) oncesinde bu liste
@@ -297,6 +329,10 @@ class LocalJarvisAgent:
         self.available_models: list[str] = []
         self._ollama = None
         self._registry = ModelRegistry()
+        #: Durum satirlarini alacak geri cagrim; None ise konsola basilir.
+        self._notify: Optional[Callable[[str], None]] = None
+        #: Bulut harcamasinin defteri; ilk cagrida acilir.
+        self._ledger = None
         # Baglam ve parmak izi birlikte kurulur; sonraki turlarda
         # `_proje_ctx_guncel()` yalniz kaynak degistiyse yeniden okur (B06).
         self._project_ctx = ""
@@ -770,6 +806,113 @@ class LocalJarvisAgent:
         except Exception:
             return ""
 
+    # ─── Dis (bulut) model yolu — KART_SES_YOLU_DEEPSEEK ────────────────
+    #
+    # Bu blok AssistantExecutor'a bir devir DEGILDIR. `chat()` yerinde
+    # duruyor; egress kapisi, `_yerel_kal_istendi`, arac tespiti, proje
+    # baglami ve ses yonergesi aynen isliyor. Degisen tek sey metni hangi
+    # modelin urettigi (kart 1).
+
+    def _duyur(self, mesaj: str) -> None:
+        """Kullaniciya durum satiri basar. Bu metin SESLENDIRILMEZ.
+
+        `voice/voice_loop.py:_duyur` ile ayni desen: cevabin icine
+        karismaz, ekranda kalir. Yerele her dususte cagrilir -- sessizce
+        yerele dusmek, PUSULA'nin sessizce yeniden kirilmasi demektir
+        (kart 2c).
+        """
+        bildirici = getattr(self, "_notify", None)
+        if bildirici is not None:
+            try:
+                bildirici(mesaj)
+                return
+            except Exception:  # noqa: BLE001 - bildirim akisi bozmaz
+                pass
+        console.print(f"[yellow]{mesaj}[/]")
+
+    def _bulut_acik(self) -> bool:
+        """Dis model hem profilde tanimli hem kullanilabilir mi?
+
+        Tanimli degilse hicbir sey denenmez ve hicbir sey duyurulmaz:
+        bu, degisiklikten onceki davranisin ta kendisidir, bir geri dusme
+        degil.
+        """
+        try:
+            from agent.cloud_llm import cloud_chat_ready
+            return cloud_chat_ready(self._registry)
+        except Exception:  # noqa: BLE001 - bulut yolu cekirdegi dusuremez
+            return False
+
+    def _bulut_kapisi(self, user_message: str,
+                      messages: list[dict]) -> Optional[str]:
+        """Bu tur dis modele cikabilir mi? Cikamazsa SEBEBI doner.
+
+        Sira `_egress_kapisi` ile aynidir ve ayni gerekceyle: insan
+        gecersiz kilmasi politikadan ONCE gelir (CLAUDE.md 7.1).
+
+        1. **"Yerel kal".** Bugune kadar yalniz ARACLARI engelliyordu
+           (web aramasi vs.). Model uzaktayken "internete cikma" diyen
+           kullanici modelin kendisinin de yerel kalmasini kastediyor
+           (kart 2b).
+        2. **Veri sinifi.** Denetlenen sey kullanicinin cumlesi DEGIL,
+           giden yukun TAMAMI: system prompt'un icinde proje baglami
+           (commit mesajlari, HUMAN_NEEDED maddeleri, yol haritasi) ve
+           hafiza var; hepsi disari cikiyor (kart 2a).
+
+        Yeni tespit mantigi YAZILMADI: `RedactionGuard` repoda zaten var
+        ve baska yollarda kullaniliyor (CLAUDE.md 9, adopt-over-build).
+        """
+        if _yerel_kal_istendi(user_message):
+            return _BULUT_YEREL_KAL
+
+        giden = "\n".join(str(m.get("content") or "") for m in messages)
+        try:
+            from agents.redaction_guard import RedactionGuard
+            hassas = RedactionGuard().contains_sensitive_data(giden)
+        except Exception as exc:  # noqa: BLE001
+            # Guard arizasi disari cikmayi ACMAZ, KAPATIR. Codex B10
+            # router'da bunun tersini buldu: guard hatasi yutulup dis
+            # cagri yine de yapiliyordu (voice/voice_loop.py:158).
+            return _BULUT_SINIF_BELIRSIZ.format(sebep=exc)
+
+        return _BULUT_HASSAS if hassas else None
+
+    def _maliyet_defteri(self):
+        """Bulut harcamasinin yazildigi defter.
+
+        Yeni dosya, yeni dizin, yeni tablo ACILMAZ: `CostLedger` zaten
+        `memory/cost_ledger.jsonl`'e append ediyor (kart ADIM 5).
+        `daily_limit=0` bilerek: bu kart hard limit istemiyor, sayim ve
+        gorunurluk istiyor.
+        """
+        defter = getattr(self, "_ledger", None)
+        if defter is None:
+            from agents.cost_ledger import CostLedger
+            defter = CostLedger(daily_limit=0)
+            self._ledger = defter
+        return defter
+
+    def _ask_cloud(self, messages: list[dict]) -> str:
+        """Metni dis modele urettirir ve harcamayi deftere yazar.
+
+        Hata yutmaz: `CloudChatError` yukari cikar ve `chat()` yerele
+        duser -- kullaniciya duyurarak.
+        """
+        from agent.cloud_llm import cloud_chat
+
+        sonuc = cloud_chat(messages, registry=self._registry)
+        try:
+            self._maliyet_defteri().record_usage(
+                "cloud_chat",
+                prompt_tokens=sonuc.get("prompt_tokens", 0),
+                completion_tokens=sonuc.get("completion_tokens", 0),
+            )
+        except Exception as exc:  # noqa: BLE001
+            # Defter yazilamadi ama cevap geldi: cevabi atmak yerine
+            # harcamanin kayitsiz kaldigini SOYLE. Sessiz basari yasak.
+            self._duyur(_BULUT_DEFTER_HATASI.format(sebep=exc))
+        return sonuc["text"]
+
     def _ask_ollama(self, messages: list[dict], model: str) -> str:
         try:
             response = self._ollama.chat(
@@ -806,7 +949,6 @@ class LocalJarvisAgent:
         self.turn_count += 1
         tier = self._classify(user_message)
         model = self._model_for_tier(tier)
-        console.print(f"[dim]→ {model.split(':')[0]} | Tur {self.turn_count}[/]")
 
         # Araç çalıştır
         tool_data = ""
@@ -858,9 +1000,31 @@ class LocalJarvisAgent:
 
         messages.append({"role": "user", "content": user_content})
 
-        # Yanıt al
-        with console.status("[cyan]JARVIS düşünüyor...[/]"):
-            raw = self._ask_ollama(messages, model)
+        # Yanıt al — metni HANGİ model üretecek? (KART_SES_YOLU_DEEPSEEK)
+        #
+        # Kullanıcı hangi modelde olduğunu görür: satır her turda basılır
+        # ve yerele düşüldüyse SEBEBİ de duyurulur. Sessizce llama'ya
+        # düşmek, PUSULA'nın sessizce yeniden kırılması demektir.
+        raw: Optional[str] = None
+        if self._bulut_acik():
+            engel = self._bulut_kapisi(user_message, messages)
+            if engel:
+                self._duyur(engel)
+            else:
+                bulut_adi = self._registry.cloud_chat_model()
+                console.print(
+                    f"[dim]→ {bulut_adi} (bulut) | Tur {self.turn_count}[/]"
+                )
+                try:
+                    with console.status("[cyan]JARVIS düşünüyor...[/]"):
+                        raw = self._ask_cloud(messages)
+                except Exception as exc:  # noqa: BLE001
+                    self._duyur(_BULUT_AG_HATASI.format(sebep=exc))
+
+        if raw is None:
+            console.print(f"[dim]→ {model.split(':')[0]} | Tur {self.turn_count}[/]")
+            with console.status("[cyan]JARVIS düşünüyor...[/]"):
+                raw = self._ask_ollama(messages, model)
 
         # Temizle
         response = _clean_response(raw)
@@ -916,7 +1080,19 @@ class LocalJarvisAgent:
         console.print("\n[bold cyan]📊 İstatistikler[/]")
         console.print(f"  Tur: {self.turn_count} | Araç: {self.tool_calls_total}")
         console.print(f"  Modeller: {', '.join(self.available_models[:3])}")
-        console.print("  Maliyet: [green]0₺[/]\n")
+
+        # "Maliyet: 0₺" satiri bulut yolu acildiginda YANLIS oldu. Sayi
+        # uydurulmaz: defterden okunur, okunamazsa oyle soylenir
+        # (kart ADIM 5 -- olculmeyen harcama yonetilemez).
+        try:
+            ozet = self._maliyet_defteri().stats()
+            console.print(
+                f"  Bulut ({ozet['date']}): {ozet['today_count']} çağrı | "
+                f"{ozet['total_tokens']} token "
+                f"(giriş {ozet['prompt_tokens']} / çıkış {ozet['completion_tokens']})\n"
+            )
+        except Exception as exc:  # noqa: BLE001
+            console.print(f"  [yellow]Bulut harcaması okunamadı: {exc}[/]\n")
 
     def list_models(self):
         for m in self.available_models:

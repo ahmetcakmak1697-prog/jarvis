@@ -141,6 +141,27 @@ class ModelRegistry:
         """Web arastirma sentezi icin model."""
         return self._role("research_model", fallback or self.local_main())
 
+    def cloud_chat_model(self, fallback: str = "") -> str:
+        """Sohbet metnini ureten DIS model. Bos ise bulut yolu kapalidir.
+
+        CLAUDE.md 7.0: yerlesim ideolojiyle degil isin gereğiyle secilir;
+        gunluk sohbet ve arastirma bulutta, ev kontrolu yerelde. Rol
+        burada tanimli, adi profilde (KART_SES_YOLU_DEEPSEEK ADIM 1).
+        """
+        return self._role("cloud_chat_model", fallback)
+
+    def cloud_chat_url(self, fallback: str = "") -> str:
+        """Dis modelin OpenAI-uyumlu sohbet uc noktasi."""
+        return self._role("cloud_chat_url", fallback)
+
+    def cloud_chat_key_env(self, fallback: str = "") -> str:
+        """Anahtarin ORTAM DEGISKENI ADI -- degeri degil, adi.
+
+        Deger yalnizca ortamdan okunur; bu dosyaya ve hicbir loga yazilmaz
+        (CLAUDE.md 9).
+        """
+        return self._role("cloud_chat_key_env", fallback)
+
     def vision_model(self, fallback: str = "") -> str:
         """Gorsel/multimodal model. Bos olabilir (henuz yok)."""
         return self._role("vision_model", fallback)

@@ -679,3 +679,40 @@ returned PASS. Historical stop record: automation/CODEX_V2_UYGULAMA_2026-09-07.m
 - Evidence: nine new tests, four seen red first. Gate 1913 passed +
   2 xfailed in both orders, ruff 283 unchanged. Baseline provably
   unaffected: every local run has zero empty and zero errored cases.
+
+### [2026-09-11] The test suite reached the real cloud model and paid for it
+
+- Trap: `KART_SES_YOLU_DEEPSEEK` connected `LocalJarvisAgent.chat()` to an
+  external model. The gate ran green on the new tests, then `pytest tests`
+  failed in four places with answers nobody wrote. One of them:
+  `test_pdf_branch_hijack.py` expected `"SAHTE_CEVAP"` and received a
+  fluent Turkish paragraph -- a **live DeepSeek reply**. The ledger later
+  proved the scale: seventeen real calls, ~38.000 tokens, carrying the
+  real project context (commit messages, HUMAN_NEEDED items, roadmap).
+- Root cause was not in any test. `agents/persona.py`, `config.py` and
+  `litellm/__init__.py` all call `load_dotenv()` at import time, so
+  `DEEPSEEK_API_KEY` entered `os.environ` during collection even though
+  the shell had never defined it. `cloud_chat_ready()` then honestly
+  answered "configured", and every `chat()` test silently became an
+  egress.
+- Why the previous fix did not cover it: the 2026-09-09 entry above
+  already found "the suite could reach a real API key" and locked the
+  path it knew -- `run_turkish_quality.py`'s own `load_dotenv`. It fixed
+  a **door**, not the **class**. A key that any import can place in the
+  process environment is available to every line of the suite.
+- Second lesson, about the failure shape: the suite failed
+  **non-deterministically** (five failures in one run, four in the next)
+  because the outcome depended on whether the remote call succeeded. An
+  order-dependent failure that changes count between runs is a signal to
+  look for I/O, not for state.
+- Rule: **a credential's absence is a test fixture, not an assumption.**
+  Isolation belongs at the single point (`tests/conftest.py`), like the
+  ambiguous-module and audio-library guards above; it deletes every
+  provider key named by `config/runtime_profiles.json`, so a new provider
+  is covered the day it is added. A test that wants the external path
+  sets its own fake key with `monkeypatch.setenv` -- the path opens where
+  it is **asked for**, never because the environment happened to carry a
+  secret.
+- Evidence: `tests/test_ses_yolu_bulut_kapisi.py::test_anahtar_ortamda_yoksa_bulut_yolu_kapali`
+  asserts the key is gone and `cloud_chat_ready()` is False. Gate after
+  the fix: 1970 passed + 2 xfailed in both orders, ruff 283 unchanged.
