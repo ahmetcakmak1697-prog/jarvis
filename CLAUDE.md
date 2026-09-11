@@ -257,13 +257,18 @@ daha toplama (collection) aşamasında patlar; kök dizindeki `voice_test.py`
 `edge_tts` istediği için tam kök taraması toplama hatası verir, bu yüzden kapı
 `tests` dizinine daraltılmıştır.
 
-**Bilinen taban çizgisi (2026-09-05, `auto/opencode-deepseek`):**
-`pytest tests` → **1706 geçti / 0 başarısız**; `ruff check .` → **293 bulgu**.
+**Bilinen taban çizgisi (2026-09-11, `auto/opencode-deepseek`):**
+`pytest tests` → **1970 geçti / 0 başarısız / 2 xfailed** (iki sırada);
+`ruff check .` → **283 bulgu**.
+
+*Önceki kayıt (2026-09-05): 1706 geçti, ruff 293. Silinmedi — sayının
+nereden geldiği görünsün diye duruyor. Aradaki testler eklendi, ruff
+borcu `agent/` kapsama girince 300'e çıkıp sonra 283'e indi (A12).*
 
 Test hattı **yeşildir**; bu artık bir hedef değil, korunması gereken bir
 durumdur. Yeni bir başarısızlık eklemek doğrudan DoD ihlalidir.
 
-Lint borcu (293 bulgu) hâlâ açıktır ve kapatılmamıştır. `ruff check .`
+Lint borcu (283 bulgu) hâlâ açıktır ve kapatılmamıştır. `ruff check .`
 sayısının **artmaması** zorunludur; azaltmak ayrı bir karttır.
 
 **Türkçe kalite takımı — ayrı bir taban (2026-09-03):** `llama3.1:latest`,
