@@ -537,7 +537,41 @@ mesajında.
 
 ---
 
-## K16 — Envanterin elle yazılmış bölümü artık otomatik bölümle çelişiyor
+## K16 — Envanterin elle yazılmış bölümü artık otomatik bölümle çelişiyor ✅ KAPANDI
+
+**Commit:** `cab0198` · test yok — yalnız belge.
+
+Hiçbir satır silinmedi: 21 satır içi *(K16: …)* notu ve üç K16 bloğu
+(§0, §1, §2) eklendi, eski cümle yanında duruyor; notsuz her iddia
+2026-09-06 tarihli. Eski 205 satırın hepsi aynı sırayla yerinde (mekanik
+kontrol); otomatik bölüm bayt bayt aynı.
+
+**Atıf ölçüldü — çelişki tek commit'ten gelmedi.** Elle yazılan bölüm
+2026-09-06 13:33'te ölçüldü ve **aynı akşam** eskimeye başladı
+(`git log -S`):
+
+```
+web_research_policy      B03 a39dca6  2026-09-06 19:33  -> local_agent
+redaction_guard          B05 c401d4e  2026-09-06 19:38  -> voice_loop
+                         B04 939376a  2026-09-06 19:44  -> memory_manager
+cost_ledger, cloud_llm       23943c6  2026-09-11        -> local_agent
+```
+
+Yalnız `cost_ledger` ve `cloud_llm` `23943c6` ile geldi.
+
+**İki sayı yazıldığı gün de tutmuyordu** (ses yoluyla ilgisiz): §4.1
+"12 dosya" (o günkü §E 18 sayıyordu, bugün 20) ve §4.2 "8 yetim" (§D 9
+sayıyordu).
+
+Kartın uyarısı belgede üç yerde korundu: statik import ölçümü;
+`cost_ledger`'ın ses yolunda import edilmesi bütçe kapısının bağlı
+olduğunu **kanıtlamaz** — `api_budget_gate.py` hâlâ YALNIZ-TEST.
+Aşağıdaki [DOĞRULANMADI] işareti belgeye taşındı, doğrulanmadı;
+belgede [DOĞRULANMADI] 0 → 8 (hepsi yeni), [EMİN DEĞİLİM] 2 → 2.
+
+Kapı: 1978 passed / 2 xfailed (iki sırada), uyarı 2, ruff 283.
+
+*Aşağısı maddenin yazıldığı andaki kayıttır.*
 
 **Nerede:** `docs/JARVIS_ENVANTER.md`, işaretçinin üstü (§0–§4)
 
