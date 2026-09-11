@@ -367,6 +367,14 @@ _API_GERI_CEKILME_S = 2.0        # deneme × bu kadar saniye (2, 4)
 
 # 5xx ve 429 geçicidir; diğer 4xx (401 yanlış anahtar, 400 bozuk istek)
 # kalıcıdır ve tekrarlamak hem boşa gider hem hız sınırını zorlar.
+#
+# >>> BU POLİTİKA `agent/cloud_llm.py` İLE İKİZDİR; biri değişirse diğeri
+# >>> de değişmeli. <<<
+# Kopya bilerek: `eval/` üretim kodundan, üretim kodu `eval/`'den import
+# etmez — ikisi de ters bağımlılık olurdu. İki tarafın deneme SAYISI ve
+# geri çekilme süresi bilerek farklıdır (burada 3 deneme / 2 s, üretimde
+# 2 deneme / 0,5 s): orada kullanıcı beklemiyor, üretimde bekliyor.
+# Ortak olan şey "hangi hata geçicidir" kararıdır, o da budur.
 _GECICI_HTTP_KODLARI = frozenset({408, 409, 425, 429, 500, 502, 503, 504})
 
 

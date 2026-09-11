@@ -29,6 +29,8 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
 _REPO = Path(__file__).resolve().parents[1]
 
 #: Gercek proje baglamina benzeyen, hassas HICBIR sey icermeyen blok.
@@ -388,3 +390,214 @@ def test_yerelde_kalan_tur_deftere_yazilmaz(monkeypatch, tmp_path):
     assert not yol.exists() or not yol.read_text(encoding="utf-8").strip(), (
         "yerelde kalan tur deftere harcama yazdi"
     )
+
+
+# --------------------------------------------------------------------------- #
+# KART_BULUT_TEK_YENIDEN_DENEME -- tek yeniden deneme, butce buyumeden
+# --------------------------------------------------------------------------- #
+#
+# Olculdu (2026-09-11): 21 turun 7'si gecici ag hatasiyla yerele dustu ve o
+# turlarda cevabi llama verdi -- yani her uc turdan birinde PUSULA sessizce
+# kirildi. Duzeltme tek yeniden deneme; ama naif hali ("20 s ile dene, olmazsa
+# 20 s ile bir daha") dun olcumle kazanilan 60->20 indirimini geri verirdi.
+#
+# Bu yuzden butce BOLUNUR, buyutulmez. Asagidaki testler iki seyi birden
+# kilitler: yeniden deneme VAR, ve toplam tavan AYNI.
+
+
+def _bulut_ortami(monkeypatch):
+    """Dis modeli "yapilandirilmis" sayan sahte ortam; aga cikilmaz."""
+    from agents.model_registry import ModelRegistry
+
+    monkeypatch.setenv(_anahtar_adi(), "test-anahtari-gercek-degil")
+    return ModelRegistry()
+
+
+_MESAJLAR = [
+    {"role": "system", "content": "sistem"},
+    {"role": "user", "content": "nerede kaldik"},
+]
+
+
+def _basarili_yanit(metin: str = "BULUT_CEVAP") -> dict:
+    return {
+        "choices": [{"message": {"content": metin}, "finish_reason": "stop"}],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 3},
+    }
+
+
+def _http_401():
+    import urllib.error
+
+    return urllib.error.HTTPError(
+        "https://ornek.gecersiz/chat", 401, "Unauthorized", {}, None,
+    )
+
+
+def test_gecici_hatadan_sonra_ikinci_deneme_cevabi_getirir(monkeypatch):
+    """Birinci deneme koparsa tur SESSIZCE kaybedilmez, bir kez daha denenir."""
+    import agent.cloud_llm as cloud_llm
+
+    cagrilar: list[float] = []
+
+    def _sahte_http(url, govde, basliklar, timeout):
+        cagrilar.append(timeout)
+        if len(cagrilar) == 1:
+            raise ConnectionResetError("WinError 10054")
+        return _basarili_yanit()
+
+    monkeypatch.setattr(cloud_llm, "_http_json", _sahte_http)
+    sonuc = cloud_llm.cloud_chat(_MESAJLAR, registry=_bulut_ortami(monkeypatch))
+
+    assert sonuc["text"] == "BULUT_CEVAP", "ikinci deneme cevabi getirmedi"
+    assert len(cagrilar) == 2, f"tam 2 deneme bekleniyordu: {len(cagrilar)}"
+
+
+def test_iki_deneme_de_koparsa_ucuncu_deneme_YOK(monkeypatch):
+    """Yeniden deneme TEKtir. Ucuncu deneme butceyi asardi."""
+    import agent.cloud_llm as cloud_llm
+
+    cagrilar: list[float] = []
+
+    def _hep_kopar(url, govde, basliklar, timeout):
+        cagrilar.append(timeout)
+        raise ConnectionResetError("WinError 10054")
+
+    monkeypatch.setattr(cloud_llm, "_http_json", _hep_kopar)
+
+    with pytest.raises(cloud_llm.CloudChatError):
+        cloud_llm.cloud_chat(_MESAJLAR, registry=_bulut_ortami(monkeypatch))
+
+    assert len(cagrilar) == 2, (
+        f"tam 2 deneme bekleniyordu, {len(cagrilar)} yapildi"
+    )
+
+
+def test_kalici_hata_TEKRARLANMAZ(monkeypatch):
+    """401 yanlis anahtardir; tekrarlamak hem bosa gider hem hiz sinirini zorlar.
+
+    `HTTPError` bir `URLError` ALT SINIFIDIR. Once o ayiklanmazsa yanlis
+    anahtar da "gecici" sayilir ve bosuna tekrarlanir.
+    """
+    import agent.cloud_llm as cloud_llm
+
+    cagrilar: list[float] = []
+
+    def _yetkisiz(url, govde, basliklar, timeout):
+        cagrilar.append(timeout)
+        raise _http_401()
+
+    monkeypatch.setattr(cloud_llm, "_http_json", _yetkisiz)
+
+    with pytest.raises(cloud_llm.CloudChatError):
+        cloud_llm.cloud_chat(_MESAJLAR, registry=_bulut_ortami(monkeypatch))
+
+    assert len(cagrilar) == 1, (
+        f"kalici hata tekrarlandi: {len(cagrilar)} deneme"
+    )
+
+
+def test_bos_cevap_TEKRARLANMAZ(monkeypatch):
+    """Bos cevap hattin degil MODELIN sonucudur; tekrarlamak duzeltmez."""
+    import agent.cloud_llm as cloud_llm
+
+    cagrilar: list[float] = []
+
+    def _bos(url, govde, basliklar, timeout):
+        cagrilar.append(timeout)
+        return _basarili_yanit("")
+
+    monkeypatch.setattr(cloud_llm, "_http_json", _bos)
+
+    with pytest.raises(cloud_llm.CloudChatError, match="bos cevap"):
+        cloud_llm.cloud_chat(_MESAJLAR, registry=_bulut_ortami(monkeypatch))
+
+    assert len(cagrilar) == 1, f"bos cevap tekrarlandi: {len(cagrilar)}"
+
+
+def test_iki_denemenin_butcesi_toplam_tavani_ASMAZ(monkeypatch):
+    """Kartin asil meselesi: yeniden deneme VAR ama tavan BUYUMEZ.
+
+    Naif uygulama (20 s dene, olmazsa 20 s daha) en kotu 40 saniye eder ve
+    dun olcumle kazanilan 60->20 indirimini geri verir.
+    """
+    import agent.cloud_llm as cloud_llm
+
+    butceler = cloud_llm._deneme_butceleri(cloud_llm.DEFAULT_TIMEOUT_S)
+
+    assert len(butceler) == 2, "tek yeniden deneme bekleniyordu"
+    assert butceler == [12.0, 7.0], f"kartin bolusumu degismis: {butceler}"
+
+    toplam = sum(butceler) + cloud_llm._GERI_CEKILME_S
+    assert toplam <= cloud_llm.DEFAULT_TIMEOUT_S, (
+        f"iki deneme toplami {toplam} s, tavan {cloud_llm.DEFAULT_TIMEOUT_S} s"
+    )
+
+
+def test_denemelere_gecen_zaman_asimi_bolunmus_butcedir(monkeypatch):
+    """Bolusum hesapta degil, `_http_json`'a GECEN degerde gorunmeli."""
+    import agent.cloud_llm as cloud_llm
+
+    gecen: list[float] = []
+
+    def _hep_kopar(url, govde, basliklar, timeout):
+        gecen.append(timeout)
+        raise ConnectionResetError("WinError 10054")
+
+    monkeypatch.setattr(cloud_llm, "_http_json", _hep_kopar)
+
+    with pytest.raises(cloud_llm.CloudChatError):
+        cloud_llm.cloud_chat(_MESAJLAR, registry=_bulut_ortami(monkeypatch))
+
+    assert gecen == [12.0, 7.0], (
+        f"denemelere gecen zaman asimi bolunmemis: {gecen}"
+    )
+
+
+def test_anahtar_yeniden_deneme_yolunda_da_sizmaz(monkeypatch):
+    """Redaksiyon son hata mesajinda da gecerli.
+
+    Yeniden deneme, hata metnini SON denemeden alir. O yol da ayni
+    temizlikten gecmezse anahtar istisna metniyle disari sizar.
+    """
+    import agent.cloud_llm as cloud_llm
+
+    anahtar = "sk-gizli-anahtar-sizmamali"
+    monkeypatch.setenv(_anahtar_adi(), anahtar)
+
+    from agents.model_registry import ModelRegistry
+
+    def _anahtari_sizdir(url, govde, basliklar, timeout):
+        # Bazi kutuphaneler istek basliklarini hata metnine koyar.
+        raise ConnectionResetError(f"baglanti koptu: {basliklar['Authorization']}")
+
+    monkeypatch.setattr(cloud_llm, "_http_json", _anahtari_sizdir)
+
+    with pytest.raises(cloud_llm.CloudChatError) as hata:
+        cloud_llm.cloud_chat(_MESAJLAR, registry=ModelRegistry())
+
+    assert anahtar not in str(hata.value), "anahtar hata mesajina sizdi"
+    assert "[REDACTED]" in str(hata.value), "redaksiyon uygulanmadi"
+
+
+def test_iki_deneme_de_koparsa_ajan_yerele_duser_ve_bildirir(monkeypatch):
+    """Mevcut davranis BOZULMAZ: kullanici hala "hat koptu" diye duyar.
+
+    `agent/local_agent.py` bu kartta DEGISMEDI; bu test onun hala dogru
+    davrandigini kilitler.
+    """
+    import agent.cloud_llm as cloud_llm
+
+    cagrilar: list[float] = []
+
+    def _hep_kopar(url, govde, basliklar, timeout):
+        cagrilar.append(timeout)
+        raise ConnectionResetError("WinError 10054")
+
+    monkeypatch.setattr(cloud_llm, "_http_json", _hep_kopar)
+
+    sonuc = _tur(monkeypatch, "nerede kaldik", gercek_bulut=True)
+
+    assert len(cagrilar) == 2, f"tam 2 deneme bekleniyordu: {len(cagrilar)}"
+    assert sonuc["cevap"] == "YEREL_CEVAP", "yerele dusulmedi"
+    assert sonuc["bildirimler"], "SESSIZCE yerele dusuldu"

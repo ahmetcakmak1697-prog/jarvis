@@ -26,19 +26,29 @@ Model adi, uc nokta ve anahtarin ADI `config/runtime_profiles.json`'dan
 Anahtarin DEGERI yalnizca ortamdan okunur; bu modul `.env` acmaz
 (CLAUDE.md §9) -- `main.py` zaten yukluyor.
 
+Yeniden deneme: TEK, ve butce buyumeden
+---------------------------------------
+Gecici bir hat hatasinda **bir kez** daha denenir (Ahmet onayi,
+2026-09-11). Toplam duvar butcesi BUYUMEZ: `DEFAULT_TIMEOUT_S` bir tavandir
+ve iki deneme onun icine sigdirilir (bkz. `_deneme_butceleri`). Gerekce
+olculmus -- her uc turdan biri hat hatasiyla yerele dusuyordu ve o
+turlarda PUSULA kiriliyordu.
+
+Kalici hata (401/400) ve bos cevap TEKRARLANMAZ: ilki hattin degil
+anahtarin, ikincisi hattin degil modelin sonucudur.
+
 Ne YAPILMIYOR
 -------------
-* **Yeniden deneme yok.** `eval/run_turkish_quality.py` gecici hatalarda
-  3 kez deniyor cunku orada olculen sey modeldir ve kopan hat olcumu
-  bozar. Burada olculen sey kullanicinin bekledigi suredir: ikinci deneme
-  gecikmeyi ikiye katlar. Hata halinde yerel model devreye girer ve
-  kullanici bunu duyar (kart §2c).
+* **Ucuncu deneme yok.** Tavan 20 s; ikiden fazlasi ya tavani deler ya da
+  her denemeyi mesru cevabi kesecek kadar kisaltir.
 * **Akis (stream) yok.** Ajan zaten tek parca cevap bekliyor.
 """
 from __future__ import annotations
 
 import json
 import os
+import socket
+import time
 from typing import Any, Optional
 
 __all__ = [
@@ -67,6 +77,82 @@ DEFAULT_MAX_TOKENS = 1024
 
 #: `_ask_ollama` ile AYNI. Uslup farki modelden gelsin, ayardan degil.
 DEFAULT_TEMPERATURE = 0.72
+
+
+# --------------------------------------------------------------------------- #
+# TEK yeniden deneme — butce BOLUNUR, buyutulmez
+# --------------------------------------------------------------------------- #
+#
+# OLCULDU (2026-09-11, `automation/SES_YOLU_DEEPSEEK_2026-09-11.md` §7a):
+# 21 turun 7'si gecici ag hatasiyla yerele dustu. O turlarda cevabi llama
+# verdi ve llama "nerede kaldik" sorusunu cevaplayamiyor -- yani her uc
+# turdan birinde PUSULA sessizce kirildi.
+#
+# NAIF UYGULAMA YANLISTIR: "20 s ile dene, olmazsa 20 s ile bir daha" en
+# kotu 40 saniye eder ve DEFAULT_TIMEOUT_S'in 60'tan 20'ye indirilmesiyle
+# olcumle kazanilan seyi geri verir. Bu yuzden toplam duvar butcesi ayni
+# kalir ve icine iki deneme SIGDIRILIR:
+#
+#     1. deneme    12,0 s   (toplamin %60'i)
+#     geri cekilme  0,5 s
+#     2. deneme     7,0 s   (toplamin %35'i)
+#     ----------------------
+#     en kotu      19,5 s   < 20 s tavani
+#
+# Sayilar olcumden: basarili uzun anlatim turu p95 7,0 s, en yavas basarili
+# tur 7,6 s. 12 s'lik ilk deneme mesru hicbir cevabi kesmiyor.
+#
+# Geri cekilme 0,5 s: `WinError 10054` ANLIK bir kopmadir, saglayicinin
+# toparlanmasini beklemek gerekmez. Olcum kosusundaki 2 s orada dogruydu
+# (kullanici beklemiyordu), burada degil.
+_ILK_DENEME_PAYI = 0.60
+_IKINCI_DENEME_PAYI = 0.35
+_GERI_CEKILME_S = 0.5
+
+#: 5xx ve 429 gecicidir; diger 4xx (401 yanlis anahtar, 400 bozuk istek)
+#: kalicidir ve tekrarlamak hem bosa gider hem hiz sinirini zorlar.
+#:
+#: >>> BU POLITIKA `eval/run_turkish_quality.py` ILE IKIZDIR;
+#: >>> biri degisirse digeri de degismeli. <<<
+#: Kopyalanmasinin sebebi: `eval/` uretim kodundan, uretim kodu `eval/`'den
+#: import etmez -- ikisi de ters bagimlilik olurdu. Ortak bir modul acmak
+#: spekulatif genislemedir (CLAUDE.md §2).
+_GECICI_HTTP_KODLARI = frozenset({408, 409, 425, 429, 500, 502, 503, 504})
+
+
+def _gecici_ag_hatasi(exc: BaseException) -> bool:
+    """Bu hata yeniden denemeye deger mi?
+
+    Ayri fonksiyon olmasinin sebebi: "hangi hata gecicidir" bir POLITIKA
+    kararidir ve tek yerde durmali.
+
+    `HTTPError` bir `URLError` ALT SINIFI oldugu icin once o ayiklanir --
+    yoksa yanlis anahtar (401) da gecici sayilir ve bosuna tekrarlanir.
+
+    >>> BU POLITIKA `eval/run_turkish_quality.py:_gecici_ag_hatasi` ILE
+    >>> IKIZDIR; biri degisirse digeri de degismeli. <<<
+    """
+    import urllib.error
+
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code in _GECICI_HTTP_KODLARI
+    return isinstance(exc, (urllib.error.URLError, ConnectionError,
+                            TimeoutError, socket.timeout))
+
+
+def _deneme_butceleri(toplam: float) -> list[float]:
+    """Toplam duvar butcesini denemelere boler. Toplami ASLA asmaz.
+
+    Butce iki denemeye + geri cekilmeye sigmiyorsa tek deneme yapilir:
+    yeniden deneme bir kolayliktir, tavani delmek icin gerekce degil.
+    """
+    if toplam <= 0:
+        return [0.0]
+    ilk = round(toplam * _ILK_DENEME_PAYI, 6)
+    ikinci = round(toplam * _IKINCI_DENEME_PAYI, 6)
+    if ilk + _GERI_CEKILME_S + ikinci > toplam:
+        return [toplam]
+    return [ilk, ikinci]
 
 
 class CloudChatError(RuntimeError):
@@ -161,11 +247,26 @@ def cloud_chat(
         "Authorization": f"Bearer {anahtar}",
     }
 
-    try:
-        yanit = _http_json(url, govde, basliklar, timeout)
-    except Exception as exc:  # noqa: BLE001 - tur degil, sebep tasiyoruz
-        temiz = str(exc).replace(anahtar, "[REDACTED]") if anahtar else str(exc)
-        raise CloudChatError(f"{type(exc).__name__}: {temiz}") from None
+    def _temizle(exc: BaseException) -> str:
+        # Anahtar istisna metnine sizabilir (bazi kutuphaneler basliklari
+        # hata mesajina koyar). Mesaj yeniden kurulur -- SON denemenin
+        # hatasi da ayni temizlikten gecer.
+        metin = str(exc)
+        return metin.replace(anahtar, "[REDACTED]") if anahtar else metin
+
+    butceler = _deneme_butceleri(timeout)
+    for sira, butce in enumerate(butceler, start=1):
+        try:
+            yanit = _http_json(url, govde, basliklar, butce)
+            break
+        except Exception as exc:  # noqa: BLE001 - tur degil, sebep tasiyoruz
+            # Son deneme ya da KALICI hata: yukari cikar. Kalici hatayi
+            # tekrarlamak hem bosa gider hem hiz sinirini zorlar.
+            if sira >= len(butceler) or not _gecici_ag_hatasi(exc):
+                raise CloudChatError(
+                    f"{type(exc).__name__}: {_temizle(exc)}"
+                ) from None
+            time.sleep(_GERI_CEKILME_S)
 
     secim = (yanit.get("choices") or [{}])[0]
     metin = ((secim.get("message") or {}).get("content") or "").strip()
