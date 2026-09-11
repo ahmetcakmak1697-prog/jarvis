@@ -87,11 +87,25 @@ farkına bak:
 1. `_LEAK_NGRAMS` kümesini **değişiklikten önce ve sonra** hesapla.
 2. **Kaybolan n-gram kümesi**, yalnız `_YONTEM` bloğundan türeyenlerin
    kümesine eşit olmalı. Fazlası varsa çıkarma çok geniş demektir → **DUR.**
-3. Kayıtlı tüm koşuları (`automation/KALITE_*.json`) yeni korpusla yeniden
-   puanla. `prompt_leak` değeri **True→False** dönen her vakayı listele.
-4. Bu vakaların her birinin eski `prompt_leak_hits` listesi, adım 2'deki
-   kaybolan kümenin **alt kümesi** olmalı. Olmayan tek bir vaka bile
-   varsa → **DUR ve söyle.**
+3. Kayıtlı tüm koşuları (`automation/KALITE_*.json`) **iki kez** puanla:
+   bir kez **değişiklikten hemen önceki** dedektörle, bir kez yenisiyle.
+   `prompt_leak` değeri **True→False** dönen her vakayı listele.
+
+   > **KARŞILAŞTIRMA TABANI JSON'DAKİ KAYITLI SKOR DEĞİLDİR.** Kayıtlı
+   > skorlar farklı dedektör ve farklı persona kuşaklarıyla üretildi;
+   > onlarla karşılaştırmak, **başka bir commit'in** yaptığı değişikliği
+   > bu kartın hanesine yazar. Ölçüldü (2026-09-10, ETAP 4): dört vaka
+   > `['size yardimci olmaktan', ...]` n-gram'larıyla düşmüş görünüyordu
+   > — o n-gram'lar persona'dan `f1aa069` (PARÇA A) ile çıkmıştı, bu
+   > kartla değil. Doğru tabanla ölçüldüğünde ihlal **sıfır**.
+
+4. Bu vakaların her birinin **önceki dedektörle** hesaplanan
+   `prompt_leak_hits` listesi, adım 2'deki kaybolan kümenin **alt kümesi**
+   olmalı. Olmayan tek bir vaka bile varsa → **DUR ve söyle.**
+
+5. Kayıtlı skorlarla yeni skorlar arasındaki fark **ayrıca** raporlanır —
+   ama bu bir DUR koşulu **değildir**, tarihsel bilgidir: hangi vakanın
+   hangi kuşakta değiştiğini gösterir.
 5. Dönen vakaları `id` + eski `hits` ile rapora yaz. Bu liste insan gözüyle
    okunacak; ajanın hüküm vermesi istenmiyor, **görünür kılması** isteniyor.
 
