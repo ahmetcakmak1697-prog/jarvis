@@ -89,7 +89,7 @@ class OllamaExecutor:
             url = self._ollama_url
             if not url:
                 reg = self._get_registry()
-                url = reg.ollama_url() if reg else "http://localhost:11434"
+                url = reg.ollama_url() if reg else "http://127.0.0.1:11434"
 
             class _OllamaHTTPClient:
                 def __init__(self, base_url):

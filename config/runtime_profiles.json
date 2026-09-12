@@ -6,7 +6,7 @@
     "rtx3070": {
       "label": "RTX 3070 8GB - mevcut sistem",
       "backend": "ollama",
-      "ollama_url": "http://localhost:11434",
+      "ollama_url": "http://127.0.0.1:11434",
       "local_small": "qwen2.5:7b",
       "local_main": "llama3.1:latest",
       "research_model": "llama3.1:latest",
@@ -22,7 +22,7 @@
     "dual3090": {
       "label": "2x RTX 3090 NVLink 48GB - hedef sistem",
       "backend": "vllm",
-      "ollama_url": "http://localhost:11434",
+      "ollama_url": "http://127.0.0.1:11434",
       "local_small": "qwen2.5:7b",
       "local_main": "70b-q4-placeholder",
       "research_model": "qwen2.5:7b",
@@ -35,7 +35,7 @@
     "cloud_hybrid": {
       "label": "Yerel + API hibrit",
       "backend": "ollama",
-      "ollama_url": "http://localhost:11434",
+      "ollama_url": "http://127.0.0.1:11434",
       "local_small": "llama3.2:latest",
       "local_main": "mistral-nemo:latest",
       "research_model": "mistral-nemo:latest",

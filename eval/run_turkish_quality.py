@@ -526,7 +526,7 @@ def _ollama_ask(model: str, prompt: str, level: str,
                     "num_ctx": 4096},
     }).encode("utf-8")
     istek = urllib.request.Request(
-        "http://localhost:11434/api/generate", data=govde,
+        "http://127.0.0.1:11434/api/generate", data=govde,
         headers={"Content-Type": "application/json"}, method="POST")
 
     t0 = time.perf_counter()
@@ -569,7 +569,7 @@ def _nvidia_probe() -> Optional[float]:
 def _installed_models() -> List[str]:
     import urllib.request
     d = json.loads(urllib.request.urlopen(
-        "http://localhost:11434/api/tags", timeout=10).read())
+        "http://127.0.0.1:11434/api/tags", timeout=10).read())
     return [m["name"] for m in d.get("models", [])]
 
 

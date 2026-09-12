@@ -22,7 +22,7 @@ Kullanim:
     reg = ModelRegistry()
     model = reg.local_main(fallback="mistral-nemo:latest")
     backend = reg.backend()                # "ollama" / "vllm"
-    url = reg.ollama_url()                  # "http://localhost:11434"
+    url = reg.ollama_url()                  # "http://127.0.0.1:11434"
     prof = reg.active_profile_name()        # "rtx3070"
 
 Not (M0 ileride buyuyecek):
@@ -41,7 +41,7 @@ _DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "runt
 # Profil hic okunamazsa son care: en azindan ollama varsay.
 _HARD_FALLBACK_PROFILE = {
     "backend": "ollama",
-    "ollama_url": "http://localhost:11434",
+    "ollama_url": "http://127.0.0.1:11434",
     "tensor_parallel_size": 1,
 }
 
@@ -178,7 +178,7 @@ class ModelRegistry:
         val = self._active.get("backend")
         return val if isinstance(val, str) and val.strip() else fallback
 
-    def ollama_url(self, fallback: str = "http://localhost:11434") -> str:
+    def ollama_url(self, fallback: str = "http://127.0.0.1:11434") -> str:
         val = self._active.get("ollama_url")
         return val if isinstance(val, str) and val.strip() else fallback
 
