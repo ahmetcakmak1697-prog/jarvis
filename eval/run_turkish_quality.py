@@ -55,7 +55,13 @@ DEFAULT_OUT = _REPO / "automation"
 #: yaniltiyordu. Vaka "detayli anlat" derken kosucunun 400 token vermesi bir
 #: olcum kusuruydu. Yalniz 4 longform vakasi daha genis butce beyan eder;
 #: diger 60 vakanin kosulu hic degismedi (CLAUDE.md §3).
-DEFAULT_NUM_PREDICT = 400
+#:
+#: 2026-09-13: 400 -> 2000 (Ahmet imzasi, KART_400_UYGULA_VE_TABAN.md).
+#: Sonda: 400 butceli 60 vaka 2000'de iki modelde kosuldu, 120 cevabin
+#: 119'u kendiliginden durdu, en uzun dogal cevap 644 cikis tokeni
+#: (automation/TERAZI_400_SONDA_2026-09-12.md). 400'de DeepSeek'in uc
+#: turkish vakasi duvara carpip `truncated` sayiliyordu.
+DEFAULT_NUM_PREDICT = 2000
 
 #: Kategori -> persona seviyesi. Kısa turlar L1, teknik L2, uzun anlatım L3.
 _CATEGORY_LEVEL = {

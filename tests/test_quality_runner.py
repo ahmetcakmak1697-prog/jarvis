@@ -269,6 +269,13 @@ def test_only_longform_cases_declare_a_larger_budget():
 
     Testin KORUDUGU sozlesme degismedi: butceyi yalniz longform beyan eder,
     diger 60 vaka varsayilanda kalir.
+
+    Varsayilan 400 -> 2000 (2026-09-13). Yine bir OLCUM TANIMI degisikligi,
+    yine Ahmet imzasiyla (`automation/KART_400_UYGULA_VE_TABAN.md`). Sayi
+    sondayla secildi: 400 butceli 60 vaka 2000'de iki modelde kosuldu, 120
+    cevabin 119'u kendiliginden durdu, en uzun dogal cevap 644 cikis tokeni
+    (`automation/TERAZI_400_SONDA_2026-09-12.md`). Sozlesme yine degismedi;
+    degisen tek sey imzali varsayilan sayidir.
     """
     from pathlib import Path
 
@@ -279,7 +286,7 @@ def test_only_longform_cases_declare_a_larger_budget():
     assert sorted(beyan) == ["t2_longform_001", "t2_longform_002",
                              "t2_longform_003", "t2_longform_004"]
     assert set(beyan.values()) == {4000}
-    assert DEFAULT_NUM_PREDICT == 400
+    assert DEFAULT_NUM_PREDICT == 2000
 
 
 def test_report_separates_budget_stops_from_model_stops(tmp_path):
