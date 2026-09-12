@@ -716,3 +716,34 @@ returned PASS. Historical stop record: automation/CODEX_V2_UYGULAMA_2026-09-07.m
 - Evidence: `tests/test_ses_yolu_bulut_kapisi.py::test_anahtar_ortamda_yoksa_bulut_yolu_kapali`
   asserts the key is gone and `cloud_chat_ready()` is False. Gate after
   the fix: 1970 passed + 2 xfailed in both orders, ruff 283 unchanged.
+
+
+### [2026-09-12] A hook that never ran, reported as a failure every turn
+
+- Trap: `.codex/hooks.json` was a byte-for-byte copy of
+  `.claude/settings.json`'s hook block -- same `matcher` / `hooks` /
+  `"type": "command"` shape. Every Codex turn ended with
+  `Hook failed / hook exited with code 1`. The noise was read as
+  cosmetic and ignored for two days.
+- Root cause: that schema is Claude Code's, not Codex's. Evidence, all
+  negative: `codex doctor` never prints the word "hook"; its
+  Configuration section reads only the global
+  `~/.codex/config.toml`; no hook block exists there; there is no
+  `~/.codex/hooks.json`; `codex --help` lists no hook subcommand. The
+  command itself was fine -- run by hand, `graphify hook-guard search`
+  and `... read --strict` both exit 0 and emit the Claude Code
+  `hookSpecificOutput` envelope.
+- Why it mattered more than the noise suggested: a guard that is
+  believed to run but does not is worse than no guard. The graphify
+  orientation rule was assumed enforced on the Codex side for two days;
+  it was only ever enforced by the text of `CLAUDE.md` / `AGENTS.md`,
+  which both agents do read.
+- Rule: before trusting a hook, prove it fires. A hook that reports
+  failure every turn is not cosmetic -- it is either broken or
+  unsupported, and both mean the guarantee it was added for does not
+  exist. Copying a config between two different agent runtimes is the
+  same class of error as copying a measurement between two different
+  definitions.
+- Resolution: file deleted (it was never git-tracked, so no commit
+  removes it). The rule it was meant to enforce stays where it always
+  actually lived: the graphify section of `CLAUDE.md`.
