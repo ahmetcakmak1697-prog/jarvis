@@ -25,7 +25,7 @@ def evaluate(user_msg, jarvis_msg):
     p = EVAL.format(u=user_msg, j=jarvis_msg)
     try:
         r = requests.post(
-            "http://localhost:11434/api/generate",
+            "http://127.0.0.1:11434/api/generate",
             json={"model": MODEL, "prompt": p, "stream": False,
                   "format": "json",
                   "options": {"temperature": 0.2, "num_predict": 200}},

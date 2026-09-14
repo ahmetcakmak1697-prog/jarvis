@@ -582,7 +582,7 @@ JSON:
 
         try:
             r = requests.post(
-                "http://localhost:11434/api/generate",
+                "http://127.0.0.1:11434/api/generate",
                 json={
                     "model": self.MODEL,
                     "prompt": prompt,
@@ -639,7 +639,7 @@ JSON döndür:
 
         try:
             r = requests.post(
-                "http://localhost:11434/api/generate",
+                "http://127.0.0.1:11434/api/generate",
                 json={
                     "model": self.MODEL,
                     "prompt": check_prompt,
@@ -965,7 +965,7 @@ JSON döndür:
 
             try:
                 r = requests.post(
-                    "http://localhost:11434/api/chat",
+                    "http://127.0.0.1:11434/api/chat",
                     json={
                         "model": self.MODEL,
                         "messages": messages,
@@ -1005,7 +1005,7 @@ JSON döndür:
                     }
                     try:
                         r = requests.post(
-                            "http://localhost:11434/api/chat",
+                            "http://127.0.0.1:11434/api/chat",
                             json={
                                 "model": self.MODEL,
                                 "messages": messages,
@@ -1280,7 +1280,7 @@ Türkçe, net, kısa cevap ver."""
 
         try:
             r = requests.post(
-                "http://localhost:11434/api/generate",
+                "http://127.0.0.1:11434/api/generate",
                 json={
                     "model": self.MODEL,
                     "prompt": prompt,

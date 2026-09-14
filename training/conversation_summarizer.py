@@ -39,7 +39,7 @@ def summarize_day(date_str=None):
 Kısa, net, JARVIS karakterinde."""
     try:
         r = requests.post(
-            "http://localhost:11434/api/generate",
+            "http://127.0.0.1:11434/api/generate",
             json={"model": MODEL, "prompt": prompt, "stream": False,
                   "options": {"temperature": 0.4, "num_predict": 400}},
             timeout=120)

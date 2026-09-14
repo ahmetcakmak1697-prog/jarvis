@@ -565,7 +565,7 @@ try:
     # Ollama live check
     try:
         import urllib.request
-        urllib.request.urlopen("http://localhost:11434/api/tags", timeout=3)
+        urllib.request.urlopen("http://127.0.0.1:11434/api/tags", timeout=3)
         ex_live = OllamaExecutor()
         r5 = ex_live.generate("Merhaba, kisaca kendini tanit.", level="L1")
         if r5["ok"]:

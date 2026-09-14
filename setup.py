@@ -33,7 +33,7 @@ def main():
     step(3, "Ollama kontrol")
     try:
         import requests
-        r = requests.get("http://localhost:11434/api/tags", timeout=3)
+        r = requests.get("http://127.0.0.1:11434/api/tags", timeout=3)
         print(f"  ✓ Ollama çalışıyor")
         models = [m["name"] for m in r.json().get("models", [])]
         if "mistral-nemo:latest" not in models:

@@ -14,26 +14,29 @@ buyuttu -- "llama 400 butceyle 502 token" yanlis alarmi buradan cikti.
 
 KAPSAM BILEREK DARDIR -- genisletmeden once oku:
 
-* Test yalniz `_HEDEFLER`'deki dort dosyaya bakar (kartin "EVET" dedigi
-  yollar). `ollama` Python paketini kullanan yollar -- agent/local_agent.py'nin
-  sohbet cagrisi `import ollama` ile paketin varsayilan istemcisine gider --
-  zaten 127.0.0.1'e baglaniyor; onlara dokunulmadi.
-  ISTISNA (olculdu, duzeltilmedi): ayni `chat()`'in acik PDF/belge istegi
-  dali (agent/local_agent.py:939-947, `_pdf_istegi_mi`) cevabi
-  rag/rag_engine.py:138'den alir; o satir `requests.post` ile localhost'a
-  gider. Yani ses yolu yalniz bu dalda ~2 s oder.
+* Test yalniz `_HEDEFLER`'deki on dosyaya bakar (iki kartin "EVET" dedigi
+  yollar: KART_LOCALHOST_2SN ve KART_LOCALHOST_KALANLAR). `ollama` Python
+  paketini kullanan yollar -- agent/local_agent.py'nin sohbet cagrisi
+  `import ollama` ile paketin varsayilan istemcisine gider -- zaten
+  127.0.0.1'e baglaniyor; onlara dokunulmadi.
+  PDF DALI DUZELTILDI (KART_LOCALHOST_KALANLAR, 2026-09-14; commit'i bulmak
+  icin: `git log -S "127.0.0.1:11434" -- rag/rag_engine.py`). Ayni `chat()`'in
+  acik PDF/belge istegi dali (agent/local_agent.py:939-947, `_pdf_istegi_mi`)
+  cevabi rag/rag_engine.py'den alir; `requests.post` artik 127.0.0.1'e
+  gider. `requests` da ayni bedeli oduyordu (olculdu: localhost ~2,05 s,
+  127.0.0.1 ~0,015 s / istek).
 * Park edilmis dort dosya KAPSAM DISIDIR ve bu bir EKSIKLIK DEGILDIR:
   agents/daily_digest.py, agents/orchestrator.py, agents/proactive_agent.py,
   agents/self_improver.py hala localhost kullaniyor. CLAUDE.md §9 park
   edilmis cepheleri hicbir gerekceyle yeniden acmayi yasakliyor; kusur
   "gor, soyle, silme" ilkesiyle listelendi, duzeltilmedi. Onlari buraya
   eklemek o cepheleri acmak demektir -- Ahmet'in karari olmadan genisletme.
-* Kartin tablosunda OLMAYAN ve bu kartta duzeltilmeyen yerler de var
-  (2026-09-13, `git grep localhost:11434`): jarvis_brain.py (5 yer),
-  rag/rag_engine.py (agent/local_agent.py bu modulu import ediyor),
-  setup.py, training/conversation_summarizer.py,
-  training/quality_evaluator.py. Bunlar ayri bir karar; bu test onlari
-  kapsamaz.
+* 2026-09-14 itibariyla (`git grep localhost:11434`) kalan yerler YALNIZ
+  sunlardir ve hepsi bilerek disarida: yukaridaki park edilmis dort dosya,
+  ve tests/test_api_executor.py'deki test verisi (`https://localhost:11434/v1`
+  -- sahte URL, gercek cagri yok; OpenAI-uyumlu ucun localhost'u
+  REDDETTIGINI sinar). Bu dosyanin kendi metni de `localhost:11434` gecirir;
+  o da kapsamda degildir.
 """
 from __future__ import annotations
 
@@ -43,12 +46,20 @@ import pytest
 
 KOK = Path(__file__).resolve().parents[1]
 
-#: KART_LOCALHOST_2SN §1'in "EVET" dedigi izlenen uretim yollari.
+#: KART_LOCALHOST_2SN §1 ve KART_LOCALHOST_KALANLAR §1'in "EVET" dedigi yollar.
 _HEDEFLER = (
+    # KART_LOCALHOST_2SN (5ebf4aa)
     "config/runtime_profiles.json",
     "agents/model_registry.py",
     "agents/ollama_executor.py",
     "eval/run_turkish_quality.py",
+    # KART_LOCALHOST_KALANLAR -- PDF dali oncelikli: canli ses yolu
+    "rag/rag_engine.py",
+    "jarvis_brain.py",
+    "training/conversation_summarizer.py",
+    "training/quality_evaluator.py",
+    "tests/jarvis_system_audit.py",
+    "setup.py",
 )
 
 
