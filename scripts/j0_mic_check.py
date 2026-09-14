@@ -18,6 +18,7 @@ Kullanım:
 from __future__ import annotations
 
 import argparse
+import statistics
 import sys
 import time
 from pathlib import Path
@@ -52,6 +53,7 @@ def dinle(device, saniye: float, esik: float) -> dict:
     toplam = 0.0
     sayac = 0
     esik_ustu = 0
+    seviyeler = []
     parca_sayisi = int(saniye * 1000 / 30)
 
     with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="float32",
@@ -61,6 +63,7 @@ def dinle(device, saniye: float, esik: float) -> dict:
             veri, _tasma = akis.read(CHUNK)
             parca = np.asarray(veri, dtype="float32").reshape(-1).tolist()
             r = rms(parca)
+            seviyeler.append(r)
             tepe = max(tepe, r)
             toplam += r
             sayac += 1
@@ -75,9 +78,32 @@ def dinle(device, saniye: float, esik: float) -> dict:
     return {
         "tepe": tepe,
         "ortalama": toplam / sayac if sayac else 0.0,
+        "medyan": statistics.median(seviyeler) if seviyeler else 0.0,
         "esik_ustu_parca": esik_ustu,
         "toplam_parca": sayac,
     }
+
+
+def medyan_teshisi(medyan: float, tepe: float, esik: float):
+    """Tepe esigi geciyor ama MEDYAN altindaysa onerilen esik; degilse None.
+
+    Neden medyan, ortalama degil (olculdu 2026-09-14, 15 cumle,
+    automation/STT_TURKCE_OLCUM_2026-09-14.md): ortalama yuksek tepeler
+    yuzunden esigin USTUNDE kalirken parcalarin cogu altinda olabilir --
+    15 cumlenin 15'inde ortalama 0,0137-0,0352 idi, yani bir ortalama
+    kontrolu hic ateslemezdi. Medyan esigin altindaysa konusma suresinin
+    yarisindan fazlasi kaydediciye SESSIZLIK gibi gorunur; cumle ici yumusak
+    heceler ve duraklamalar cumleyi erken bitirebilir.
+
+    Oneri `medyan * 0.5`: mevcut `tepe * 0.4` dali gibi olculen seviyeye
+    oranli, mutlak degil; parcalarin en az yarisini esigin ustune alir.
+    0.5 carpani bir basarisiz kayitla DOGRULANMADI -- 2026-09-14 kaydinda
+    hicbir esikte kesilme cikmadi. Taban, `tepe * 0.4` daliyla ayni: 0.0005.
+    Tepe esigin altindaysa bu dal ateslenmez; o durum mevcut dalin isidir.
+    """
+    if tepe < esik or medyan >= esik:
+        return None
+    return max(round(medyan * 0.5, 5), 0.0005)
 
 
 def tara() -> None:
@@ -138,6 +164,7 @@ def main() -> int:
     print("\n=== SONUC ===")
     print(f"  tepe rms      : {s['tepe']:.5f}")
     print(f"  ortalama rms  : {s['ortalama']:.5f}")
+    print(f"  medyan rms    : {s['medyan']:.5f}")
     print(f"  esik ustu     : {s['esik_ustu_parca']}/{s['toplam_parca']} "
           f"parca (%{oran:.0f})")
 
@@ -158,6 +185,16 @@ def main() -> int:
     if oran < 5:
         print("  Konusma algilandi ama cok seyrek. Mikrofona daha yakin")
         print("  konusun ya da esigi biraz dusurun.")
+        return 2
+    onerilen_medyan = medyan_teshisi(s["medyan"], s["tepe"], a.threshold)
+    if onerilen_medyan is not None:
+        print(f"  Tepe esigi geciyor ama MEDYAN esigin altinda "
+              f"(medyan {s['medyan']:.5f} < esik {a.threshold}).")
+        print("  Konusma suresinin yarisindan fazlasi kaydediciye SESSIZLIK gibi")
+        print("  gorunuyor; cumle ici yumusak heceler cumleyi erken bitirebilir.")
+        print("  Iki olasilik: surekli konusmadiniz (tekrar deneyin) ya da")
+        print("  konusma seviyeniz esige yakin.")
+        print(f"  -> Surekliyse onerilen esik: {onerilen_medyan}  (medyan x 0.5)")
         return 2
     print("  Mikrofon ve esik UYUMLU. Bu aygitla JARVIS sizi duymali.")
     return 0
