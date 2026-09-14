@@ -747,3 +747,34 @@ returned PASS. Historical stop record: automation/CODEX_V2_UYGULAMA_2026-09-07.m
 - Resolution: file deleted (it was never git-tracked, so no commit
   removes it). The rule it was meant to enforce stays where it always
   actually lived: the graphify section of `CLAUDE.md`.
+
+### [2026-09-14] Two PIDs for one job: a venv launcher read as CPU contention
+
+- **Trap:** during an STT duration measurement, `Get-CimInstance Win32_Process`
+  showed two python processes with the same script, the same arguments and the
+  same creation second -- one `.venv\Scripts\python.exe`, one
+  `"C:\Program Files\Python311\python.exe"`. This was read as two competing
+  jobs inflating every timing in the run. The claim was stated to Ahmet twice,
+  escalated once ("bigger than one report"), and a clean re-run was killed
+  over it.
+- **Root cause:** on Windows a venv's `Scripts\python.exe` is a *launcher*, not
+  a copy of the interpreter -- 274712 bytes against the base interpreter's
+  103192. It spawns the real interpreter as a **child** and waits. Proof:
+  `ParentProcessId` of the `Program Files` process is the PID of the `.venv`
+  process. One job, two PIDs, zero contention.
+- **Why it mattered:** the accusation targeted the method line of a recorded
+  measurement (`automation/STT_TURKCE_OLCUM_2026-09-14.md`: *"Ölçüm sırasında
+  başka iş koşmadı"*) which was **true**, and it put the budget rejection of
+  `medium` in doubt when nothing was wrong with it. The re-run, cut short by
+  the kill, still reproduced the original numbers to within 1%: `small`/1
+  1243 vs 1252 ms, `small`/5 1308 vs 1305 ms, WER identical (0,171 / 0,132),
+  Kusur B table identical across all five thresholds.
+- **Rule:** a process list is not a contention measurement. Before calling two
+  PIDs contention, read `ParentProcessId` -- a parent-child pair is one job.
+  And when a suspicion targets someone else's *recorded method*, test it
+  before stating it: the decisive test here was a single `ParentProcessId`
+  query, available the whole time, costing seconds.
+- **Resolution:** no repo change was needed. `87a714d` stands unmodified and
+  the raw `olcum.json` is byte-identical to its backup. This record exists
+  because the next agent that inspects a process list mid-measurement will
+  see the same two PIDs.
