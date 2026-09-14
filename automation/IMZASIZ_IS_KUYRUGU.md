@@ -607,6 +607,47 @@ yeni sayılar otomatik bölümden alındı, elle sayılmadı.
 
 ---
 
+## K17 — Tekrar dedektörü numaralı sayma döngüsünü görmüyor
+
+**Nerede:** `eval/quality_scorer.py` → tekrar dedektörü (`repetition_ok`,
+`repeated_phrase`)
+
+**Ölçüldü (2026-09-12, 400 sondası — `automation/TERAZI_400_SONDA_2026-09-12.md`
+§2 ve §5.2):** llama3.1 `t1_mix_002`, bütçe 2000. Model sahte bir süreç
+tablosunu satır satır sayarak 2000 token'a kadar gitti:
+
+```
+ 55  0.0  0.0   0.0 S+   0.00  0:00.00  kworker
+ 56  0.0  0.0   0.0 S+   0.00  0:00.00  kworker
+ 57  0.0  0.0   0.0 S+   0.00  0:00.00  kworker
+```
+
+Puanlayıcı `repetition_ok=True`, `repeated_phrase=None` verdi — satırlar
+yalnız baştaki sayıyla farklılaştığı için tekrar sayılmadı. Cevap `truncated`
+ile düştü; yani puan doğru çıktı ama **tek sebebi duvardı.** Aynı vaka 3000'de
+yeniden örneklenince 139 token'da durdu; 400'de (ETAP 5) 39 token'dı.
+
+**Neden şimdi önemli:** kısa vakaların bütçesi 2000'e çıktı
+(`automation/KART_400_UYGULA_VE_TABAN.md`). Duvar uzaklaştıkça dejenere bir
+sayma döngüsünü yakalayan tek şey `truncated` kalıyor; döngü bütçenin altında
+biterse o cevap **geçer.**
+
+**Neden bu kuyrukta ama yalnız yarısıyla:** Kör noktayı **ölçmek** imza
+gerektirmez. **Düzeltmek** bir dedektör değişikliğidir, ölçüm tanımını
+değiştirir → imza (`AHMET_ONAYI_BEKLEYENLER.md`'ye A maddesi olarak gider).
+Kart §1 ve §4 bunu açıkça ayırdı: kuyruğa yaz, kartta çözme.
+
+**Kabul ölçütü:** Kayıtlı tüm `KALITE_*.json` koşularında numaralı satır
+döngüleri (ardışık sayı + sabit gövde) sayıldı; dedektörün bunları neden
+kaçırdığı koddan gösterildi; düzeltme seçenekleri yazıldı, **uygulanmadı.**
+
+**Büyüklük:** küçük (ölçüm) · düzeltme ayrı imza
+
+**2000 taban koşusunda (2026-09-13):** `t1_mix_002` çarpmadı — llama `stop`,
+102 karakter, geçti. Kör nokta kapanmadı; yalnız bu örneklemde tetiklenmedi.
+
+---
+
 ## K12 — `ruff` borcu 283
 
 **Nerede:** repo geneli

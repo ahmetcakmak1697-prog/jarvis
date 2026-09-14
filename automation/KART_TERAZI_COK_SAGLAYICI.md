@@ -85,6 +85,21 @@ Türkçe token oranı ölçüldü: **~2,39 karakter/token** (DeepSeek longform,
 2026-09-09). Tahminde bu oran kullanılsın ve raporda **hangi orana dayandığı**
 yazsın — başka sağlayıcının tokenizer'ı farklıdır, tahmin tahmindir.
 
+> **NOT (2026-09-13, `KART_400_UYGULA_VE_TABAN.md` ADIM 4) — tek oran
+> yetmez.** Ölçüldü (`automation/TERAZI_400_SONDA_2026-09-12.md` §1d ve §4):
+> DeepSeek **2,41** karakter/token (ETAP 1'in ~2,40'ıyla tutarlı), llama3.1
+> **~3,2–3,3**. Aynı Türkçe metin llama tokenizer'ında ~%25 daha az token
+> tutuyor (40 cevapta medyan oran 0,746). Yani `--tahmin` tek bir oranla
+> hesaplanamaz, **sağlayıcı başına oran** ister. Oranı ölçülmemiş bir
+> sağlayıcı için tahminin başka bir sağlayıcının oranını ödünç almak yerine
+> "oran ölçülmedi" demesi, bu kartın URL/fiyat kuralıyla tutarlı olur.
+>
+> Ayrıca kısa vakaların bütçesi 400 → **2000** oldu. Bütçe bir tavandır; üst
+> sınır tahmini gerçek tüketimin çok üstünde çıkar. Ölçüm: DeepSeek sondasında
+> 60 vakanın toplam çıkış tokeni **6.458**, tavan 60 × 2000 = **120.000**.
+>
+> Bu not uygulama değildir; ETAP 6 ayrı iştir.
+
 ## ADIM 4 — Kuru doğrulama, para harcamadan
 
 Sahte HTTP ucuyla her sağlayıcı için uçtan uca test: alan sözleşmesi aynı mı,
