@@ -648,6 +648,53 @@ kaçırdığı koddan gösterildi; düzeltme seçenekleri yazıldı, **uygulanma
 
 ---
 
+## K18 — PDF dalı ölçümle **elenmiş** modeli çalıştırıyor
+
+**Nerede:** `rag/rag_engine.py:21` (varsayılan), `agent/local_agent.py:939-947`
+(çağrı yeri)
+
+**Ne:** `JarvisRAG.__init__` model adını imzasında sabit taşıyor:
+
+```python
+ollama_model: str = "mistral-nemo:latest"      # rag/rag_engine.py:21
+```
+
+`agent/local_agent.py:943` düz `JarvisRAG()` diyor — yani varsayılan
+geçerli. Ahmet bir belge sorduğunda cevabı üreten model **budur.**
+
+**Neden bu yalnız bir §7.1 ihlali değil:** `config/runtime_profiles.json`
+→ `rtx3070` notları bu modelin **ölçümle elendiğini** yazıyor (2026-09-01,
+`automation/MODEL_KIYASI_0901.md`; 3 model × 7 Türkçe soru): tepe VRAM
+**6880 MB** — 8 GB kartta belgelenmiş ~6 GB pratik tavanın **üstünde**;
+25,8 tok/s (llama3.1 74,3); "Efendim" 0/7; uzun turda **sistem prompt'unu
+cevap sanıp geri kustu.** `local_main` o gün `llama3.1:latest` oldu.
+PDF dalı bu kararı **almadı.**
+
+Ollama şu an 6.040 MiB VRAM tutuyor (`KART_STT_TURKCE.md` §1). 6880 MB'lık
+bir modeli o sırada yüklemenin bedeli **ölçülmedi** — [EMİN DEĞİLİM].
+
+**Neden imza gerekmiyor:** Karar zaten verilmiş ve yazılı; `rag/` onu
+uygulamıyor. Doğru davranış tartışmalı değil — model adı
+`ModelRegistry.local_main()`'den gelir, koda gömülmez (§7.1, ve
+`agents/model_registry.py:6`'nın kendi docstring'i tam bu satırı örnek
+veriyor).
+
+**Kabul ölçütü:**
+
+- `JarvisRAG` model adını `ModelRegistry`'den alıyor; gömülü ad kalmadı.
+  `rag/` içinde `mistral-nemo` sabitini arayan bir test var.
+- Belge sorusunun **hangi modelle** cevaplandığı önce/sonra yazıldı.
+
+**Büyüklük:** küçük
+
+**Yan bulgu — ölçülmedi, bu kartın konusu değil:** `agent/local_agent.py:943`
+her belge sorusunda `JarvisRAG()`'i **baştan kuruyor**; `__init__` her
+seferinde `HuggingFaceEmbeddings`'i yüklüyor (`rag/rag_engine.py:28-31`,
+`device="cpu"`). Maliyeti ölçülmedi. `add_documents()`'ın tekilleştirmeden
+yeniden eklemesi **K10'un konusudur**, burada tekrarlanmıyor.
+
+---
+
 ## K12 — `ruff` borcu 283
 
 **Nerede:** repo geneli
