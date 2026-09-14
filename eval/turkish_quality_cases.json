@@ -2,7 +2,7 @@
   "schema_version": 2,
   "description": "T1 Turkce Kalite + JARVIS Persona Eval Seti. Her model/prompt/routing degisikliginde kosturulur. v2 (2026-09-01): hafiza geri cagirma, zemin (uydurma testi) ve uzun anlatim siniflari eklendi; yeni vakalar makine-okunur alanlar tasir. Eski 50 vaka ve esikleri DEGISMEDI. (2026-09-04 eki: `passing_threshold` blogu artik hedef degil TABAN KAYDIDIR — A14.)",
   "passing_threshold": {
-    "note": "Bu blok bir KAPI degil, bir TABAN KAYDIDIR (A14, 2026-09-04, Ahmet kararı). Sayılar llama3.1:latest'in 2026-09-01 cevaplarının puanlayıcı v2 ile 2026-09-03'te yeniden puanlanmasıdır. Yeni bir hedef sayı bilerek YAZILMADI: hedef yazmak 'sayıyı tutturmaya oynama' baskısını geri getirir. Regresyonun tanımı: aynı model + aynı puanlayıcı ile bu sayıların altı. Hiçbir Python kodu bu bloğu okumaz. Ayrıntı: automation/KALITE_TABAN_2026-09-03.md",
+    "note": "Bu blok bir KAPI degil, bir TABAN KAYDIDIR (A14, 2026-09-04, Ahmet kararı). Sayılar llama3.1:latest'in 2026-09-01 cevaplarının puanlayıcı v2 ile 2026-09-03'te yeniden puanlanmasıdır. Yeni bir hedef sayı bilerek YAZILMADI: hedef yazmak 'sayıyı tutturmaya oynama' baskısını geri getirir. Regresyonun tanımı: aynı model + aynı puanlayıcı ile bu sayıların altı. Hiçbir Python kodu bu bloğu okumaz. Ayrıntı: automation/KALITE_TABAN_2026-09-03.md. 2026-09-13: YENI tanimin tabani asagidaki `yeni_tanim_2026_09_13` blogundadir; bu ust duzeydeki sayilar ESKI tanimin kaydidir ve onunla karsilastirilamaz.",
     "overall": "taban 40/50 (v1 alt kümesi: tone+turkish+technical+mixed)",
     "tone": "taban 19/20",
     "turkish": "taban 13/15",
@@ -14,10 +14,47 @@
     "overall_v2": "taban 49/64",
     "olcum_tanimi": {
       "note": "Yukaridaki sayilar HANGI TANIMLA olculdu. Tanim degisirse sayilar karsilastirilamaz; bu blok o yuzden var (2026-09-10).",
-      "longform_num_predict": 1200,
+      "longform_num_predict": 400,
       "diger_num_predict": 400,
-      "gecerlilik": "ESKI TANIM. 2026-09-10'da longform butcesi 4000'e cikarildi (olculdu: dort vakanin dordu de 1200'de done_reason=length ile kesiliyordu; 4000'de dordu de stop ile bitti, en uzun cevap 2977 cikis tokeni). Yeni tanimdaki taban ETAP 2'de olculecek; bu satirlar o zamana kadar ESKI tanimin kaydidir ve silinmez.",
+      "longform_num_predict_duzeltme": "2026-09-10'da burada 1200 yaziyordu; YANLISTI. Olculdu (2026-09-13): 49/64'un cevaplari 2026-09-01'de, vaka basina butce yokken uretildi -- kosucu tum vakalara num_predict=400 gonderiyordu (eval/run_turkish_quality.py @ 0f385b3:298); dort longform cevabi llama tokenizer'iyla 401'er token (400 tavani). Vaka butcesi (longform 1200) f2c5137 ile 2026-09-05'te geldi.",
+      "dedektor": "puanlayici v2, 2026-09-03 (automation/KALITE_TABAN_2026-09-03.md). Bugunku puanlayici da ayni cevaplara toplam 49 veriyor (tests/test_quality_scorer.py::test_the_recorded_run_still_scores_49_of_64).",
+      "ollama_adresi": "localhost -- 5ebf4aa'dan onceki kosucu. Her istege ~2 s ekliyordu; yalniz sure olcumlerini etkiler, puani etkilemez.",
+      "gecerlilik": "ESKI TANIM. 2026-09-10'da longform butcesi 4000'e cikarildi (olculdu: dort vakanin dordu de 1200'de done_reason=length ile kesiliyordu; 4000'de dordu de stop ile bitti, en uzun cevap 2977 cikis tokeni). 2026-09-13'te diger 60 vakanin butcesi 2000'e cikarildi (olculdu: 400 butceli 60 vaka 2000'de iki modelde kosuldu, 120 cevabin 119'u kendiliginden durdu, en uzun 644 cikis tokeni). Yeni tanimin tabani 2026-09-13'te olculdu ve asagidaki `yeni_tanim_2026_09_13` blogundadir. Bu satirlar ESKI tanimin kaydidir ve silinmez.",
       "kaynak": "automation/TERAZI_ETAP1_2026-09-10.md"
+    },
+    "yeni_tanim_2026_09_13": {
+      "note": "TABAN KAYDI, hedef degil (A14). YENI tanimin ilk tabani -- 2026-09-10'dan beri 'olculecek' diye bekleyen soz (ETAP 2 ve ETAP 5 durmustu). TEK KOSU HUKUM DEGILDIR (A11): iki sayi da tek kosudur ve kosular arasi oynaklik tasir; regresyon birkac kosunun egilimine bakilarak degerlendirilir. Ustteki ESKI tanim sayilariyla KARSILASTIRILAMAZ.",
+      "olcum_tanimi": {
+        "longform_num_predict": 4000,
+        "diger_num_predict": 2000,
+        "dedektor": "eval/quality_scorer.py @ 3f20477 (ETAP 4: _YONTEM sizinti korpusundan cikti, 631 n-gram). Sizinti korpusu persona'dan turetildigi icin persona da tanimin parcasi: agents/persona.py @ f1aa069.",
+        "ollama_adresi": "127.0.0.1 (5ebf4aa) -- localhost duzeltmesi YAPILDI. Puani etkilemez, yalniz sureyi.",
+        "kosucu": "eval/run_turkish_quality.py @ 61b1ce3, sicaklik 0.2",
+        "kaynak": "automation/TERAZI_TABAN_2026-09-13.md"
+      },
+      "llama3.1:latest": {
+        "overall_v2": "taban 52/64",
+        "tone": "taban 19/20",
+        "turkish": "taban 13/15",
+        "technical": "taban 5/10",
+        "mixed": "taban 4/5",
+        "memory": "taban 5/5",
+        "grounding": "taban 5/5",
+        "longform": "taban 1/4",
+        "kosu": "automation/KALITE_llama3.1_latest_20260913-0228.json -- done_reason 64/64 stop"
+      },
+      "deepseek/deepseek-chat": {
+        "overall_v2": "taban 59/64 (1 vaka ag olumu: t1_tone_012 bos dondu -- hat, model degil)",
+        "tone": "taban 18/20 (biri ag olumu)",
+        "turkish": "taban 13/15",
+        "technical": "taban 9/10",
+        "mixed": "taban 5/5",
+        "memory": "taban 5/5",
+        "grounding": "taban 5/5",
+        "longform": "taban 4/4",
+        "kosu": "automation/KALITE_deepseek_deepseek-chat_20260913-0230.json -- done_reason 63 stop + 1 ag hatasi"
+      },
+      "ara_olcumler": "Taban DEGILDIR, yalniz iz: ETAP 2 (longform 4000, digerleri 400, ETAP 4 oncesi dedektor) llama 52, DeepSeek 53; ETAP 5 (4000/400, yeni dedektor) llama 51, DeepSeek 58. Kaynak: automation/TERAZI_ETAP2_2026-09-10.md, automation/TERAZI_ETAP5_2026-09-12.md."
     }
   },
   "cases": [

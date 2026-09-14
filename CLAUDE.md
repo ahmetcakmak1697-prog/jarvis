@@ -295,6 +295,17 @@ tuttu. 49/64 **silinmedi**, tanımıyla birlikte duruyor ve yeni tanımdaki
 sayıyla **karşılaştırılamaz**. Yeni taban ve iki modelin dört sayısı:
 `automation/TERAZI_ETAP1_2026-09-10.md`, `automation/TERAZI_ETAP2_2026-09-10.md`.
 
+**Yeni tanımın tabanı — söz ödendi (2026-09-13).** Tanım: longform 4000,
+diğer 60 vaka **2000** token (Ahmet imzalı, `KART_400_UYGULA_VE_TABAN.md`;
+sayı sondayla seçildi: 120 cevabın 119'u kendiliğinden durdu, en uzun 644),
+dedektör `3f20477` (persona `f1aa069`), Ollama adresi `127.0.0.1` (`5ebf4aa`).
+**`llama3.1:latest` 52/64, `deepseek/deepseek-chat` 59/64** (1'i ağ ölümü).
+İki sayı da **tek koşudur** (A11) ve eski tanımın 49/64'üyle
+karşılaştırılamaz. Ölçüm sırasında bir kayıt düzeltildi: 49/64'ün cevapları
+1200 değil, **bütün vakalar 400** bütçeyle üretilmişti (dört longform cevabı
+401'er token). Kaynak: `automation/TERAZI_TABAN_2026-09-13.md`,
+`passing_threshold.yeni_tanim_2026_09_13`.
+
 **Sıra bağımsızlığı kuralı:** Bir testin tek başına geçmesi onu geçmiş
 saymaz. Kapı **tam süit** üzerinde çalıştırılır. Yeşil hat iddiası, süit
 alfabetik *ve* ters sırada geçtiğinde kanıtlanmış olur:
