@@ -120,6 +120,69 @@ def test_esik_ustu_parca_yoksa_konusma_hic_baslamaz():
     assert not s["basladi"]
 
 
+# --- 6. KART_STT_HOTWORDS: ipucu parametreleri ---------------------------- #
+
+class _SahteModel:
+    """Cagriyi kaydeder; model yuklemez."""
+
+    def __init__(self):
+        self.cagri = None
+
+    def transcribe(self, ses, **kw):
+        self.cagri = kw
+
+        class _Segment:
+            text = " merhaba"
+
+        return [_Segment()], None
+
+
+def test_ipucusuz_cagri_uretimle_birebir_ayni():
+    """Ipucu verilmezse kwargs eskisiyle AYNI -- hotwords/initial_prompt
+    anahtari hic gecmez; None gecmek bile kutuphanenin varsayilanina
+    guvenmek olurdu. voice/stt.py FasterWhisperTranscriber.__call__ ile esli."""
+    from olc_stt_turkce import _yaziya
+
+    m = _SahteModel()
+    assert _yaziya(m, [0.0], 1) == "merhaba"
+    assert m.cagri == {"language": "tr", "beam_size": 1, "vad_filter": True}
+
+
+def test_hotwords_yalniz_hotwords_olarak_gecer():
+    from olc_stt_turkce import _yaziya
+
+    m = _SahteModel()
+    _yaziya(m, [0.0], 5, hotwords="Jarvis DeepSeek")
+    assert m.cagri == {"language": "tr", "beam_size": 5, "vad_filter": True,
+                       "hotwords": "Jarvis DeepSeek"}
+
+
+def test_initial_prompt_hotwords_ile_karismaz_ve_vad_kapanmaz():
+    from olc_stt_turkce import _yaziya
+
+    m = _SahteModel()
+    _yaziya(m, [0.0], 1, initial_prompt="Jarvis.")
+    assert "hotwords" not in m.cagri
+    assert m.cagri["initial_prompt"] == "Jarvis."
+    assert m.cagri["vad_filter"] is True
+
+
+def test_duzelen_ve_bozulan_ayri_sayilir():
+    """Toplam WER takasi gizler: duzelen ve bozulan cumle ayri gorunmeli."""
+    from olc_stt_turkce import karsilastir
+
+    once = [{"no": 1, "hata": 2, "hipotez": "a"}, {"no": 2, "hata": 0, "hipotez": "b"},
+            {"no": 3, "hata": 1, "hipotez": "c"}, {"no": 4, "hata": 1, "hipotez": "d"},
+            {"no": 5, "hata": 0, "hipotez": "e"}]
+    sonra = [{"no": 1, "hata": 0, "hipotez": "A"}, {"no": 2, "hata": 1, "hipotez": "B"},
+             {"no": 3, "hata": 0, "hipotez": "C"}, {"no": 4, "hata": 1, "hipotez": "D"},
+             {"no": 5, "hata": 0, "hipotez": "e"}]
+    k = karsilastir(once, sonra)
+    assert [d["no"] for d in k["duzelen"]] == [1, 3]
+    assert [d["no"] for d in k["bozulan"]] == [2]
+    assert [d["no"] for d in k["metni_degisen_ayni_hata"]] == [4]
+
+
 # --- 5. Testler mikrofon acmaz, model indirmez ---------------------------- #
 
 def test_sonda_agir_kutuphaneleri_modul_duzeyinde_import_etmez():

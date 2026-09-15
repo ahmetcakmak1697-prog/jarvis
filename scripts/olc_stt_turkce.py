@@ -17,6 +17,7 @@ karışırdı.
 Kullanım (kayıt adımı Ahmet'in sesidir):
     .\\.venv\\Scripts\\python.exe scripts\\olc_stt_turkce.py kaydet
     .\\.venv\\Scripts\\python.exe scripts\\olc_stt_turkce.py olc
+    .\\.venv\\Scripts\\python.exe scripts\\olc_stt_turkce.py ipucu   # KART_STT_HOTWORDS
 
 **Ses kayıtları repoya YAZILMAZ.** Varsayılan yer işletim sisteminin geçici
 dizinidir; çıktı yolu repo içindeyse betik mikrofonu açmadan reddeder. Rapora
@@ -118,6 +119,28 @@ def wer(referans: str, hipotez: str) -> dict:
     hata = onceki[-1]
     return {"hata": hata, "kelime": len(r),
             "oran": hata / len(r) if r else float(hata > 0)}
+
+
+def karsilastir(once: list, sonra: list) -> dict:
+    """Aynı cümlelerin iki koşusunu cümle cümle karşılaştırır.
+
+    Toplam WER takası gizler: üç cümle düzelip iki cümle bozulursa toplam yine
+    düşer. Bu yüzden düzelen, bozulan ve metni değişip hata sayısı aynı kalan
+    cümleler AYRI listelenir.
+    """
+    onceki = {s["no"]: s for s in once}
+    sonuc: dict = {"duzelen": [], "bozulan": [], "metni_degisen_ayni_hata": []}
+    for s in sonra:
+        a = onceki[s["no"]]
+        kayit = {"no": s["no"], "once": a["hipotez"], "sonra": s["hipotez"],
+                 "once_hata": a["hata"], "sonra_hata": s["hata"]}
+        if s["hata"] < a["hata"]:
+            sonuc["duzelen"].append(kayit)
+        elif s["hata"] > a["hata"]:
+            sonuc["bozulan"].append(kayit)
+        elif s["hipotez"].strip() != a["hipotez"].strip():
+            sonuc["metni_degisen_ayni_hata"].append(kayit)
+    return sonuc
 
 
 def repo_disinda(yol) -> Path:
@@ -295,11 +318,19 @@ def _son_kayit() -> Path:
     return adaylar[-1]
 
 
-def _yaziya(model, ses, beam: int) -> str:
+def _yaziya(model, ses, beam: int, hotwords: str | None = None,
+            initial_prompt: str | None = None) -> str:
     # voice/stt.py FasterWhisperTranscriber.__call__ ile AYNI çağrı; yalnız
     # beam_size değişken. Segment üreteci burada tüketilir — çözümleme o an olur.
+    # İpucu (KART_STT_HOTWORDS) yalnız VERİLDİĞİNDE geçer: verilmezse anahtar
+    # hiç gönderilmez ve çağrı üretimle birebir aynı kalır. vad_filter kapanmaz.
+    ipucu = {}
+    if hotwords is not None:
+        ipucu["hotwords"] = hotwords
+    if initial_prompt is not None:
+        ipucu["initial_prompt"] = initial_prompt
     segmentler, _bilgi = model.transcribe(ses, language="tr", beam_size=beam,
-                                          vad_filter=True)
+                                          vad_filter=True, **ipucu)
     return " ".join(s.text for s in segmentler).strip()
 
 
@@ -399,6 +430,104 @@ def olc(a) -> int:
     return 0
 
 
+# --------------------------------------------------------------------------- #
+# ipucu — KART_STT_HOTWORDS: small üzerinde hotwords / initial_prompt
+# --------------------------------------------------------------------------- #
+
+#: İpucu kayıtlardaki GERÇEK kelimelerden; uydurma kelime yok.
+IPUCU_KELIMELER = ("Jarvis", "DeepSeek", "Ollama", "commit", "klima")
+
+
+def ipucu(a) -> int:
+    """small üzerinde ipucu matrisi: taban / hotwords / initial_prompt.
+
+    Her ipucu satırı KENDİ tabanıyla cümle cümle karşılaştırılır. Önceki ölçüm
+    dosyasına (olcum.json) dokunulmaz; sonuç olcum_ipucu.json'a yazılır.
+    """
+    import os
+
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
+    kok = repo_disinda(a.kayit or _son_kayit())
+    meta = json.loads((kok / "kayitlar.json").read_text(encoding="utf-8"))
+    sesler = [(k, _wav_oku(kok / k["dosya"])) for k in meta["kayitlar"]]
+    # İki ipucu AYNI beş kelimeyi taşır; yalnız mekanizma farklıdır ve tek
+    # satırda karıştırılmaz.
+    hotwords = " ".join(IPUCU_KELIMELER)
+    initial_prompt = ", ".join(IPUCU_KELIMELER) + "."
+    tanimlar = (("small/1", 1, None, None),
+                ("small/1+hotwords", 1, hotwords, None),
+                ("small/5", 5, None, None),
+                ("small/5+hotwords", 5, hotwords, None),
+                ("small/1+initial_prompt", 1, None, initial_prompt))
+
+    from faster_whisper import WhisperModel
+
+    t0 = time.perf_counter()
+    model = WhisperModel("small", device="cpu", compute_type="int8")
+    sonuc: dict = {"schema_version": 1, "kayit": str(kok),
+                   "zaman": time.strftime("%Y-%m-%d %H:%M:%S"),
+                   "hotwords": hotwords, "initial_prompt": initial_prompt,
+                   "yukleme_s": time.perf_counter() - t0,
+                   "satirlar": {}, "taban_denetimi": {}, "karsilastirma": {}}
+    print(f"Kayit: {kok} ({len(sesler)} cumle) | hotwords={hotwords!r} | "
+          f"initial_prompt={initial_prompt!r}")
+    print("| satir | WER | hata | p50 ms | p90 ms | max ms |")
+    print("|---|---|---|---|---|---|")
+    for etiket, beam, hw, ip in tanimlar:
+        _yaziya(model, sesler[0][1], beam, hotwords=hw, initial_prompt=ip)  # ısınma
+        satirlar = []
+        for k, ses in sesler:
+            t0 = time.perf_counter()
+            metin = _yaziya(model, ses, beam, hotwords=hw, initial_prompt=ip)
+            satirlar.append({"no": k["no"], "referans": k["referans"],
+                             "hipotez": metin,
+                             "ms": (time.perf_counter() - t0) * 1000.0,
+                             **wer(k["referans"], metin)})
+        sureler = [s["ms"] for s in satirlar]
+        ozet = {"wer": _toplam_wer(satirlar),
+                "hata": sum(s["hata"] for s in satirlar),
+                "p50_ms": statistics.median(sureler),
+                "p90_ms": _yuzdelik(sureler, 0.9), "max_ms": max(sureler),
+                "satirlar": satirlar}
+        sonuc["satirlar"][etiket] = ozet
+        print(f"| {etiket} | {ozet['wer']:.3f} | {ozet['hata']} | "
+              f"{ozet['p50_ms']:.0f} | {ozet['p90_ms']:.0f} | {ozet['max_ms']:.0f} |")
+
+    # Taban denetimi: ipucusuz satırlar önceki ölçümle (olcum.json) aynı mı?
+    # Aynı değilse ölçüm düzeneği değişmiştir ve ipucu satırları yorumlanmaz.
+    onceki = kok / "olcum.json"
+    if onceki.exists():
+        eski = json.loads(onceki.read_text(encoding="utf-8"))["kusur_a"]
+        for etiket, eski_ad in (("small/1", "small/beam1"), ("small/5", "small/beam5")):
+            e = {s["no"]: s["hipotez"] for s in eski[eski_ad]["satirlar"]}
+            y = sonuc["satirlar"][etiket]
+            farkli = [s["no"] for s in y["satirlar"] if s["hipotez"] != e.get(s["no"])]
+            sonuc["taban_denetimi"][etiket] = {
+                "wer": y["wer"], "onceki_wer": eski[eski_ad]["wer"], "metni_farkli": farkli}
+            print(f"TABAN {etiket}: WER {y['wer']:.3f} (onceki {eski[eski_ad]['wer']:.3f})"
+                  f" | metni farkli cumle: {farkli or 'yok'}")
+
+    for ipuclu, taban in (("small/1+hotwords", "small/1"),
+                          ("small/5+hotwords", "small/5"),
+                          ("small/1+initial_prompt", "small/1")):
+        k = karsilastir(sonuc["satirlar"][taban]["satirlar"],
+                        sonuc["satirlar"][ipuclu]["satirlar"])
+        sonuc["karsilastirma"][ipuclu] = k
+        print(f"\n{ipuclu} vs {taban}: duzelen {len(k['duzelen'])} | bozulan "
+              f"{len(k['bozulan'])} | metni degisen, hata ayni "
+              f"{len(k['metni_degisen_ayni_hata'])}")
+        for isaret, liste in (("+", k["duzelen"]), ("-", k["bozulan"]),
+                              ("~", k["metni_degisen_ayni_hata"])):
+            for d in liste:
+                print(f"  {isaret} [{d['no']}] {d['once']} ({d['once_hata']}) -> "
+                      f"{d['sonra']} ({d['sonra_hata']})")
+
+    (kok / "olcum_ipucu.json").write_text(
+        json.dumps(sonuc, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"\nHam sonuc (repo DISINDA): {kok / 'olcum_ipucu.json'}")
+    return 0
+
+
 def main(argv=None) -> int:
     sys.stdout.reconfigure(errors="replace")
     ap = argparse.ArgumentParser(description="STT Turkce sondasi (KART_STT_TURKCE)")
@@ -411,8 +540,12 @@ def main(argv=None) -> int:
                    help="kayit dizini (varsayilan: en yenisi)")
     o.add_argument("--modeller", default="small,medium")
     o.add_argument("--beamler", default="1,5")
+    i = alt.add_parser("ipucu", help="small uzerinde hotwords / initial_prompt "
+                                     "matrisi (KART_STT_HOTWORDS)")
+    i.add_argument("--kayit", type=Path, default=None,
+                   help="kayit dizini (varsayilan: en yenisi)")
     a = ap.parse_args(argv)
-    return kaydet(a) if a.komut == "kaydet" else olc(a)
+    return {"kaydet": kaydet, "olc": olc, "ipucu": ipucu}[a.komut](a)
 
 
 if __name__ == "__main__":
