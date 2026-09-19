@@ -41,7 +41,11 @@ Ne YAPILMIYOR
 -------------
 * **Ucuncu deneme yok.** Tavan 20 s; ikiden fazlasi ya tavani deler ya da
   her denemeyi mesru cevabi kesecek kadar kisaltir.
-* **Akis (stream) yok.** Ajan zaten tek parca cevap bekliyor.
+* **Akis (stream) var ama AYRI kapidan.** `cloud_chat` tek parca dondurur
+  ve imzasi degismedi -- 2000+ test ona bagli. Akan cevap icin ayri bir
+  uretec vardir: `cloud_chat_stream` (ADIM 3, 2026-09-19). Canli ses yolu
+  bulut modelini kullandigi icin (chat() once `_bulut_acik()`'a bakar)
+  akisin dogru yeri burasidir, Ollama degil.
 """
 from __future__ import annotations
 
@@ -54,6 +58,7 @@ from typing import Any, Optional
 __all__ = [
     "CloudChatError",
     "DEFAULT_TIMEOUT_S",
+    "cloud_chat_stream",
     "cloud_chat",
     "cloud_chat_ready",
 ]
@@ -199,6 +204,109 @@ def _http_json(url: str, govde: bytes, basliklar: dict[str, str],
                                    method="POST")
     with urllib.request.urlopen(istek, timeout=timeout) as yanit:
         return json.loads(yanit.read().decode("utf-8"))
+
+
+def _http_akis(url: str, govde: bytes, basliklar: dict[str, str],
+               timeout: float):
+    """Tek HTTP POST, cevabi SATIR SATIR okunabilir halde dondurur.
+
+    `_http_json`'un akis ikizi. Ayri fonksiyon olmasinin sebebi ayni:
+    testte degistirilir, aga cikilmadan SSE sozlesmesi sinanir.
+    """
+    import urllib.request
+
+    istek = urllib.request.Request(url, data=govde, headers=basliklar,
+                                   method="POST")
+    return urllib.request.urlopen(istek, timeout=timeout)
+
+
+def cloud_chat_stream(
+    messages: list[dict],
+    *,
+    registry: Any | None = None,
+    timeout: float = DEFAULT_TIMEOUT_S,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
+):
+    """``messages``'i dis modele sorar ve cevabi PARCA PARCA akitir.
+
+    Uretec: her `yield` bir metin parcasidir (SSE `delta.content`).
+
+    NEDEN AYRI FONKSIYON: `cloud_chat`'in imzasi ve donusu degismedi;
+    2000+ test ona bagli ve akis onlarin sozlesmesini bozardi.
+
+    YENIDEN DENEME KURALI -- bu fonksiyonun en onemli davranisi:
+    ilk parca verilene KADAR gecici ag hatasi tekrar denenir. Ilk parca
+    verildikten SONRA asla denenmez, cunku yeniden baglanmak modelin
+    cevabini bastan aldirir ve kullanici ayni cumleyi iki kez duyar.
+    Yarim kalan bir cevap, sessizce tekrarlanan bir cevaptan iyidir.
+    """
+    yapilandirma = _yapilandirma(registry)
+    if yapilandirma is None:
+        raise CloudChatError("dis model profilde tanimli degil")
+
+    url = yapilandirma["url"]
+    if not url.lower().startswith("https://"):
+        raise CloudChatError("dis uc nokta https degil, istek gonderilmedi")
+
+    anahtar = os.environ.get(yapilandirma["env"], "").strip()
+    if not anahtar:
+        raise CloudChatError(f"{yapilandirma['env']} ortamda tanimli degil")
+
+    govde = json.dumps({
+        "model": yapilandirma["model"],
+        "messages": messages,
+        "temperature": DEFAULT_TEMPERATURE,
+        "max_tokens": max_tokens,
+        "stream": True,
+    }, ensure_ascii=False).encode("utf-8")
+
+    basliklar = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {anahtar}",
+        "Accept": "text/event-stream",
+    }
+
+    def _temizle(exc: BaseException) -> str:
+        metin = str(exc)
+        return metin.replace(anahtar, "[REDACTED]") if anahtar else metin
+
+    butceler = _deneme_butceleri(timeout)
+    for sira, butce in enumerate(butceler, start=1):
+        verildi = False
+        akis = None
+        try:
+            akis = _http_akis(url, govde, basliklar, butce)
+            for ham in akis:
+                satir = ham.decode("utf-8", "replace").strip()
+                if not satir.startswith("data:"):
+                    continue          # yorum satiri, nabiz, bos satir
+                veri = satir[5:].strip()
+                if veri == "[DONE]":
+                    return
+                try:
+                    parca = json.loads(veri)
+                except ValueError:
+                    # Bozuk tek satir akisi oldurmez: kalan parcalar
+                    # hala saglam olabilir ve kullanici konusmayi duyar.
+                    continue
+                secim = (parca.get("choices") or [{}])[0]
+                metin = (secim.get("delta") or {}).get("content") or ""
+                if metin:
+                    verildi = True
+                    yield metin
+            return
+        except Exception as exc:  # noqa: BLE001 - tur degil, sebep tasiyoruz
+            if verildi or sira >= len(butceler) or not _gecici_ag_hatasi(exc):
+                raise CloudChatError(
+                    f"{type(exc).__name__}: {_temizle(exc)}"
+                ) from None
+            time.sleep(_GERI_CEKILME_S)
+        finally:
+            if akis is not None:
+                try:
+                    akis.close()
+                except Exception:  # noqa: BLE001 - kapatma hatasi yutulur
+                    pass
 
 
 def cloud_chat(
