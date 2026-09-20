@@ -913,6 +913,62 @@ class LocalJarvisAgent:
             self._duyur(_BULUT_DEFTER_HATASI.format(sebep=exc))
         return sonuc["text"]
 
+    def _ask_cloud_stream(self, messages: list[dict]):
+        """Akan bulut cevabi; harcamayi deftere AYNI sekilde yazar.
+
+        §7.0b maliyet kapisi akista da gecerli. Defter, akis bittiginde
+        (ya da yarida koptugunda) yazilir -- yarim bir cevap da para
+        harcar ve kayitsiz kalmaz.
+        """
+        from agent.cloud_llm import cloud_chat_stream
+
+        kullanim: dict[str, int] = {}
+        try:
+            yield from cloud_chat_stream(messages, registry=self._registry,
+                                         kullanim=kullanim)
+        finally:
+            if kullanim:
+                try:
+                    self._maliyet_defteri().record_usage(
+                        "cloud_chat_stream",
+                        prompt_tokens=kullanim.get("prompt_tokens", 0),
+                        completion_tokens=kullanim.get("completion_tokens", 0),
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    self._duyur(_BULUT_DEFTER_HATASI.format(sebep=exc))
+
+    def chat_stream(self, user_message: str):
+        """chat()'in akan ikizi: cevabi parca parca verir.
+
+        AYNI veri-cikisi kapisindan gecer -- `_bulut_acik()` ve
+        `_bulut_kapisi()` burada da sorulur. Akisa ayri bir yol yazmak,
+        egress kontrolunde sessiz bir delik acmak olurdu (CLAUDE.md §7).
+
+        Yerel yol henuz akmiyor: tek parca verir. Cumle tamponu ikisini
+        de ayni sekilde isler, yani cagiran tarafi ilgilendirmez.
+        """
+        model, messages = self._mesajlari_hazirla(user_message)
+
+        if self._bulut_acik():
+            engel = self._bulut_kapisi(user_message, messages)
+            if engel:
+                self._duyur(engel)
+            else:
+                verildi = False
+                try:
+                    for parca in self._ask_cloud_stream(messages):
+                        verildi = True
+                        yield parca
+                    return
+                except Exception as exc:  # noqa: BLE001
+                    # Parca verildiyse yerele DUSME: model cevabi bastan
+                    # uretir ve kullanici ayni cumleyi iki kez duyar.
+                    if verildi:
+                        raise
+                    self._duyur(_BULUT_AG_HATASI.format(sebep=exc))
+
+        yield self._ask_ollama(messages, model)
+
     def _ask_ollama(self, messages: list[dict], model: str) -> str:
         try:
             response = self._ollama.chat(
@@ -946,6 +1002,15 @@ class LocalJarvisAgent:
             # Soruyu sor
             cevap = rag.query_with_ollama(user_message)
             return f"{yukle}\n\n{cevap}"
+        return self._akisa_ver(user_message)
+
+    def _mesajlari_hazirla(self, user_message: str) -> tuple[str, list[dict]]:
+        """Tur sayaci, arac calistirma, system prompt ve mesaj listesi.
+
+        chat() ve chat_stream() AYNI prompt'u kurar. Ayri kursalardi iki
+        yol zamanla surüklenir ve sesli cevapla yazili cevap farkli
+        davranmaya baslardi -- sessiz ve bulunmasi zor bir fark.
+        """
         self.turn_count += 1
         tier = self._classify(user_message)
         model = self._model_for_tier(tier)
@@ -999,6 +1064,10 @@ class LocalJarvisAgent:
             user_content = user_message
 
         messages.append({"role": "user", "content": user_content})
+        return model, messages
+
+    def _akisa_ver(self, user_message: str) -> str:
+        model, messages = self._mesajlari_hazirla(user_message)
 
         # Yanıt al — metni HANGİ model üretecek? (KART_SES_YOLU_DEEPSEEK)
         #

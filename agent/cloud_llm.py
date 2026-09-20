@@ -226,6 +226,7 @@ def cloud_chat_stream(
     registry: Any | None = None,
     timeout: float = DEFAULT_TIMEOUT_S,
     max_tokens: int = DEFAULT_MAX_TOKENS,
+    kullanim: dict[str, int] | None = None,
 ):
     """``messages``'i dis modele sorar ve cevabi PARCA PARCA akitir.
 
@@ -233,6 +234,11 @@ def cloud_chat_stream(
 
     NEDEN AYRI FONKSIYON: `cloud_chat`'in imzasi ve donusu degismedi;
     2000+ test ona bagli ve akis onlarin sozlesmesini bozardi.
+
+    ``kullanim`` verilirse akisin SONUNDAKI usage parcasi oraya yazilir
+    (``prompt_tokens`` / ``completion_tokens``). Bu opsiyonel bir suslu
+    degil: CLAUDE.md §7.0b maliyet kapisini ZORUNLU kiliyor ve akis
+    yolunun defteri atlamasi, parayi sessizce defter disi harcamak olurdu.
 
     YENIDEN DENEME KURALI -- bu fonksiyonun en onemli davranisi:
     ilk parca verilene KADAR gecici ag hatasi tekrar denenir. Ilk parca
@@ -258,6 +264,8 @@ def cloud_chat_stream(
         "temperature": DEFAULT_TEMPERATURE,
         "max_tokens": max_tokens,
         "stream": True,
+        # Akista usage varsayilan olarak GELMEZ; acikca istenir.
+        "stream_options": {"include_usage": True},
     }, ensure_ascii=False).encode("utf-8")
 
     basliklar = {
@@ -289,6 +297,12 @@ def cloud_chat_stream(
                     # Bozuk tek satir akisi oldurmez: kalan parcalar
                     # hala saglam olabilir ve kullanici konusmayi duyar.
                     continue
+                kul = parca.get("usage")
+                if kul and kullanim is not None:
+                    # Son parca: choices bos, usage dolu.
+                    kullanim["prompt_tokens"] = int(kul.get("prompt_tokens") or 0)
+                    kullanim["completion_tokens"] = int(
+                        kul.get("completion_tokens") or 0)
                 secim = (parca.get("choices") or [{}])[0]
                 metin = (secim.get("delta") or {}).get("content") or ""
                 if metin:
