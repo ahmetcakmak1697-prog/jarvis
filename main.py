@@ -192,11 +192,7 @@ def _run_local_mode():
             # eder ya da tersine, sesliyken markdown/kod dokmeye baslar.
             agent.voice_mode = voice_io.enabled
 
-            response = agent.chat(mesaj)
-            console.print(f"\n[bold cyan]Jarvis:[/]")
-            console.print(Markdown(response))
-            console.print()
-            voice_io.say(response)
+            response = _cevapla(agent, mesaj, voice_io)
 
             # ÖĞREN: bu turdan çıkan olguları hafızaya işle. Hassas olanlar
             # (sağlık/finans) kalıcı yazılmaz, incelemeye düşer (CLAUDE.md §7).
@@ -216,6 +212,82 @@ def _run_local_mode():
             console.print(f"\n[dim]Çıkmak için 'çıkış' yazın.[/]")
         except Exception as e:
             console.print(f"[red]Hata: {e}[/]")
+
+
+def _akis_acik() -> bool:
+    """JARVIS_STREAM=0 eski tek-parca davranisa dondurur."""
+    import os
+    return os.environ.get("JARVIS_STREAM", "1").strip().lower() not in (
+        "0", "false", "hayir", "kapali")
+
+
+def _konusma_kuyrugu(voice_io):
+    """Cumleleri AYRI bir is parcaciginda seslendirir.
+
+    NEDEN KUYRUK: voice_io.say() sesi calarken BLOKE eder. Akisin
+    icinden dogrudan cagirilsaydi her cumlede soket beklerdi; uzun bir
+    cevapta bu zaman asimina duser ve kullanici cevabin yarisini
+    kaybederdi. Kuyruk sayesinde akis tam hizda bosalir, konusma sirayla
+    arkada yurur.
+    """
+    import queue
+    import threading
+
+    kuyruk = queue.Queue()
+
+    def dongu():
+        while True:
+            cumle = kuyruk.get()
+            if cumle is None:
+                return
+            try:
+                voice_io.say(cumle)
+            except Exception:  # noqa: BLE001 - ses hatasi sohbeti kesmez
+                pass
+
+    is_parcacigi = threading.Thread(target=dongu, daemon=True)
+    is_parcacigi.start()
+    return kuyruk, is_parcacigi
+
+
+def _cevapla(agent, mesaj: str, voice_io) -> str:
+    """Cevabi akitarak bas, cumle tamamlandikca seslendir.
+
+    Kazanc gorunur degil, DUYULUR: eskiden model 15-25 saniye susuyor,
+    sonra hepsi birden geliyordu. Simdi ilk cumle tamamlanir tamamlanmaz
+    konusma basliyor.
+    """
+    if not _akis_acik():
+        response = agent.chat(mesaj)
+        console.print("\n[bold cyan]Jarvis:[/]")
+        console.print(Markdown(response))
+        console.print()
+        voice_io.say(response)
+        return response
+
+    from voice.cumle_tamponu import CumleTamponu
+
+    tampon = CumleTamponu()
+    parcalar = []
+    kuyruk, is_parcacigi = _konusma_kuyrugu(voice_io)
+    console.print("\n[bold cyan]Jarvis:[/] ", end="")
+    try:
+        for parca in agent.chat_stream(mesaj):
+            parcalar.append(parca)
+            # markup=False: model ciktisindaki koseli parantezi rich
+            # bicimlendirme sanip metni yiyebilir.
+            console.print(parca, end="", markup=False, highlight=False)
+            for cumle in tampon.besle(parca):
+                kuyruk.put(cumle)
+    finally:
+        for cumle in tampon.bitir():
+            kuyruk.put(cumle)
+        kuyruk.put(None)
+        console.print("\n")
+        # Konusma bitene kadar bekle: sonraki soru istemi JARVIS hala
+        # konusurken ekrana dusmesin.
+        is_parcacigi.join(timeout=120)
+    return "".join(parcalar)
 
 
 def _run_indexer():
