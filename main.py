@@ -250,6 +250,32 @@ def _konusma_kuyrugu(voice_io):
     return kuyruk, is_parcacigi
 
 
+def _ses_gercekten_calisir(voice_io) -> bool:
+    """TTS bu turda GERCEKTEN ses cikaracak mi?
+
+    `voice_io.enabled` mikrofon/ses dongusunu anlatir; sentezleyicinin
+    kendisi ayrica reddedebilir (Edge TTS, `JARVIS_J0_EDGE_TTS_ENABLED=1`
+    yoksa metni disari cikarmaz -- CLAUDE.md §7 veri egress kapisi).
+
+    NEDEN TUR BASINDA BIR KEZ: `say()` None dondurur ve reddi kendi
+    icinde yazar. Akista cumle basina cagrildigi icin ayni uyari akan
+    metnin ORTASINA her cumlede bir kez karisiyordu. Bir kez sor, ona
+    gore davran.
+    """
+    if not getattr(voice_io, "enabled", False):
+        return False
+    hoparlor = getattr(voice_io, "_speaker", None)
+    if hoparlor is None:
+        return False
+    kontrol = getattr(hoparlor, "is_enabled", None)
+    if callable(kontrol):
+        try:
+            return bool(kontrol())
+        except Exception:  # noqa: BLE001
+            return False
+    return True
+
+
 def _cevapla(agent, mesaj: str, voice_io) -> str:
     """Cevabi akitarak bas, cumle tamamlandikca seslendir.
 
@@ -269,7 +295,8 @@ def _cevapla(agent, mesaj: str, voice_io) -> str:
 
     tampon = CumleTamponu()
     parcalar = []
-    kuyruk, is_parcacigi = _konusma_kuyrugu(voice_io)
+    konusacak = _ses_gercekten_calisir(voice_io)
+    kuyruk, is_parcacigi = _konusma_kuyrugu(voice_io) if konusacak else (None, None)
     console.print("\n[bold cyan]Jarvis:[/] ", end="")
     try:
         for parca in agent.chat_stream(mesaj):
@@ -278,15 +305,18 @@ def _cevapla(agent, mesaj: str, voice_io) -> str:
             # bicimlendirme sanip metni yiyebilir.
             console.print(parca, end="", markup=False, highlight=False)
             for cumle in tampon.besle(parca):
-                kuyruk.put(cumle)
+                if kuyruk is not None:
+                    kuyruk.put(cumle)
     finally:
         for cumle in tampon.bitir():
-            kuyruk.put(cumle)
-        kuyruk.put(None)
+            if kuyruk is not None:
+                kuyruk.put(cumle)
         console.print("\n")
-        # Konusma bitene kadar bekle: sonraki soru istemi JARVIS hala
-        # konusurken ekrana dusmesin.
-        is_parcacigi.join(timeout=120)
+        if kuyruk is not None:
+            kuyruk.put(None)
+            # Konusma bitene kadar bekle: sonraki soru istemi JARVIS hala
+            # konusurken ekrana dusmesin.
+            is_parcacigi.join(timeout=120)
     return "".join(parcalar)
 
 
