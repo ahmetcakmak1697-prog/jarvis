@@ -102,6 +102,32 @@ ikisini de ölçer.
 ### 7.1 Değişmeyenler
 
 - İki eksenli güvenlik: veri sınıfı (ne dışarı çıkar) × güven (içerik nereden). **Untrusted içerik asla otomatik kalıcı hafıza olmaz → approval queue.** Bulut temelli mimaride bu madde **daha kritiktir**, daha az değil: artık her sohbet turu bir egress'tir.
+
+### 7.1a Kalıcı hafızaya yazma — Ahmet'in kararı (22.09.2026)
+
+Kendi sözleriyle: *"benim istediklerimi hafızaya alsın, kalıcı tarafa
+gereksiz şişme olmasın, güzel ve önemli şeylerde sorsun ya da benim bunu
+kalıcı hafızaya yaz dediklerimi yazsın."*
+
+Yürürlükteki kural, üç hâl:
+
+1. **Varsayılan: YAZMAZ.** Sohbet turu kendiliğinden kalıcı hafızaya girmez.
+2. **Ahmet söylerse yazar.** "Bunu kalıcı hafızaya yaz" türü açık bir
+   talimat tek yeterli koşuldur.
+3. **Önemli görünen şeyi SORAR.** Sessizce kaydetmez, sessizce atmaz da;
+   adaylığa alır ve Ahmet'e sorar.
+
+**Bu mimari zaten kurulu, yeniden yazılmayacak:** `answer_crystallizer`
+aday kart üretir ve *"Never writes to VectorMemory"* der;
+`episodic_buffer` ve `knowledge_card_editor` de yazmaz; yalnız
+`knowledge_card_promoter` **onaylanmış** kartı `tools/vector_memory.py`
+içindeki `VectorMemory`'ye geçirir. Yeni bir yazma yolu eklemek bu hattı
+baypas etmektir.
+
+**Ayrım korunmalı:** SQLite sohbet geçmişi üzerine kurulan vektör
+**indeksi** türetilmiş bir arama yapısıdır (silinip yeniden kurulabilir),
+kalıcı hafıza değildir. İndeks kurmak bu kuralın kapsamında değildir;
+`VectorMemory`'ye yazmak kapsamındadır.
 - Deterministik routing = güvenlik özelliği. Vector skor *girdi*, karar değil. Router kararı `confidence` + `route_reason` ile C4'e yazılır.
 - **Human override her katmandan üstün:** kullanıcı her an dur/iptal/unut/yerel-kal diyebilir.
 - ESHOT: pandas hesaplar, LLM anlatır; kurallar Rules.json'da.
