@@ -68,12 +68,12 @@ def _system_prompt(ajan, mesaj="salon klimasinin durumu ne"):
 
 
 def test_blok_system_prompta_girer():
-    hafiza = SahteHafiza(blok="## GECMIS KONUSMALARDAN\n- [2026-09-22] Sen: kablo")
+    hafiza = SahteHafiza(blok="## HATIRLADIKLARIN\n- [2026-09-22] Sen: kablo")
     ajan = _ajan(hafiza)
 
     prompt = _system_prompt(ajan)
 
-    assert "## GECMIS KONUSMALARDAN" in prompt
+    assert "## HATIRLADIKLARIN" in prompt
     assert "kablo" in prompt
     assert hafiza.sorulan == ["salon klimasinin durumu ne"]
 
@@ -82,7 +82,7 @@ def test_bos_blok_hicbir_sey_eklemez():
     """Bos baslik bile eklenmez: bos zemin, yanlis zeminden iyidir."""
     ajan = _ajan(SahteHafiza(blok=""))
 
-    assert "GECMIS KONUSMALARDAN" not in _system_prompt(ajan)
+    assert "HATIRLADIKLARIN" not in _system_prompt(ajan)
 
 
 def test_hafiza_yoksa_sohbet_calisir():
@@ -92,7 +92,7 @@ def test_hafiza_yoksa_sohbet_calisir():
     prompt = _system_prompt(ajan)
 
     assert "GUNCEL PROJE DURUMU" in prompt
-    assert "GECMIS KONUSMALARDAN" not in prompt
+    assert "HATIRLADIKLARIN" not in prompt
 
 
 def test_hafiza_patlarsa_sohbet_calisir():
@@ -102,7 +102,7 @@ def test_hafiza_patlarsa_sohbet_calisir():
     prompt = _system_prompt(ajan)
 
     assert "GUNCEL PROJE DURUMU" in prompt
-    assert "GECMIS KONUSMALARDAN" not in prompt
+    assert "HATIRLADIKLARIN" not in prompt
 
 
 def test_akis_yolu_da_ayni_blogu_gorur():
@@ -111,7 +111,7 @@ def test_akis_yolu_da_ayni_blogu_gorur():
     Ikisi ayri kursaydi sesli cevapla yazili cevap farkli hatirlardi --
     sessiz ve bulunmasi zor bir fark.
     """
-    hafiza = SahteHafiza(blok="## GECMIS KONUSMALARDAN\n- [2026-09-22] Sen: kablo")
+    hafiza = SahteHafiza(blok="## HATIRLADIKLARIN\n- [2026-09-22] Sen: kablo")
     ajan = _ajan(hafiza)
     yakalanan: list = []
 
@@ -121,7 +121,7 @@ def test_akis_yolu_da_ayni_blogu_gorur():
     list(ajan.chat_stream("salon klimasinin durumu ne"))
 
     assert yakalanan, "chat_stream modele hic gitmedi"
-    assert "## GECMIS KONUSMALARDAN" in yakalanan[0]["content"]
+    assert "## HATIRLADIKLARIN" in yakalanan[0]["content"]
 
 
 # ── unutma tutarliligi ───────────────────────────────────────────────────

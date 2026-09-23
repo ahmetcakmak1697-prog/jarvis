@@ -73,14 +73,40 @@ VARSAYILAN_N = 4
 #: 0,41'de "en yakin eczane nerede" sorusu "Sadece pazipanko'nun stunyu ne
 #: ya?" kaydini hafiza diye prompt'a sokuyordu.
 #:
-#: 0,50 secildi: olculen 8 gurultunun 8'ini eler, iki kuvvetli isabeti
-#: (0,536 ve 0,600) gecirir, zayif olani (0,418) gurultuden ayirt
-#: edilemedigi icin BILEREK birakir.
+#: **0,45** -- ilk secilen 0,50 CANLI TESTTE fazla katı cikti ve duzeltildi.
+#:
+#: Canli oturumda "Bosta duran devre kartlari hangi mobilyanin altinda
+#: duruyordu?" sorusu dogru kaydi **1. sirada 0,469** ile buldu; ikinci
+#: sira 0,260'ti, yani pay 0,209 -- acik ara. 0,50 esigi bunu eledi ve
+#: JARVIS "bilmiyorum" dedi.
+#:
+#: Daha genis olcum (39 parcalik gercek indeks, 12 gurultu + 7 isabet):
+#:
+#:     gurultu ilk-skor TAVANI : 0,411
+#:     1. sirasi dogru olanlarin skor TABANI : 0,418
+#:
+#: Denenen kurallar:
+#:
+#:     yalniz >= 0,50                       gurultu 0/12 · dogru 4/6
+#:     yalniz >= 0,45                       gurultu 0/12 · dogru 5/6
+#:     >=0,50 VEYA (>=0,40 ve pay>=0,15)    gurultu 1/12 · dogru 5/6
+#:     >=0,50 VEYA (>=0,42 ve pay>=0,18)    gurultu 0/12 · dogru 5/6
+#:
+#: "Pay" (birinci ile ikinci arasindaki fark) kurali dusunuldu ve
+#: ELENDI: tek sayilik esige gore hicbir sey kazandirmiyor, iki
+#: parametre getiriyor (CLAUDE.md 2 -- once sadelik). 0,45 olculen
+#: gurultu tavaninin 0,039 ustunde, kurtarilmak istenen isabetin
+#: (0,469) altinda, ve beraberlikte kalan belirsiz vakanin (0,418,
+#: yanlis bir kayitla ESIT skor) ustunde duruyor.
 #:
 #: Asimetri kasitli: prompt'a giren yanlis bir hatira JARVIS'i kendinden
 #: emin bir sekilde yaniltir (PUSULA ihlali); eksik bir hatira yalnizca
 #: "bilmiyorum" dedirtir. Kayip taraf ucuz olani.
-VARSAYILAN_ESIK = 0.50
+#:
+#: **Bu sayi 19 sondaj ve 39 parcalik bir indeksten geliyor, tek kosu.**
+#: Indeks buyudukce yeniden olculmeli; kalibi
+#: `scripts/hafiza_indeksle.py --olc`.
+VARSAYILAN_ESIK = 0.45
 
 
 class AnlamsalHafiza:
@@ -242,12 +268,35 @@ class AnlamsalHafiza:
         if not bulunan:
             return ""
 
+        # Bu metnin ilk hali CANLI TESTTE hafizayi SUSTURDU ve degistirildi.
+        #
+        # Eski hali "bunlar kanit degildir ... bunlardan yeni olgu TURETME"
+        # diyordu. Blok modele ULASIYORDU -- olculdu, prompt'ta oldugu
+        # dogrulandi -- ama model onu kullanmayi reddetti ve "bu konusmanin
+        # kaydina erisimim yok" dedi. `LOCAL_AGENT_ADDENDUM`'daki "blokta
+        # gecmiyorsa cikarim yapma, bilmiyorsun" kuraliyla birlesince metin
+        # bir hatirlatma degil, bir YASAK haline gelmisti.
+        #
+        # Yeni hali once IZNI verir, sonra sinirlari koyar. Korunan uc
+        # garanti aynen duruyor: uydurma yok, canli proje durumu ustun,
+        # ilgisiz alinti gormezden gelinir.
         satirlar = [
-            "## GECMIS KONUSMALARDAN",
-            "Asagidakiler eski konusma parcalaridir, kanit degildir. GUNCEL",
-            "PROJE DURUMU ile celisirlerse GUNCEL PROJE DURUMU kazanir.",
-            "Ilgisizlerse gormezden gel; bunlardan yeni olgu TURETME.",
+            "## HATIRLADIKLARIN (gercek konusma kaydi)",
+            "Bu bolum PROJE DURUMU DEGILDIR; yukaridaki \"blokta gecmiyorsa",
+            "bilmiyorsun\" kurali buraya islemez. Asagidakiler Ahmet ile",
+            "GERCEKTEN yaptigin konusmalarin kaydidir -- yani bunlari",
+            "biliyorsun.",
+            "Soru bunlardan biriyle ilgiliyse DOGRUDAN CEVAPLA; \"kaydima",
+            "erisimim yok\" DEME, cunku kayit tam burada.",
+            "Sinirlar: burada gecmeyen ayrintiyi uydurma; GUNCEL PROJE DURUMU",
+            "ile celisirse o kazanir; ilgisizse gormezden gel ve bu bolumden",
+            "hic bahsetme.",
         ]
+        # Eklenen alinti SAYILIR; baslik satirlarinin sayisina bakilmaz.
+        # Eskiden `len(satirlar) > 4` kontrol ediliyordu ve baslik uc satir
+        # uzayinca kosul icerik olmadan da dogru oluyordu -- model bos bir
+        # "hafizan" basligi gorup ondan bahsediyordu.
+        eklenen = 0
         for parca in bulunan:
             tarih = str(parca.get("ts") or "")[:10]
             soru = str(parca.get("user_msg") or "").strip()
@@ -258,9 +307,9 @@ class AnlamsalHafiza:
             satirlar.append(f"{onek}Sen: {soru[:160]}")
             if cevap:
                 satirlar.append(f"    Ben: {cevap[:220]}")
+            eklenen += 1
 
-        # Basliktan baska satir yoksa blok da yok.
-        return "\n".join(satirlar) if len(satirlar) > 4 else ""
+        return "\n".join(satirlar) if eklenen else ""
 
     # ── indeks bakimi (kalici hafiza DEGIL) ──────────────────────────────
 

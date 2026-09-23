@@ -193,12 +193,31 @@ def test_blok_bulunani_ve_uyarisini_icerir():
 
     blok = h.prompt_blogu("salon klimasinin durumu ne")
 
-    assert "GECMIS KONUSMALARDAN" in blok
+    assert "HATIRLADIKLARIN" in blok
     assert "salon klimasinin kablosu cikmisti" in blok
     assert "2026-09-22" in blok
     # Canli durumun ustunlugu YAZILI olmali: yoksa model eski bir cumleyi
     # bugunun olgusu gibi tekrar eder (PUSULA ihlali).
     assert "GUNCEL" in blok
+    # Uydurma yasagi da yazili olmali.
+    assert "uydurma" in blok.lower()
+
+
+def test_blok_hafizayi_KULLANMAYA_izin_verir():
+    """Metnin ilk hali canli testte hafizayi SUSTURDU.
+
+    "bunlar kanit degildir ... yeni olgu TURETME" yazıyordu. Blok modele
+    ulasiyordu -- prompt'ta oldugu olculdu -- ama model onu kullanmayi
+    reddedip "bu konusmanin kaydina erisimim yok" diyordu. Bir hafiza
+    blogu, once KULLANMA IZNI vermezse hafiza degildir.
+    """
+    h, _ = _hazir(SahteDepo([_vurus()]))
+
+    blok = h.prompt_blogu("salon klimasinin durumu ne")
+
+    assert "CEVAPLA" in blok, "blok cevaplamaya izin vermeli"
+    assert "TURETME" not in blok, "eski yasak geri gelmemeli"
+    assert "kanit degildir" not in blok
 
 
 def test_bos_icerikli_kayit_blok_uretmez():

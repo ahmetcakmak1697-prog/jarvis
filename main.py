@@ -130,6 +130,30 @@ def _run_local_mode():
             "JARVIS_J0_EDGE_TTS_ENABLED=1[/]\n"
         )
 
+    # Anlamsal hafiza ARKA PLANDA isiniyordu; olculdu (2026-09-24) ki bu
+    # calismiyor: `_isit_calis` gomme modelini yuklerken ana is parcacigi
+    # `console.input()` uzerinde bekliyor ve arka plandaki yukleme ac
+    # kaliyor. Tek basina 13 saniye suren import zinciri (sentence_
+    # transformers -> sklearn -> scipy.special) burada 75 saniyede bile
+    # bitmedi; yigin dokumu is parcaciginin kilitlenmedigini, hala .pyd
+    # yukledigini gosterdi. `bekle()` (yani join) cagrildiginda ayni is
+    # 13 saniyede bitiyor.
+    #
+    # Sonuc: hafiza ilk soruya kadar hic hazir olmuyordu. Acilista bir kez
+    # ACIKCA beklenir -- gizli bir gecikme degil, gorunur bir satir.
+    _hafiza = getattr(agent, "anlamsal", None)
+    if _hafiza is not None and not _hafiza.hazir():
+        with console.status("[cyan]Hafıza hazırlanıyor...[/]"):
+            _hafiza.bekle(90)
+        if _hafiza.hazir():
+            console.print(f"[dim][hafıza] {_hafiza.sayi()} parça hazır.[/]")
+        else:
+            # Sessiz geri dusme yasak: hafizasiz baslandiysa Ahmet bilsin.
+            console.print(
+                "[yellow][hafıza] hazırlanamadı; sohbet hafızasız "
+                f"başlıyor ({_hafiza.durum}).[/]"
+            )
+
     while True:
         try:
             # Her turdan ONCE donanimi yokla: Ahmet sormadan uyarilsin.
