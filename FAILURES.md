@@ -778,3 +778,33 @@ returned PASS. Historical stop record: automation/CODEX_V2_UYGULAMA_2026-09-07.m
   the raw `olcum.json` is byte-identical to its backup. This record exists
   because the next agent that inspects a process list mid-measurement will
   see the same two PIDs.
+
+### [2026-09-23] Chroma'nın varsayılan gömme modeli İngilizcedir — Türkçe'de kura çeker
+
+- **Tuzak:** `tools/vector_memory.py` koleksiyonu gömme fonksiyonu
+  BELİRTMEDEN açıyordu. Chroma o durumda `all-MiniLM-L6-v2`'ye düşer ve bu
+  model **yalnız İngilizce** eğitilmiştir. Kurulum hiçbir uyarı vermez;
+  arama çalışır, sonuç döner, sayılar makul görünür. Kartın önkoşul
+  tablosu da çok dilli modelin HF önbelleğinde durduğunu doğrulamıştı —
+  ama onu indekse **bağlayan hiçbir satır yoktu**.
+- **Kök neden:** "kurulu" ile "kullanılıyor" ayrı şeylerdir. Önbellekteki
+  bir modelin varlığı, onun kullanıldığının kanıtı değildir; kanıt,
+  koleksiyonun `embedding_function`'ıdır.
+- **Ölçüm:** altı Türkçe sorgu, her biri doğru belgeyle **tek kelime bile
+  paylaşmayacak** şekilde kuruldu (paylaşsaydı düz metin araması da
+  bulurdu). Varsayılan model **1/6**; altı belge arasından rastgele
+  seçmenin beklentisi de 1/6'dır. `paraphrase-multilingual-MiniLM-L12-v2`
+  aynı sınavda **5/6**.
+- **Neden sessiz bir hata sınıfı:** bu yanlış, "hafıza çalışmıyor" diye
+  değil, "JARVIS alakasız şeyler hatırlıyor" diye görünürdü — ve bu,
+  hiç hatırlamamaktan kötüdür (PUSULA: uydurma değil, canlı).
+- **Kural:** gömme modeli koda **açıkça** verilir ve dile uygunluğu
+  ölçülerek seçilir. Bir arama altyapısı kurulduğunda ilk sınav "doğru
+  sonucu buluyor mu" değil, **"karşılığı olmayan soruya ne diyor"**
+  olmalıdır: gürültü tavanı ölçülmeden eşik seçilemez.
+- **Çözüm:** `VectorMemory` artık `collection` ve `gomme` parametresi alır
+  (varsayılanlar değişmedi — mevcut çağıranlar 13 sn'lik model yüklemesini
+  ödemez), `agent/anlamsal_hafiza.py` çok dilli modeli açıkça verir.
+  `reset()` de artık sabit ad yerine kendi koleksiyonunu siler: eskiden
+  ayrı bir koleksiyon açan bir çağıran `reset()` dediğinde **onaylanmış
+  bilgi kartlarını** siliyordu.
