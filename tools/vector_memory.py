@@ -8,17 +8,110 @@ from datetime import datetime
 #: `knowledge_card_promoter` yazar (CLAUDE.md 7.1a).
 VARSAYILAN_KOLEKSIYON = "jarvis_memories"
 
+#: Turkce anlayan gomme modeli -- bu deponun VARSAYILANI.
+#:
+#: Chroma belirtilmediginde `all-MiniLM-L6-v2`'ye duser ve o model yalniz
+#: INGILIZCE egitilmistir. Olculdu (2026-09-23): dogru belgeyle tek kelime
+#: paylasmayan alti Turkce sorguda varsayilan **1/6** aldi -- alti belge
+#: arasindan rastgele secmenin beklentisi de 1/6'dir. Bu model **5/6**.
+#:
+#: Model adi burada duruyor cunku bu bir sohbet modeli degil, indeksin veri
+#: bicimini belirleyen bir KODLAYICI: degisirse indeksin tamami yeniden
+#: kurulmak zorundadir. CLAUDE.md 7.1'in "model adi koda gomulmez" kurali
+#: ModelRegistry'nin yonettigi akil modelleri icindir.
+TURKCE_GOMME_MODELI = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+
+#: Model yuklemesi ~13 sn surer; surec basina bir kez odenir.
+_GOMME_ONBELLEGI: dict = {}
+
+
+class KoleksiyonCakismasi(RuntimeError):
+    """Koleksiyonun gomme modeli istenenle uyusmuyor ve veri kaybi riski var."""
+
+
+def turkce_gomme():
+    """Turkce gomme fonksiyonu; surec icinde bir kez kurulur."""
+    if "ef" not in _GOMME_ONBELLEGI:
+        from chromadb.utils import embedding_functions
+
+        _GOMME_ONBELLEGI["ef"] = embedding_functions.SentenceTransformerEmbeddingFunction(
+            model_name=TURKCE_GOMME_MODELI
+        )
+    return _GOMME_ONBELLEGI["ef"]
+
+
+def koleksiyon_ac(client, ad: str, gomme, duyur=None):
+    """Koleksiyonu **dogru** gomme modeliyle acar; yanilmayi sessiz birakmaz.
+
+    Iki tuzak var, ikisi de olculdu (2026-09-23) ve ikisi de sessizdir:
+
+    **1. Chroma gomme modelini degistirmeyi reddeder.** Var olan bir
+    koleksiyona farkli bir model verilince `ValueError` atar. Koleksiyon
+    BOSSA silinip yeniden kurulur -- kaybedilecek sey yoktur. DOLUYSA
+    **silinmez**: `KoleksiyonCakismasi` yukselir ve karar insana kalir.
+    Bos/dolu ayrimi olmadan bu kod bir veri imha araci olurdu.
+
+    **2. EF verilmeden acilan koleksiyon sessizce varsayilana doner.**
+    `get_collection(ad)` -- EF vermeden -- kayitli modeli geri kurmaz,
+    `DefaultEmbeddingFunction` kullanir. Sorgu hata vermez, sonuc doner;
+    ama soru vektoru belgelerden BASKA bir modelle hesaplanmistir. Iki
+    model de 384 boyut urettigi icin boyut hatasi da alinmaz. Sonuc:
+    anlamsiz mesafeler, tam guvenle. Bu yuzden acilistan sonra kullanilan
+    modelin istenen model oldugu **dogrulanir**.
+    """
+    bildir = duyur or (lambda m: None)
+    ek = {"metadata": {"hnsw:space": "cosine"}}
+    if gomme is not None:
+        ek["embedding_function"] = gomme
+
+    try:
+        col = client.get_or_create_collection(ad, **ek)
+    except Exception as exc:
+        if "embedding function" not in str(exc).lower():
+            raise
+        mevcut = client.get_collection(ad)
+        try:
+            sayi = mevcut.count()
+        except Exception:  # noqa: BLE001 - sayilamiyorsa DOLU varsay
+            sayi = -1
+        if sayi != 0:
+            raise KoleksiyonCakismasi(
+                f"'{ad}' koleksiyonu baska bir gomme modeliyle kurulmus ve "
+                f"{sayi if sayi >= 0 else 'bilinmeyen sayida'} kayit iceriyor. "
+                "Silinmedi. Modeli degistirmek indeksin tamamini yeniden "
+                "kurmayi gerektirir; bu karar insana aittir."
+            ) from exc
+        client.delete_collection(ad)
+        col = client.get_or_create_collection(ad, **ek)
+        bildir(
+            f"[hafiza] '{ad}' bos oldugu icin yeni gomme modeliyle yeniden "
+            "kuruldu; kayip yok."
+        )
+
+    if gomme is not None:
+        kullanilan = getattr(col, "_embedding_function", None)
+        if kullanilan is not None and kullanilan is not gomme:
+            raise KoleksiyonCakismasi(
+                f"'{ad}' istenen gomme modeliyle acilmadi "
+                f"({type(kullanilan).__name__} kullaniliyor). Sessiz geri "
+                "dusme: sorgular hata vermeden anlamsiz sonuc verirdi."
+            )
+    return col
+
 
 class VectorMemory:
     def __init__(self, db_path="memory/chroma_db",
-                 collection=VARSAYILAN_KOLEKSIYON, gomme=None):
+                 collection=VARSAYILAN_KOLEKSIYON, gomme=None, duyur=None):
         """
-        ``collection`` ve ``gomme`` varsayilanlari DEGISMEDI: mevcut
-        cagiranlarin (promoter, router, telegram) davranisi aynen korunur.
-        Yeni yollar acikca secer -- `agent/anlamsal_hafiza.py` sohbet
-        indeksini ayri bir koleksiyonda ve Turkce anlayan bir gomme
-        fonksiyonuyla tutar. Varsayilani degistirmek, 13 saniyelik model
-        yuklemesini bu yolu istemeyen herkese odetirdi.
+        ``gomme`` verilmezse **Turkce** model kullanilir. Varsayilan
+        eskiden Chroma'nin ingilizce modeliydi; bu bir tercih degil,
+        gozden kacmis bir varsayilandi -- kurulum uyarmaz, arama calisir,
+        sayilar makul gorunur ve sonuclar kuradir.
+
+        Bedeli odenen taraf: model yuklemesi ~13 sn (surec basina bir kez,
+        `turkce_gomme()` onbellekler). Bu yuku tasiyan yollar -- bilgi
+        karti onaylama, router, jarvis_brain -- canli sohbet dongusunde
+        DEGILDIR; `main.py` -> `LocalJarvisAgent` bu depoyu acmaz.
         """
         try:
             import chromadb
@@ -29,14 +122,14 @@ class VectorMemory:
         self.client = chromadb.PersistentClient(
             path=db_path, settings=Settings(anonymized_telemetry=False))
         self.collection_name = collection
-        self._gomme = gomme
+        self._gomme = turkce_gomme() if gomme is None else gomme
+        self._duyur = duyur
         self.col = self._koleksiyonu_ac()
 
     def _koleksiyonu_ac(self):
-        ek = {"metadata": {"hnsw:space": "cosine"}}
-        if self._gomme is not None:
-            ek["embedding_function"] = self._gomme
-        return self.client.get_or_create_collection(self.collection_name, **ek)
+        return koleksiyon_ac(
+            self.client, self.collection_name, self._gomme, self._duyur
+        )
 
     def remember(self, user_msg, jarvis_msg, meta=None):
         if not user_msg or not jarvis_msg:

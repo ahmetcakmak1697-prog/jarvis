@@ -144,3 +144,59 @@ anlamsal       -> doğru kayıt, benzerlik 0,536, 1. sırada
   (CLAUDE.md §3) — koleksiyon şu an boş olduğu için bedeli sıfır, ama
   ilk kart onaylanmadan önce Ahmet'in kararı gerekiyor.
 - Backfill betiği sohbet yolundan **çağrılmıyor**; elle çalıştırılır.
+
+---
+
+## 8. Ek: `jarvis_memories` düzeltildi (aynı gün, Ahmet onayıyla)
+
+§7'de "görüldü, söylendi, dokunulmadı" diye bırakılan madde kapatıldı.
+Ahmet'in gerekçesi doğruydu: koleksiyon boşken bedel sıfır, ilk kart
+onaylandıktan sonra indeksin tamamını yeniden kurmak gerekirdi.
+
+Düzeltmeden önce iki şey ölçüldü ve ikisi de planı değiştirdi.
+
+**(a) Chroma gömme modelini değiştirmeyi reddediyor.** Var olan bir
+koleksiyona farklı model verilince `ValueError` atıyor. Yani "varsayılanı
+değiştir" tek satırlık bir iş değil; koleksiyonun silinip yeniden
+kurulması gerekiyor. Bu yüzden `koleksiyon_ac()` **boş/dolu ayrımı**
+yapar: boşsa siler ve yeniden kurar, doluysa `KoleksiyonCakismasi`
+yükseltir ve **silmez**. Sayım başarısız olursa dolu varsayar. Bu ayrım
+olmasaydı kod bir veri imha aracı olurdu.
+
+**(b) Daha sinsi olan:** koleksiyon EF verilmeden açılınca Chroma kayıtlı
+modeli geri kurmuyor, sessizce `DefaultEmbeddingFunction`'a düşüyor.
+Sorgu hata vermiyor, sonuç dönüyor — ama soru vektörü belgelerden **başka
+bir modelle** hesaplanmış oluyor. İki model de 384 boyut ürettiği için
+boyut hatası da alınmıyor. Sonuç: anlamsız mesafeler, tam güvenle.
+Artık açılıştan sonra kullanılan modelin istenen model olduğu
+**doğrulanıyor**; değilse yükseltiliyor.
+
+**Uygulama ve doğrulama:**
+
+| | |
+|---|---|
+| `jarvis_memories` | 0 kayıtla silindi, Türkçe modelle yeniden kuruldu |
+| İlk açılış | 11 003 ms (model yükleme) |
+| İkinci koleksiyon, aynı süreç | **13 ms** — model süreç başına bir kez |
+| `sohbet_indeksi` | dokunulmadı, 34 kayıt yerinde |
+
+Türkçe bilgi kartı sınavı (ortak kelime **sıfır**):
+
+```
+"oturma odasindaki cihazin baglantisi duzeldi mi"
+    -> "Ahmet salon klimasinin ESP kablosunu geri takti"   0,529  ✓
+"asistan nasil konusuyor"
+    -> yanlış kartı 0,282'de getirdi; eşik 0,50 olduğu için ELENDİ
+```
+
+İkincisi kusur değil, tasarım: yanlış hatıra eşiğin altında kalıp
+düşüyor. Aynı soru ilk gömme sınavında da çok dilli modelin kaçırdığı
+tek vakaydı (5/6) — ölçüm tutarlı.
+
+**Bedeli taşıyan taraf:** `VectorMemory()` açan yollar süreç başına bir
+kez ~11–13 sn ödüyor. Bunlar bilgi kartı onaylama, `local_first_router`,
+`jarvis_brain` ve `jarvis_server` — **hiçbiri canlı sohbet döngüsünde
+değil**. `main.py` → `LocalJarvisAgent` bu depoyu hiç açmıyor.
+
+**Kapı:** `pytest tests -q` **2081 geçti** (iki sırada), `ruff check .`
+**282**. Yeni test: 8.

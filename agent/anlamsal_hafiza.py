@@ -37,7 +37,6 @@ from typing import Any, Callable, Optional
 
 __all__ = [
     "SOHBET_KOLEKSIYONU",
-    "TURKCE_GOMME_MODELI",
     "VARSAYILAN_N",
     "VARSAYILAN_ESIK",
     "AnlamsalHafiza",
@@ -46,11 +45,14 @@ __all__ = [
 #: Sohbet indeksi kendi koleksiyonunda durur; `jarvis_memories`'e dokunmaz.
 SOHBET_KOLEKSIYONU = "sohbet_indeksi"
 
-#: Turkce anlayan gomme modeli. Ad burada duruyor cunku bu bir LLM degil,
-#: indeksin veri bicimini belirleyen bir kodlayici: degisirse indeksin
-#: tamami yeniden kurulmak zorundadir (CLAUDE.md 7.1'deki "model adi koda
-#: gomulmez" kurali sohbet/akil modelleri icindir).
-TURKCE_GOMME_MODELI = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+#: Gomme modelinin adi TEK yerde durur: `tools/vector_memory.py`. Burada
+#: yeniden yazilsaydi biri degisip digeri kalir, ve uyusmazlik sessiz
+#: olurdu -- iki model de 384 boyut uretiyor, yani boyut hatasi da alinmaz.
+#: Import tembel: bu modulu import etmek chromadb'yi yuklemez.
+def _gomme_modeli() -> str:
+    from tools.vector_memory import TURKCE_GOMME_MODELI
+
+    return TURKCE_GOMME_MODELI
 
 #: Kac parca cagrilir. Kucuk tutuldu: prompt'u sismek, hatirlamaktan pahalidir.
 VARSAYILAN_N = 4
@@ -114,23 +116,18 @@ class AnlamsalHafiza:
     # ── kurulum ──────────────────────────────────────────────────────────
 
     def _varsayilan_fabrika(self) -> Any:
-        """Turkce gomme fonksiyonuyla bir `VectorMemory` kurar.
+        """Sohbet indeksini kendi koleksiyonunda acar.
 
-        Gomme acikca verilir; `VectorMemory`'nin varsayilani DEGISTIRILMEDI
-        (CLAUDE.md 3). `jarvis_memories` koleksiyonunu kullanan diger yollar
-        -- promoter, router, telegram -- bu 13 saniyelik yuklemeyi odemez.
+        Gomme modeli artik `VectorMemory`'nin varsayilani (Turkce) ve
+        surec basina bir kez yuklenir; burada ayrica kurmak ayni modeli
+        iki kez yuklemek olurdu.
         """
-        from chromadb.utils import embedding_functions
-
         from tools.vector_memory import VectorMemory
 
-        gomme = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name=TURKCE_GOMME_MODELI
-        )
         return VectorMemory(
             db_path=self._db_path,
             collection=SOHBET_KOLEKSIYONU,
-            gomme=gomme,
+            duyur=self._duyur,
         )
 
     def isit(self) -> None:
