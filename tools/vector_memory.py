@@ -4,8 +4,22 @@ from pathlib import Path
 from datetime import datetime
 
 
+#: Onaylanmis bilgi kartlarinin koleksiyonu. Buraya yalniz
+#: `knowledge_card_promoter` yazar (CLAUDE.md 7.1a).
+VARSAYILAN_KOLEKSIYON = "jarvis_memories"
+
+
 class VectorMemory:
-    def __init__(self, db_path="memory/chroma_db"):
+    def __init__(self, db_path="memory/chroma_db",
+                 collection=VARSAYILAN_KOLEKSIYON, gomme=None):
+        """
+        ``collection`` ve ``gomme`` varsayilanlari DEGISMEDI: mevcut
+        cagiranlarin (promoter, router, telegram) davranisi aynen korunur.
+        Yeni yollar acikca secer -- `agent/anlamsal_hafiza.py` sohbet
+        indeksini ayri bir koleksiyonda ve Turkce anlayan bir gomme
+        fonksiyonuyla tutar. Varsayilani degistirmek, 13 saniyelik model
+        yuklemesini bu yolu istemeyen herkese odetirdi.
+        """
         try:
             import chromadb
             from chromadb.config import Settings
@@ -14,8 +28,15 @@ class VectorMemory:
         Path(db_path).mkdir(parents=True, exist_ok=True)
         self.client = chromadb.PersistentClient(
             path=db_path, settings=Settings(anonymized_telemetry=False))
-        self.col = self.client.get_or_create_collection(
-            "jarvis_memories", metadata={"hnsw:space": "cosine"})
+        self.collection_name = collection
+        self._gomme = gomme
+        self.col = self._koleksiyonu_ac()
+
+    def _koleksiyonu_ac(self):
+        ek = {"metadata": {"hnsw:space": "cosine"}}
+        if self._gomme is not None:
+            ek["embedding_function"] = self._gomme
+        return self.client.get_or_create_collection(self.collection_name, **ek)
 
     def remember(self, user_msg, jarvis_msg, meta=None):
         if not user_msg or not jarvis_msg:
@@ -104,10 +125,15 @@ class VectorMemory:
             return {"total": 0}
 
     def reset(self):
+        """Bu ornegin koleksiyonunu bosaltir -- SABIT bir ad degil.
+
+        Eskiden ad iki yerde "jarvis_memories" olarak yaziliydi; ayri bir
+        koleksiyon acan bir cagiran `reset()` cagirdiginda KENDI indeksini
+        degil, onaylanmis bilgi kartlarini silerdi.
+        """
         try:
-            self.client.delete_collection("jarvis_memories")
-            self.col = self.client.get_or_create_collection(
-                "jarvis_memories", metadata={"hnsw:space": "cosine"})
+            self.client.delete_collection(self.collection_name)
+            self.col = self._koleksiyonu_ac()
             return True
-        except:
+        except Exception:
             return False
