@@ -986,25 +986,37 @@ class LocalJarvisAgent:
         """
         model, messages = self._mesajlari_hazirla(user_message)
 
-        if self._bulut_acik():
-            engel = self._bulut_kapisi(user_message, messages)
-            if engel:
-                self._duyur(engel)
-            else:
-                verildi = False
-                try:
-                    for parca in self._ask_cloud_stream(messages):
-                        verildi = True
-                        yield parca
-                    return
-                except Exception as exc:  # noqa: BLE001
-                    # Parca verildiyse yerele DUSME: model cevabi bastan
-                    # uretir ve kullanici ayni cumleyi iki kez duyar.
-                    if verildi:
-                        raise
-                    self._duyur(_BULUT_AG_HATASI.format(sebep=exc))
+        # Verilen parcalar biriktirilir ki tur SONUNDA kaydedilebilsin.
+        # `finally` bilerek: akis yarida koparsa ya da cagiran ureteci
+        # birakirsa da kullanicinin EKRANDA GORDUGU kadari saklanir.
+        # Gorulen bir cevabi hafizadan dusurmek, sonraki turda JARVIS'in
+        # kendi soyledigini bilmemesi demektir.
+        parcalar: list[str] = []
+        try:
+            if self._bulut_acik():
+                engel = self._bulut_kapisi(user_message, messages)
+                if engel:
+                    self._duyur(engel)
+                else:
+                    verildi = False
+                    try:
+                        for parca in self._ask_cloud_stream(messages):
+                            verildi = True
+                            parcalar.append(parca)
+                            yield parca
+                        return
+                    except Exception as exc:  # noqa: BLE001
+                        # Parca verildiyse yerele DUSME: model cevabi bastan
+                        # uretir ve kullanici ayni cumleyi iki kez duyar.
+                        if verildi:
+                            raise
+                        self._duyur(_BULUT_AG_HATASI.format(sebep=exc))
 
-        yield self._ask_ollama(messages, model)
+            yerel = self._ask_ollama(messages, model)
+            parcalar.append(yerel)
+            yield yerel
+        finally:
+            self._turu_kaydet(user_message, _clean_response("".join(parcalar)))
 
     def _ask_ollama(self, messages: list[dict], model: str) -> str:
         try:
@@ -1145,27 +1157,38 @@ class LocalJarvisAgent:
             with console.status("[cyan]JARVIS düşünüyor...[/]"):
                 raw = self._ask_ollama(messages, model)
 
-        # Temizle
         response = _clean_response(raw)
+        self._turu_kaydet(user_message, response)
+        return response
 
-        # Geçmişe kaydet
+    def _turu_kaydet(self, user_message: str, response: str) -> None:
+        """Biten turu oturum geçmişine ve kalıcı depoya yazar.
+
+        `chat()` ve `chat_stream()` **aynı** yeri çağırır. Ayrı olduğu
+        sürece akış modu hiçbir şey kaydetmiyordu — ölçüldü (2026-09-23):
+        canlı bir oturumda 34 tur konuşuldu, veritabanına **sıfır** kayıt
+        düştü. Akış `main.py`'de varsayılan açık olduğu için bu, JARVIS'in
+        pratikte hafızasız çalışması demekti: anlamsal indeks bir yana,
+        `self.history`'deki son-8-tur penceresi bile boş kalıyordu.
+
+        Sessiz bir kusurdu — cevaplar geliyor, ekran normal görünüyor,
+        hiçbir hata basılmıyordu.
+        """
+        if not (response or "").strip():
+            return
+
         self.history.append({"role": "user",      "content": user_message})
         self.history.append({"role": "assistant",  "content": response})
 
-        # Hafıza
         if self.memory and len(user_message) > 10:
             self.memory.add_conversation(user_message, response)
-        # Otomatik bilgi çıkarma
             try:
                 self.memory.auto_extract_info(user_message, response)
             except Exception:
                 pass
 
-        # Geçmiş kırpma
         if len(self.history) > 20:
             self.history = self.history[-16:]
-
-        return response
 
     def clear_history(self):
         """Geçmişi temizle — RAM **ve** kalıcı depo (B04).
