@@ -344,6 +344,43 @@ class LocalJarvisAgent:
         # Hafıza sistemi
         from memory.memory_manager import JarvisMemory
         self.memory = JarvisMemory()
+        # Anlamsal arama ARKA PLANDA isinir: gomme modeli 12,9 sn yukleniyor
+        # (olculdu) ve bu sure acilis yoluna konulamaz. Hazir degilse o tur
+        # atlanir, BEKLENMEZ.
+        self.anlamsal = self._anlamsal_hafiza_kur()
+
+    def _anlamsal_hafiza_kur(self):
+        """Sohbet indeksinde anlamsal arama; kapatilabilir, arizada None.
+
+        `JARVIS_ANLAMSAL_HAFIZA=0` kapatir. Kacis kapisi `JARVIS_STREAM=0`
+        ile ayni gerekceyle var: her prompt'a dokunan yeni bir yolun
+        kullanici tarafindan kapatilabilmesi gerekir.
+
+        Kurulum basarisiz olursa `None` doner ve sohbet aynen calisir --
+        hafiza bir kolayliktir, on kosul degil.
+        """
+        import os
+
+        if os.getenv("JARVIS_ANLAMSAL_HAFIZA", "1").strip() in ("0", "false", "False"):
+            return None
+        try:
+            from agent.anlamsal_hafiza import AnlamsalHafiza
+
+            h = AnlamsalHafiza(duyur=self._duyur)
+            h.isit()
+            return h
+        except Exception:  # noqa: BLE001 - hafiza yoklugu cekirdegi dusuremez
+            return None
+
+    def _anlamsal_blok(self, user_message: str) -> str:
+        """Gecmis konusmalardan gelen blok; her arizada bos string."""
+        hafiza = getattr(self, "anlamsal", None)
+        if hafiza is None:
+            return ""
+        try:
+            return hafiza.prompt_blogu(user_message) or ""
+        except Exception:  # noqa: BLE001
+            return ""
 
     def _load_tools(self) -> dict:
         try:
@@ -1036,6 +1073,19 @@ class LocalJarvisAgent:
             if ctx:
                 system += f"\n\n## Hafıza\n{ctx}"
 
+        # Anlamsal hafıza — yukarıdaki "## Hafıza" bloğundan FARKLI bir şey
+        # yapar ve onun yerine geçmez. O blok SON 3 konuşmayı getirir
+        # (zamana göre); bu blok soruya ANLAMCA yakın olanı getirir, kaç tur
+        # önce geçtiğine bakmadan. Ölçüldü (2026-09-23): "uzunluk birimleri
+        # arasında ne ilişki var" sorusu, tek kelime paylaşmadığı
+        # "Bir metrede kaç santimetre vardır?" kaydını 0,536 benzerlikle
+        # buluyor — ne son-3 penceresi ne de LIKE bunu bulabilirdi.
+        #
+        # Boş dönerse hiçbir şey eklenmez: boş zemin, yanlış zeminden iyidir.
+        hatira = self._anlamsal_blok(user_message)
+        if hatira:
+            system += f"\n\n{hatira}"
+
         # Ses yonergesi EN SONA: cevap hoparlorden OKUNUR, markdown ve kod
         # sesli dinlenmez. Sonra gelen kazanir -- yoksa model "kod ver" diyen
         # seviye yonergesine uyup kodu sesli okumaya calisir (bkz. persona.py).
@@ -1127,6 +1177,12 @@ class LocalJarvisAgent:
         diyor, sonraki turda hatırlıyordu.
 
         Profil ve olaylar korunur; yalnız sohbet geçmişi silinir.
+
+        **Anlamsal indeks de silinir.** B04 aynı tuzağı yeni bir kapıdan
+        geri getirirdi: SQLite temizlenip indeks bırakılsaydı, "unut" denen
+        konuşma bir sonraki turda anlamsal aramayla prompt'a geri girerdi.
+        İndeks `sohbet_indeksi` koleksiyonundadır; `jarvis_memories`'teki
+        **onaylanmış bilgi kartlarına dokunulmaz** (§7.1a).
         """
         self.history = []
         self.turn_count = 0
@@ -1142,6 +1198,21 @@ class LocalJarvisAgent:
                     "[yellow]Oturum geçmişi temizlendi ama disk kaydı duruyor.[/]"
                 )
                 return
+
+        hafiza = getattr(self, "anlamsal", None)
+        if hafiza is not None:
+            try:
+                indeks_temiz = hafiza.temizle()
+            except Exception as exc:  # noqa: BLE001
+                indeks_temiz = False
+                console.print(f"[red]Anlamsal indeks silinemedi: {exc}[/]")
+            if not indeks_temiz:
+                # Yarim temizlik SESSIZ gecmez: kullanici "unuttum" cumlesine
+                # guvenip devam ederse yaniltilmis olur.
+                console.print(
+                    "[yellow]Uyarı: anlamsal indeks temizlenemedi; eski "
+                    "konuşmalar aramayla geri gelebilir.[/]"
+                )
 
         console.print(f"[green]Geçmiş temizlendi ({silinen} kalıcı kayıt silindi).[/]")
 
