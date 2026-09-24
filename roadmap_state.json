@@ -1,14 +1,12 @@
 {
   "version": 1,
   "project": "JARVIS",
-  "updated": "2026-06-18",
-  "note": "TEK DOĞRULUK KAYNAGI. Orchestrator sıradaki adımı buradan seçer; günlük rapor durumu buradan üretir. Adım otonom çalışsın istiyorsan: kind=implement/refactor, autonomy=auto, acceptance_criteria_machine dolu, acceptance_criteria_human BOŞ olmalı. Aksi halde adım otomatik olarak imza kapısına gider.",
-
+  "updated": "2026-09-25",
+  "note": "TEK DOĞRULUK KAYNAGI. Orchestrator sıradaki adımı buradan seçer; günlük rapor durumu buradan üretir. Adım otonom çalışsın istiyorsan: kind=implement/refactor, autonomy=auto, acceptance_criteria_machine dolu, acceptance_criteria_human BOŞ olmalı. Aksi halde adım otomatik olarak imza kapısına gider. | 2026-09-25: Bu dosyanin 14 adimi FAZ tabanlidir ve kart gudumlu islerin (ses akisi, anlamsal hafiza) hicbirini kapsamaz -- uydurma adim EKLENMEDI. Guncel durum ve sira: docs/strategy/DURUM_2026-09-25.md. Ahmet'i bekleyenler: automation/HUMAN_NEEDED.md.",
   "policy_defaults": {
     "budget_usd": 5.0,
     "max_repair_rounds": 4
   },
-
   "steps": [
     {
       "id": "FAZ-0",
@@ -18,10 +16,18 @@
       "status": "done",
       "depends_on": [],
       "autonomy": "auto",
-      "acceptance_criteria_machine": ["pytest"],
+      "acceptance_criteria_machine": [
+        "pytest"
+      ],
       "acceptance_criteria_human": [],
-      "allowed_paths": ["jarvis/**", "tests/**"],
-      "evidence": {"verdict": "PASS", "at": "2026-05"}
+      "allowed_paths": [
+        "jarvis/**",
+        "tests/**"
+      ],
+      "evidence": {
+        "verdict": "PASS",
+        "at": "2026-05"
+      }
     },
     {
       "id": "DEVOPS-verifier",
@@ -29,15 +35,26 @@
       "phase": "infra",
       "kind": "implement",
       "status": "done",
-      "depends_on": ["FAZ-0"],
+      "depends_on": [
+        "FAZ-0"
+      ],
       "autonomy": "auto",
       "acceptance_criteria_machine": [
         "pytest::tests/test_verifier_runner.py",
         "verifier: minimum_pytest_collected guard çalışıyor"
       ],
       "acceptance_criteria_human": [],
-      "allowed_paths": ["scripts/**", "tests/**", "docs/templates/**", ".gitignore"],
-      "evidence": {"commit": "867b471b0", "verdict": "PASS", "at": "2026-06-17"}
+      "allowed_paths": [
+        "scripts/**",
+        "tests/**",
+        "docs/templates/**",
+        ".gitignore"
+      ],
+      "evidence": {
+        "commit": "867b471b0",
+        "verdict": "PASS",
+        "at": "2026-06-17"
+      }
     },
     {
       "id": "FAZ-1B.13H",
@@ -45,12 +62,23 @@
       "phase": "1B",
       "kind": "implement",
       "status": "done",
-      "depends_on": ["FAZ-0"],
+      "depends_on": [
+        "FAZ-0"
+      ],
       "autonomy": "auto",
-      "acceptance_criteria_machine": ["pytest::tests -k fold_tr"],
+      "acceptance_criteria_machine": [
+        "pytest::tests -k fold_tr"
+      ],
       "acceptance_criteria_human": [],
-      "allowed_paths": ["jarvis/**assistant_executor*", "tests/**"],
-      "evidence": {"commit": "a99148f0d", "verdict": "PASS", "at": "2026-06-17"}
+      "allowed_paths": [
+        "jarvis/**assistant_executor*",
+        "tests/**"
+      ],
+      "evidence": {
+        "commit": "a99148f0d",
+        "verdict": "PASS",
+        "at": "2026-06-17"
+      }
     },
     {
       "id": "FAZ-1B.13-audit",
@@ -106,7 +134,6 @@
         "at": "2026-06-18"
       }
     },
-
     {
       "id": "FAZ-2-D2",
       "title": "Web research yeteneği",
@@ -297,7 +324,9 @@
       "phase": "3",
       "kind": "implement",
       "status": "done",
-      "depends_on": ["FAZ-3-E1"],
+      "depends_on": [
+        "FAZ-3-E1"
+      ],
       "autonomy": "auto",
       "acceptance_criteria_machine": [
         "py -3.11 -m pytest tests/test_e1_6a_proactive_runner.py -q --tb=short",
@@ -313,7 +342,10 @@
         "verdict": "PASS",
         "at": "2026-06-27",
         "signed_by": "Codex",
-        "commits": ["cc0072ac5", "c8eee9a84"],
+        "commits": [
+          "cc0072ac5",
+          "c8eee9a84"
+        ],
         "tests": "16/16 test_e1_6a_proactive_runner; 51/51 full acceptance suite",
         "notes": "Initial impl (cc0072ac5) + Codex-BLOCKER fix (c8eee9a84). argparse, live gate moved inside run_once, subprocess test added, decomp updated."
       }
@@ -324,7 +356,9 @@
       "phase": "3",
       "kind": "implement",
       "status": "done",
-      "depends_on": ["E1-S6A"],
+      "depends_on": [
+        "E1-S6A"
+      ],
       "autonomy": "auto",
       "acceptance_criteria_machine": [
         "py -3.11 -m pytest tests/test_e1_6b_delivery_result.py tests/test_proactive_delivery.py tests/test_proactive_runtime.py tests/test_e1_6a_proactive_runner.py -q --tb=short"
@@ -344,7 +378,10 @@
         "verdict": "PASS",
         "at": "2026-06-27",
         "signed_by": "Codex",
-        "commits": ["a53001577", "648b74455"],
+        "commits": [
+          "a53001577",
+          "648b74455"
+        ],
         "tests": "80/80 PASS",
         "notes": "Initial impl (a53001577) + Codex-BLOCKER fix (648b74455). deliver() precedence corrected; full DeliveryResult in runner output; subprocess delivery field tests added."
       }
@@ -355,7 +392,9 @@
       "phase": "3",
       "kind": "implement",
       "status": "done",
-      "depends_on": ["E1-S6A"],
+      "depends_on": [
+        "E1-S6A"
+      ],
       "autonomy": "auto",
       "acceptance_criteria_machine": [
         "git diff --check",
@@ -371,7 +410,10 @@
         "verdict": "PASS",
         "at": "2026-06-28",
         "signed_by": "Codex",
-        "commits": ["3de2e1035", "4f6a5b6e0"],
+        "commits": [
+          "3de2e1035",
+          "4f6a5b6e0"
+        ],
         "notes": "Initial impl (3de2e1035) + Codex-BLOCKER fix (4f6a5b6e0). -StopIfGoingOnBatteries $false -> -DontStopIfGoingOnBatteries. Preview exits 0, no scheduler side effects."
       }
     },
@@ -381,7 +423,9 @@
       "phase": "3",
       "kind": "implement",
       "status": "done",
-      "depends_on": ["E1-S6A"],
+      "depends_on": [
+        "E1-S6A"
+      ],
       "autonomy": "auto",
       "acceptance_criteria_machine": [
         "py -3.11 -m pytest tests/test_e1_6d_live_guard.py -q --tb=short"
@@ -396,7 +440,9 @@
         "verdict": "PASS",
         "at": "2026-06-28",
         "signed_by": "Codex",
-        "commits": ["b4670036b"],
+        "commits": [
+          "b4670036b"
+        ],
         "tests": "94/94 PASS (14 new in test_e1_6d_live_guard.py)",
         "notes": "Tests-only commit. No code changes to runner. --live always exit 1 (with/without env), RuntimeError mentions E1-S4, AST import check."
       }
@@ -407,7 +453,9 @@
       "phase": "3",
       "kind": "implement",
       "status": "done",
-      "depends_on": ["E1-S6A"],
+      "depends_on": [
+        "E1-S6A"
+      ],
       "autonomy": "auto",
       "acceptance_criteria_machine": [
         "py -3.11 -m pytest tests/test_e1_6e_throttle_guard.py -q --tb=short"
@@ -422,7 +470,10 @@
         "verdict": "PASS",
         "at": "2026-06-28",
         "signed_by": "Codex",
-        "commits": ["c9c7d75b3", "399587609"],
+        "commits": [
+          "c9c7d75b3",
+          "399587609"
+        ],
         "tests": "124/124 PASS (30 throttle + 94 regression)",
         "notes": "Initial impl (c9c7d75b3) + BLOCKER fix (399587609). math.isfinite() rejects NaN/±Infinity. Future ts returns cooldown_active. Stateless, no persistence."
       }
@@ -433,13 +484,20 @@
       "phase": "T",
       "kind": "implement",
       "status": "done",
-      "depends_on": ["FAZ-0"],
+      "depends_on": [
+        "FAZ-0"
+      ],
       "autonomy": "human_required",
-      "acceptance_criteria_machine": ["pytest::tests/test_tr_quality.py (regresyon)"],
+      "acceptance_criteria_machine": [
+        "pytest::tests/test_tr_quality.py (regresyon)"
+      ],
       "acceptance_criteria_human": [
         "Türkçe çıktı kalitesi senin kulağına doğru geliyor (subjektif -> imza)"
       ],
-      "allowed_paths": ["jarvis/**", "tests/**"],
+      "allowed_paths": [
+        "jarvis/**",
+        "tests/**"
+      ],
       "notes": "Kalite subjektif; deterministik gate yalnızca regresyonu tutar, kaliteyi sen onaylarsın.",
       "evidence": {
         "verdict": "PASS",
@@ -448,7 +506,11 @@
         "notes": "PASS with minor wording concerns (local llama3.1 style limitations, not blockers). Turkish chars correct, no mojibake, project context grounded after 9bbdab0c4 fix.",
         "smoke_log": "automation/T1_S2_SMOKE_RESULTS.md",
         "t1_s1_commit": "e4c9d8d50",
-        "grounding_commits": ["0b127e7cc", "926616582", "9bbdab0c4"]
+        "grounding_commits": [
+          "0b127e7cc",
+          "926616582",
+          "9bbdab0c4"
+        ]
       }
     },
     {

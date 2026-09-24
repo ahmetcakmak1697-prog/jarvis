@@ -23,6 +23,12 @@ are placeholders. Do not treat them as real blockers. Only lines starting with
 
 - [ ] [2026-09-06] [CODEX-A-20260906] A denetimi BLOCKER/CONCERN bulgulari acik: [rapor](CODEX_A_DOGRULAMA_2026-09-06.md). V2-HANDOFF: Ahmet KART_CODEX_B08_B10_v2.md ile devam iznini ve B08 eski girisin emekliligini onayladi. A-01/A-02/A-04/A-06/A-07 Claude'da; Codex'in A-03/A-05 ve B08-B10 uygulamasi tamamlandi (CODEX_V2_SONUC_2026-09-08.md). Claude maddeleri bu kayitla yeniden onaylanmaz. Bu madde artik B uygulamasinin izin engeli degil; kalan A duzeltmelerinin takibidir.
 
+- [ ] [2026-09-25] [STT-DOGRULA-KLIP] Tek bir gurultu klibi lazim: muzik ya da TV normal ses seviyesinde, Ahmet SUSARKEN, ~15 sn. Neden ilerlenemiyor: `hotwords` kazanci olculdu ve buyuk (small/1 5/10 vs small/5+hotwords 9/10) ama RISK olculmedi. Iki kosu yapildi; biri konusma icerdigi icin gecersiz, digeri dijital sessizlik oldugu icin vad_filter her seyi kesti. Kartin korktugu durum VAD'den GECEN gurultu ve o hic sinanmadi. Komut: `dogrula-kaydet --okuma 0` sonra `dogrula`. Ayrinti: automation/STT_DOGRULA_2026-09-25.md
+
+- [ ] [2026-09-25] [JARVIS-YAZI-TIPI] Lisanslanabilir bir yazi tipi secimi. Ahmet "Tony Stark vizyonuna uygun, sade, sik, modern" dedi; tikanma teknik degil, secim. Secim gelmeden uygulanacak bir sey yok.
+
+- [ ] [2026-09-25] [AIRFEL-KWH-WATTMETRE] Prizli wattmetre karari. Paneldeki kWh sayisi gercek olcume dayanmiyor. Olculmemis bir katsayi modeli yazmak panelin disiplinini bozar -- panel kompresor tavanini 60 Hz varsaydiginda gercek tavan 71 Hz cikmisti, ayni hata sinifi. Karar gelmeden model yazilmaz.
+
 <!-- Add real items below this comment as they arise. Format:
 - [ ] [YYYY-MM-DD] [TASK-ID] What is needed and exactly why Claude cannot proceed.
 -->

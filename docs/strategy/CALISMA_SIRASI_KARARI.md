@@ -1,5 +1,19 @@
 # ÇALIŞMA SIRASI KARARI — hangi iş neden önce
 
+> ## ⚠️ GÜNCEL SIRA BURADA DEĞİL — `DURUM_2026-09-25.md`'ye bak
+>
+> Bu belge **2026-09-01** tarihli ve o günün dünyasını anlatıyor.
+> Aradan geçen üç haftada yapılan işler burada **yok**: bulut modeline
+> geçiş (§7.0), akan cevaplar, ve 2026-09-25'te kurulan anlamsal hafıza.
+>
+> Güncel durum ve sıradaki işler: **`docs/strategy/DURUM_2026-09-25.md`**
+> Ahmet'i bekleyen maddeler: **`automation/HUMAN_NEEDED.md`**
+>
+> **Bu belge silinmedi** çünkü §3'teki "bilerek ertelenenler" tablosu ve
+> §4a'daki HA/Wyoming kararı hâlâ yürürlükte — erteleme yazılı olmazsa üç
+> gün sonra taze bir öneri olarak geri gelir. Aşağıyı *neyin neden
+> ertelendiğini* öğrenmek için oku, *sırada ne var* diye değil.
+
 > **Tarih:** 2026-09-01 · **Durum:** Ahmet onayı bekliyor
 > **Ne karara bağlıyor:** Sıradaki işlerin sırası ve neyin *bilerek* ertelendiği.
 > **Ne karara bağlamıyor:** Model seçimi (`runtime_profiles.json`), donanım alımı,
