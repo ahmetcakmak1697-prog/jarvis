@@ -55,9 +55,10 @@ _ARIZA_DESENI = re.compile(
 _ASGARI_UZUNLUK = 12
 
 
-def _anahtar(metin: str) -> str:
-    """Tekrar tespiti icin sadelestirilmis anahtar."""
-    return re.sub(r"\s+", " ", (metin or "").strip().lower())
+# Anahtar TEK yerde tanimli: `memory/memory_manager.py`. Burasi tekrarlari
+# birlestirmek icin, `forget_by_keys` silmek icin ayni anahtari kullanir;
+# iki ayri normallestirme sessizce iskalayan bir silme demek olurdu.
+from memory.memory_manager import sohbet_anahtari as _anahtar  # noqa: E402
 
 
 def _kimlik(soru: str, cevap: str) -> str:
@@ -187,6 +188,10 @@ def parcalari_hazirla(kayitlar: list[dict]) -> dict[str, tuple[str, dict]]:
         belge = f"USER: {p['soru']}\nJARVIS: {p['cevap']}"
         hazir[kimlik] = (belge, {
             "ts": p["ts"],
+            # Anahtar ustveride DURUR: `user_msg` 200 karaktere kirpiliyor
+            # ve uzun bir soruda ondan turetilen anahtar SQLite'takiyle
+            # tutmazdi -- "sunu unut" yanlis kaydi hedeflerdi.
+            "anahtar": _anahtar(p["soru"]),
             "user_msg": p["soru"][:200],
             "jarvis_msg": p["cevap"][:300],
             # Politikanin okudugu alanlar. Metin SQLite'a yazilirken

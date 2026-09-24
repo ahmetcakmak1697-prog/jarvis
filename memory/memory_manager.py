@@ -4,11 +4,28 @@ JARVIS Hafıza Sistemi
 - Kullanıcı profili (JSON)
 - Önemli olaylar
 """
+import re
 import sqlite3
 import json
 from pathlib import Path
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import Iterable, List, Dict, Optional
+
+
+def sohbet_anahtari(metin: Optional[str]) -> str:
+    """Bir konuşmayı KİMLİKLENDİREN sadeleştirilmiş anahtar.
+
+    Tek kaynak burasıdır. `scripts/hafiza_indeksle.py` tekrarları bu
+    anahtarla birleştiriyor, `forget_by_keys` de bu anahtarla siliyor;
+    iki ayrı normalleştirme, sessizce ıskalayan bir silme demek olurdu.
+
+    Düz `.lower()` bilinçli: CLAUDE.md §6'nın uyardığı "İ" tuzağı
+    **eşleştirmede** sorun çıkarır, burada değil — anahtar iki tarafa da
+    aynı şekilde uygulandığı için tutarlıdır. Fold uygulanmıyor çünkü
+    "salon"/"şalon" gibi gerçekten farklı iki metni aynı saymak,
+    unutmada yanlış kaydı silmek demektir.
+    """
+    return re.sub(r"\s+", " ", (metin or "").strip().lower())
 
 
 class JarvisMemory:
@@ -135,6 +152,47 @@ class JarvisMemory:
         )
         return max(silinen, 0)
     
+    def forget_by_keys(self, anahtarlar: Iterable[str]) -> int:
+        """Verilen anahtarlara sahip konuşmaları siler; sayıyı döner.
+
+        **Boş küme hiçbir şey silmez.** "Sil" emri boş bir girdiyle
+        birleşince "hepsini sil" anlamına gelmemeli; aynı asimetri
+        `scripts/hafiza_indeksle.py:uzlastir_plani`'nda da var.
+
+        **Kopyalar birlikte gider.** Aynı soru geçmişte defalarca
+        geçebiliyor (ölçüldü: "nerede kaldik" 59 kez); biri kalırsa
+        unutma yarım kalmış olur.
+
+        Kapsam `clear_conversations` ile aynı gerekçeyle dar: profil ve
+        `events` korunur. A-05 aynen geçerli — bu mantıksal bir silmedir,
+        diskten kurtarılamaz silme garantisi yoktur.
+        """
+        hedef = {sohbet_anahtari(a) for a in (anahtarlar or ())}
+        hedef.discard("")
+        if not hedef:
+            return 0
+
+        conn = sqlite3.connect(self.db_path)
+        try:
+            c = conn.cursor()
+            silinecek = [
+                satir_id
+                for satir_id, soru in c.execute(
+                    "SELECT id, user_message FROM conversations"
+                )
+                if sohbet_anahtari(soru) in hedef
+            ]
+            if not silinecek:
+                return 0
+            c.executemany(
+                "DELETE FROM conversations WHERE id = ?",
+                [(i,) for i in silinecek],
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return len(silinecek)
+
     def get_recent_conversations(self, n: int = 5) -> List[Dict]:
         """Son n konuşmayı getir"""
         conn = sqlite3.connect(self.db_path)

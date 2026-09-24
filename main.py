@@ -175,6 +175,10 @@ def _run_local_mode():
                 agent.clear_history()
                 continue
 
+            elif _unutma_istegi(lower):
+                _unutmayi_yurut(agent, user_input, voice_io)
+                continue
+
             elif lower in ("istatistik", "stats"):
                 agent.show_stats()
                 continue
@@ -236,6 +240,125 @@ def _run_local_mode():
             console.print(f"\n[dim]Çıkmak için 'çıkış' yazın.[/]")
         except Exception as e:
             console.print(f"[red]Hata: {e}[/]")
+
+
+#: "Unut" istegini baslatan kokler. `temizle` AYRI durur ve her seyi siler;
+#: burasi TEK bir konusmayi hedefler.
+_UNUT_KOKLERI: tuple[str, ...] = (
+    "unut", "sil bunu", "bunu sil", "hafizandan cikar", "hatirlama",
+)
+
+
+def _unutma_istegi(lower: str) -> bool:
+    """Kullanici bir seyi unutmami istiyor mu?
+
+    Duz `.lower()` yetmez: CLAUDE.md 6 -- "İ".lower() birlesik noktali bir
+    karakter uretir ve eslesme sessizce kacar. Fold iki tarafa da uygulanir.
+    """
+    from agents.data_classifier import _fold_tr, keyword_present
+
+    fold = _fold_tr(lower or "")
+    return any(keyword_present(fold, k) for k in _UNUT_KOKLERI)
+
+
+def _unutma_konusu(user_input: str) -> str:
+    """Cumleden komut kaliplarini cikarir, KONUYU birakir."""
+    import re as _re
+
+    from agents.data_classifier import _fold_tr
+
+    ham = (user_input or "").strip()
+    fold = _fold_tr(ham)
+    if len(fold) != len(ham):
+        return ham
+    desen = _re.compile(
+        r"\b(?:"
+        + "|".join(_re.escape(_fold_tr(k))
+                   for k in sorted(_UNUT_KOKLERI, key=len, reverse=True))
+        + r")\w*\b"
+    )
+    parcalar, son = [], 0
+    for e in desen.finditer(fold):
+        parcalar.append(ham[son:e.start()])
+        son = e.end()
+    parcalar.append(ham[son:])
+    return _re.sub(r"\s+", " ", "".join(parcalar)).strip(" ,.;:!?")
+
+
+def _unutmayi_yurut(agent, user_input: str, voice_io) -> None:
+    """Adaylari bul, GOSTER, SOR, sonra sil.
+
+    Tek adimli "unut gitsin" bilerek YOK. Eslestirme anlamsal, yani
+    olasiliksal: yanlis bir hatirayi prompt'a sokmak kotu bir cevap uretir
+    ve geri alinir, yanlis hatirayi silmek geri alinmaz.
+    """
+    konu = _unutma_konusu(user_input)
+    if len(konu) < 3:
+        # Konusuz "unut" HICBIR SEY silmez. "Her seyi unut" ayri bir
+        # komuttur ve adi `temizle`.
+        console.print(
+            "[yellow]Neyi unutmamı istiyorsunuz efendim?[/] "
+            "Konuyu söyleyin — örneğin \"klima kablosunu unut\".\n"
+            "[dim]Her şeyi silmek için: temizle[/]"
+        )
+        voice_io.say("Neyi unutmamı istiyorsunuz efendim?")
+        return
+
+    try:
+        adaylar = agent.unutma_adaylari(konu)
+    except Exception as exc:  # noqa: BLE001
+        console.print(f"[red]Arama yapılamadı: {exc}[/]")
+        return
+
+    if not adaylar:
+        console.print(
+            f"[yellow]\"{konu}\" ile ilgili bir kayıt bulamadım; "
+            "hiçbir şey silmedim.[/]"
+        )
+        voice_io.say("Bununla ilgili bir kayıt bulamadım efendim.")
+        return
+
+    console.print(f"\n[bold]Şunları buldum[/] ([dim]{konu}[/]):")
+    for i, a in enumerate(adaylar, 1):
+        tarih = a["ts"][:10]
+        console.print(f"  [cyan]{i}.[/] [dim]{tarih}[/] {a['soru'][:88]}")
+        if a["cevap"]:
+            console.print(f"       [dim]{a['cevap'][:88]}[/]")
+
+    console.print(
+        "\n[bold]Hangisini unutayım?[/] numara · [cyan]hepsi[/] · "
+        "[cyan]vazgeç[/]"
+    )
+    try:
+        cevap = console.input("[bold blue]> [/]").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        cevap = ""
+
+    if cevap in ("hepsi", "hepsini", "tumu", "tümü"):
+        secim = {a["anahtar"] for a in adaylar}
+    else:
+        secim = set()
+        for parca in cevap.replace(",", " ").split():
+            if parca.isdigit() and 1 <= int(parca) <= len(adaylar):
+                secim.add(adaylar[int(parca) - 1]["anahtar"])
+
+    # Varsayilan VAZGEC: anlasilmayan bir cevap silme yapmaz.
+    if not secim:
+        console.print("[dim]Vazgeçildi; hiçbir şey silinmedi.[/]")
+        return
+
+    silinen = agent.unut(secim)
+    if not silinen:
+        console.print("[yellow]Silinecek kayıt bulunamadı.[/]")
+        return
+
+    console.print(
+        f"[green]Unuttum ({silinen} kayıt).[/] "
+        "[dim]Kalıcı kayıt ve arama dizini birlikte temizlendi.[/]\n"
+        "[dim]Not: bu mantıksal bir silmedir; disk ve yedeklerden "
+        "kurtarılamaz silme garantisi yoktur.[/]"
+    )
+    voice_io.say("Unuttum efendim.")
 
 
 def _akis_acik() -> bool:

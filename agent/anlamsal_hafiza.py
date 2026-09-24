@@ -329,6 +329,34 @@ class AnlamsalHafiza:
             self._duyur(f"[hafiza] indekse yazilamadi: {exc}")
             return ""
 
+    def unut_anahtarlari(self, anahtarlar) -> int:
+        """Verilen anahtarlara sahip indeks kayitlarini SILER.
+
+        "Sunu unut" akisinin ikinci yarisi. SQLite'tan silip burayi
+        birakmak, unutulan konusmanin bir sonraki turda anlamsal aramayla
+        geri gelmesi demekti -- B04'un tam olarak ayni tuzagi.
+
+        Indeks bir sonraki `hafiza_indeksle` kosusunda zaten uzlasirdi ama
+        O ANA KADAR hatirlamaya devam ederdi; "unuttum" dedikten sonra
+        hatirlamak, hic unutmamaktan kotudur.
+
+        **Bos kume hicbir sey silmez** (uzlastirmadaki asimetrinin aynisi).
+        """
+        hedef = sorted({str(a).strip() for a in (anahtarlar or ())} - {""})
+        if not hedef:
+            return 0
+
+        depo = self._depoyu_al()
+        if depo is None:
+            return 0
+        try:
+            depo.col.delete(where={"anahtar": {"$in": hedef}})
+            return len(hedef)
+        except Exception as exc:  # noqa: BLE001
+            # Sessiz basari YASAK: silinemediyse cagiran bilmeli.
+            self._duyur(f"[hafiza] indeksten silinemedi: {exc}")
+            return 0
+
     def sayi(self) -> int:
         depo = self._depoyu_al()
         if depo is None:

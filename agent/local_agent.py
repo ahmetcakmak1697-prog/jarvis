@@ -1239,6 +1239,83 @@ class LocalJarvisAgent:
 
         console.print(f"[green]Geçmiş temizlendi ({silinen} kalıcı kayıt silindi).[/]")
 
+    def unutma_adaylari(self, konu: str) -> list[dict]:
+        """"Şunu unut" için adayları bulur — **hiçbir şey silmez.**
+
+        Aday bulmak ile silmek bilerek iki ayrı adımdır; arada Ahmet'in
+        onayı durur. Eşleştirme anlamsaldır, yani olasılıksaldır: yanlış
+        bir hatırayı prompt'a sokmak kötü bir cevap üretir ve geri alınır,
+        yanlış hatırayı silmek geri alınmaz. Asimetri onayı zorunlu kılar.
+
+        **Konusuz çağrı boş döner.** Sadece "unut" demek "her şeyi unut"
+        değildir; o komutun adı `temizle` ve ayrı durur.
+        """
+        metin = (konu or "").strip()
+        if len(metin) < 3:
+            return []
+
+        hafiza = getattr(self, "anlamsal", None)
+        if hafiza is None:
+            return []
+        try:
+            vuruslar = hafiza.ara(metin) or []
+        except Exception:  # noqa: BLE001
+            return []
+
+        adaylar: list[dict] = []
+        for v in vuruslar:
+            ustveri = v.get("metadata") or {}
+            # Anahtar USTVERIDEN alinir, `user_msg`'den turetilmez:
+            # `user_msg` 200 karaktere kirpilmis ve uzun bir soruda
+            # turetilen anahtar SQLite'takiyle tutmazdi.
+            anahtar = str(ustveri.get("anahtar") or "").strip()
+            if not anahtar:
+                continue
+            adaylar.append({
+                "anahtar": anahtar,
+                "soru": str(v.get("user_msg") or ""),
+                "cevap": str(v.get("jarvis_msg") or ""),
+                "ts": str(v.get("ts") or ""),
+                "benzerlik": v.get("similarity"),
+            })
+        return adaylar
+
+    def unut(self, anahtarlar) -> int:
+        """Seçilen konuşmaları **iki yerden birden** siler.
+
+        Yalnız onaydan sonra çağrılır; boş seçim hiçbir şey yapmaz.
+
+        SQLite **ve** anlamsal indeks aynı anda temizlenir. İndeksi bir
+        sonraki `hafiza_indeksle` koşusuna bırakmak yeterli görünüyordu —
+        uzlaştırma zaten onu düşürecekti — ama o ana kadar JARVIS
+        hatırlamaya devam ederdi. "Unuttum" dedikten sonra hatırlamak,
+        hiç unutmamaktan kötüdür (B04'ün kendi dersi).
+
+        İndeks silinemezse sessiz geçilmez: SQLite'tan silinen sayı yine
+        döner ama kullanıcı `_duyur` ile uyarılır.
+        """
+        secim = {str(a).strip() for a in (anahtarlar or ())}
+        secim.discard("")
+        if not secim:
+            return 0
+        if getattr(self, "memory", None) is None:
+            return 0
+
+        silinen = int(self.memory.forget_by_keys(secim))
+
+        hafiza = getattr(self, "anlamsal", None)
+        if hafiza is not None:
+            try:
+                if not hafiza.unut_anahtarlari(secim):
+                    self._duyur(
+                        "[hafiza] Uyarı: arama dizininden silinemedi; "
+                        "`python scripts/hafiza_indeksle.py` ile uzlaştırın."
+                    )
+            except Exception as exc:  # noqa: BLE001
+                self._duyur(f"[hafiza] arama dizini temizlenemedi: {exc}")
+
+        return silinen
+
     def show_stats(self):
         console.print("\n[bold cyan]📊 İstatistikler[/]")
         console.print(f"  Tur: {self.turn_count} | Araç: {self.tool_calls_total}")
