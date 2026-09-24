@@ -1,5 +1,16 @@
 # KART — Anlamsal indeksi SQLite ile uzlaştır (silinen konuşma indekste kalmasın)
 
+> **✅ TAMAMLANDI — 2026-09-24, `f6c218c`.** Beş ölçüt de karşılandı.
+> Doğrulama gerçek Chroma ve gerçek gömme modeliyle, **kopya** üzerinde:
+> silinen konuşma indeksi 35 → 34 yaptı, aynı arama sonra boş döndü,
+> okunamayan veritabanı ve boş tablo indekse **dokunmadı**. Gerçek depoda
+> koşu no-op: eklenen 0 · değişmeyen 34 · silinen 0.
+> Yol boyunca kendi iki kusurum çıktı ve düzeltildi — ayrıntı commit'te:
+> `kayitlari_oku`'nun varsayılan argümanı tanım anında bağlanıyordu (betik
+> geçici kopyayı işaret ettiğini sanıp gerçek veriyi okuyordu) ve
+> `indeksle()` yalnız üretim deposunu açabiliyordu.
+> Elle `--sil` + yeniden kurma **artık gerekmiyor.**
+
 **Kime:** Claude Code (VS Code) · **Veren:** Ahmet, 2026-09-24
 **Dal:** `auto/opencode-deepseek` · **Taban:** `a5ad136`
 **Sınıf:** Tutarlılık kusuru. Yeni özellik değil, açık kapanıyor.

@@ -29,6 +29,7 @@ import sqlite3
 import sys
 import time
 from pathlib import Path
+from typing import NamedTuple
 
 KOK = Path(__file__).resolve().parents[1]
 if str(KOK) not in sys.path:
@@ -38,9 +39,9 @@ if str(Path(__file__).parent) not in sys.path:
 
 # Windows konsolu CP1254'tur ve "✓" ile Turkce karakterleri basamaz.
 # Yardimci repoda zaten var; yeniden yazilmadi (CLAUDE.md 9).
+# Cagri `__main__` bloguna tasindi: import ANINDA stdout'u yeniden
+# yapilandirmak, bu modulu import eden testin ciktisini da degistiriyordu.
 from _utf8io import configure_utf8_stdio  # noqa: E402
-
-configure_utf8_stdio()
 
 VERITABANI = KOK / "memory" / "jarvis_memory.db"
 
@@ -65,10 +66,76 @@ def _kimlik(soru: str, cevap: str) -> str:
     return "sohbet_" + hashlib.sha1(ham).hexdigest()[:20]
 
 
-def kayitlari_oku(db: Path = VERITABANI) -> list[dict]:
-    """Essiz sohbet parcalarini dondurur (en yenisi kazanir)."""
+class UzlastirmaPlani(NamedTuple):
+    eklenecek: set[str]
+    degismeyen: set[str]
+    silinecek: set[str]
+    durma: str | None
+
+
+def uzlastir_plani(gecerli: set[str], mevcut: set[str]) -> UzlastirmaPlani:
+    """Indeksi SQLite ile uzlastirma karari -- saf fonksiyon, I/O yok.
+
+    Upsert yalniz EKLER. Bir konusma SQLite'tan silindiginde indeks kaydi
+    yerinde kalir ve arama onu geri getirir; indeks zamanla SQLite'in ust
+    kumesine doner. Ayni sey DUZENLENEN kayit icin de gecerli: kimlik
+    icerikten turedigi icin metin degisince yeni kimlik olusur ve eskisi
+    oksuz kalir.
+
+    **Iki emniyet, ikisi de silmeyi engeller:**
+
+    1. ``gecerli`` bos ise hicbir sey silinmez. "Orada olmayani sil" emri,
+       SQLite okunamadigi ya da bos dondugu anda "indeksin tamamini sil"
+       demektir. `tools/vector_memory.py:koleksiyon_ac`'taki asimetrinin
+       aynisi: bos oldugunu KANITLAYAMIYORSAK dokunulmaz.
+
+    2. Silinecek oran indeksin yarisini ASIYORSA durulur. Normal kullanimda
+       bir seferde bu kadar kayit dusmez; dusuyorsa okuma tarafinda bir sey
+       bozulmustur. Gercekten kastediliyorsa yol zaten var: `--sil` ile
+       bosalt, sonra yeniden kur. Yeni bir "zorla" bayragi ACILMADI --
+       var olan bir yol dururken ikincisini eklemek, yanlislikla silmenin
+       yolunu cogaltmak olurdu.
+    """
+    eklenecek = gecerli - mevcut
+    degismeyen = gecerli & mevcut
+    fazlalik = mevcut - gecerli
+
+    if not gecerli:
+        return UzlastirmaPlani(
+            eklenecek, degismeyen, set(),
+            "gecerli kimlik kumesi BOS -- indekse dokunulmadi. SQLite "
+            "okunamamis ya da bos olabilir.",
+        )
+
+    if mevcut and len(fazlalik) * 2 > len(mevcut):
+        return UzlastirmaPlani(
+            eklenecek, degismeyen, set(),
+            f"indeksin yarisindan fazlasi ({len(fazlalik)}/{len(mevcut)}) "
+            "silinecekti -- durdum. Gercekten kastediyorsan: "
+            "`--sil` ile bosalt, sonra yeniden kur.",
+        )
+
+    return UzlastirmaPlani(eklenecek, degismeyen, fazlalik, None)
+
+
+def kayitlari_oku(db: Path | None = None, sessiz: bool = False) -> list[dict]:
+    """Essiz sohbet parcalarini dondurur (en yenisi kazanir).
+
+    ``db`` varsayilani None, `VERITABANI` DEGIL. Fark onemli: Python
+    varsayilan argumani TANIM aninda baglar, yani imza
+    ``db: Path = VERITABANI`` yazildiginda modul degiskenini sonradan
+    degistirmek hicbir ise yaramaz ve fonksiyon her zaman uretim
+    veritabanini okur. Bir dogrulama betigi tam bu yuzden gecici kopyayi
+    isaret ettigini saniyordu ama gercek veriyi okuyordu.
+    """
+    db = Path(db) if db is not None else VERITABANI
+
+    def yaz(m):
+        if not sessiz:
+            print(m)
+
     if not db.exists():
-        print(f"[!] Veritabani yok: {db}")
+        yaz(f"[!] Veritabani yok: {db}")
         return []
 
     conn = sqlite3.connect(db)
@@ -101,11 +168,45 @@ def kayitlari_oku(db: Path = VERITABANI) -> list[dict]:
             "cevap": cevap,
         }
 
-    print(f"    toplam satir      : {len(satirlar)}")
-    print(f"    ariza metni atlandi: {atlanan_ariza}")
-    print(f"    kisa/bos atlandi  : {atlanan_kisa}")
-    print(f"    essiz parca       : {len(essiz)}")
+    yaz(f"    toplam satir      : {len(satirlar)}")
+    yaz(f"    ariza metni atlandi: {atlanan_ariza}")
+    yaz(f"    kisa/bos atlandi  : {atlanan_kisa}")
+    yaz(f"    essiz parca       : {len(essiz)}")
     return list(essiz.values())
+
+
+def parcalari_hazirla(kayitlar: list[dict]) -> dict[str, tuple[str, dict]]:
+    """Kayitlari kimlik -> (belge, ustveri) eslemesine cevirir.
+
+    Tek yerde kurulur: eskiden bu mantik `indeksle` ve `indeksle_sessiz`
+    icinde IKI KEZ yaziliydi ve ikisi birbirinden surukleniyordu.
+    """
+    hazir: dict[str, tuple[str, dict]] = {}
+    for p in kayitlar:
+        kimlik = _kimlik(p["soru"], p["cevap"])
+        belge = f"USER: {p['soru']}\nJARVIS: {p['cevap']}"
+        hazir[kimlik] = (belge, {
+            "ts": p["ts"],
+            "user_msg": p["soru"][:200],
+            "jarvis_msg": p["cevap"][:300],
+            # Politikanin okudugu alanlar. Metin SQLite'a yazilirken
+            # `RedactionGuard`'dan gecti (memory_manager._temizle), yani
+            # burada yeniden maskelemek ikinci kez ayni isi yapmak olurdu.
+            "memory_type": "sohbet_indeksi",
+            "storage_target": "vector",
+            "sensitivity": "normal",
+            "memory_action": "index",
+        })
+    return hazir
+
+
+def mevcut_kimlikler(depo) -> set[str]:
+    """Indekste duran kimlikler. `include=[]` yalniz kimlik getirir."""
+    try:
+        return set(depo.col.get(include=[]).get("ids") or [])
+    except Exception as exc:  # noqa: BLE001
+        print(f"[!] Indeks kimlikleri okunamadi: {exc}")
+        return set()
 
 
 def _hafiza():
@@ -122,47 +223,66 @@ def _hafiza():
     return h
 
 
-def indeksle() -> int:
-    print("[*] SQLite sohbet gecmisi okunuyor...")
-    parcalar = kayitlari_oku()
-    if not parcalar:
-        print("[!] Indekslenecek kayit yok.")
+def _uygula(depo, hazir: dict, plan: UzlastirmaPlani, sessiz: bool = False) -> None:
+    """Plani indekse uygular: once yaz, sonra fazlaligi sil."""
+    def yaz(m):
+        if not sessiz:
+            print(m)
+
+    yazilacak = sorted(plan.eklenecek | plan.degismeyen)
+    if yazilacak:
+        depo.col.upsert(
+            ids=yazilacak,
+            documents=[hazir[k][0] for k in yazilacak],
+            metadatas=[hazir[k][1] for k in yazilacak],
+        )
+
+    if plan.durma:
+        yaz(f"[!] {plan.durma}")
+    elif plan.silinecek:
+        depo.col.delete(ids=sorted(plan.silinecek))
+
+
+def indeksle(sessiz: bool = False, hafiza=None) -> int:
+    """Indeksi SQLite ile UZLASTIRIR: ekler, gunceller ve fazlaligi siler.
+
+    ``hafiza`` verilmezse uretim deposu acilir. Parametre testler icindir
+    ve bir ihtiyactan dogdu: eskiden bu fonksiyon HER ZAMAN varsayilan
+    Chroma yolunu aciyordu, yani gecici bir kopya uzerinde dogrulanamazdi.
+    Bir dogrulama betigi tam bu yuzden sessizce yanlis depoyu olctu --
+    hedefi secilemeyen kod, sinanamayan koddur.
+    """
+    def yaz(m):
+        if not sessiz:
+            print(m)
+
+    yaz("[*] SQLite sohbet gecmisi okunuyor...")
+    kayitlar = kayitlari_oku(sessiz=sessiz)
+    if not kayitlar:
+        # Bos okuma indeksi SILDIRMEZ -- `uzlastir_plani` de ayni kurali
+        # tutuyor, burada erken cikis onu bir kez daha uyguluyor.
+        yaz("[!] Indekslenecek kayit yok; indekse DOKUNULMADI.")
         return 0
 
-    h = _hafiza()
+    h = hafiza if hafiza is not None else _hafiza()
     if h is None:
         return 1
 
     depo = h._depoyu_al()
-    onceki = depo.stats().get("total", 0)
-    print(f"[*] Indeksteki mevcut kayit: {onceki}")
+    hazir = parcalari_hazirla(kayitlar)
+    mevcut = mevcut_kimlikler(depo)
+    plan = uzlastir_plani(set(hazir), mevcut)
 
-    belgeler, kimlikler, ustveri = [], [], []
-    for p in parcalar:
-        kimlikler.append(_kimlik(p["soru"], p["cevap"]))
-        belgeler.append(f"USER: {p['soru']}\nJARVIS: {p['cevap']}")
-        ustveri.append({
-            "ts": p["ts"],
-            "user_msg": p["soru"][:200],
-            "jarvis_msg": p["cevap"][:300],
-            # Politikanin okudugu alanlar. Metin SQLite'a yazilirken
-            # `RedactionGuard`'dan gecti (memory_manager._temizle), yani
-            # burada yeniden maskelemek ikinci kez ayni isi yapmak olurdu.
-            "memory_type": "sohbet_indeksi",
-            "storage_target": "vector",
-            "sensitivity": "normal",
-            "memory_action": "index",
-        })
-
+    yaz(f"[*] Indekste {len(mevcut)} parca var.")
     t0 = time.perf_counter()
-    depo.col.upsert(documents=belgeler, ids=kimlikler, metadatas=ustveri)
+    _uygula(depo, hazir, plan, sessiz=sessiz)
     sure = (time.perf_counter() - t0) * 1000
 
-    sonraki = depo.stats().get("total", 0)
-    print(f"[✓] {len(belgeler)} parca yazildi ({round(sure)} ms)")
-    print(f"    indeks: {onceki} -> {sonraki}")
-    if onceki and sonraki != onceki + max(0, len(belgeler) - onceki):
-        pass  # bilgi amacli; asil idempotentlik kanitini --olc basiyor
+    # Sayi basilmazsa uzlastirmanin calistigi IDDIA edilemez.
+    yaz(f"[✓] eklenen {len(plan.eklenecek)} · "
+        f"degismeyen {len(plan.degismeyen)} · "
+        f"silinen {len(plan.silinecek)}  ({round(sure)} ms)")
+    yaz(f"    indeks: {len(mevcut)} -> {depo.stats().get('total', 0)}")
     return 0
 
 
@@ -195,7 +315,7 @@ def olc() -> int:
     # Idempotentlik kaniti: ayni yazma iki kez yapilinca sayi degismemeli.
     print("[*] Idempotentlik kontrolu...")
     once = depo.stats().get("total", 0)
-    indeksle_sessiz(depo)
+    indeksle(sessiz=True)
     sonra = depo.stats().get("total", 0)
     print(f"    ikinci yazim sonrasi: {once} -> {sonra} "
           f"{'(KOPYA YOK)' if once == sonra else '(KOPYA URETTI!)'}\n")
@@ -217,37 +337,7 @@ def olc() -> int:
     return 0
 
 
-def indeksle_sessiz(depo) -> None:
-    parcalar = []
-    conn = sqlite3.connect(VERITABANI)
-    try:
-        satirlar = conn.execute(
-            "SELECT timestamp, user_message, jarvis_response FROM conversations"
-        ).fetchall()
-    finally:
-        conn.close()
-    essiz: dict[str, tuple] = {}
-    for ts, soru, cevap in satirlar:
-        soru, cevap = (soru or "").strip(), (cevap or "").strip()
-        if not soru or not cevap or _ARIZA_DESENI.match(cevap):
-            continue
-        if len(soru) + len(cevap) < _ASGARI_UZUNLUK:
-            continue
-        essiz[_anahtar(soru)] = (ts or "", soru, cevap)
-    for ts, soru, cevap in essiz.values():
-        parcalar.append((_kimlik(soru, cevap), f"USER: {soru}\nJARVIS: {cevap}", {
-            "ts": ts, "user_msg": soru[:200], "jarvis_msg": cevap[:300],
-            "memory_type": "sohbet_indeksi", "storage_target": "vector",
-            "sensitivity": "normal", "memory_action": "index",
-        }))
-    if parcalar:
-        depo.col.upsert(
-            ids=[p[0] for p in parcalar],
-            documents=[p[1] for p in parcalar],
-            metadatas=[p[2] for p in parcalar],
-        )
-
-
 if __name__ == "__main__":
+    configure_utf8_stdio()
     arg = sys.argv[1] if len(sys.argv) > 1 else ""
     sys.exit({"--olc": olc, "--sil": sil}.get(arg, indeksle)())
