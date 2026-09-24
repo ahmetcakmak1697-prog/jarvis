@@ -106,6 +106,87 @@ def normalize_tr(metin: str) -> list[str]:
     return metin.split()
 
 
+#: KART_STT_DOGRULA'nın sınadığı uyandırma cümlesi.
+UYANDIRMA_CUMLESI = "Hey Jarvis, nerede kaldık?"
+
+#: Okuma koşulları. Amaç aynı okumayı kopyalamak değil, gerçek kullanımın
+#: YAYILIMINI örneklemek: hangi koşulda bozulduğu, kaç kez bozulduğundan
+#: daha bilgilendirici.
+KOSUL_ETIKETLERI = ("normal", "hizli", "yavas", "mikrofondan biraz uzak",
+                    "cumle basinda duraklayarak")
+
+#: Gürültü-yalnız klipler. Ahmet HİÇ konuşmaz.
+GURULTU_ETIKETLERI = ("sessiz oda", "klavye/fare sesi",
+                      "arka planda konusma ya da muzik")
+
+
+def _varyantlar(kelime: str) -> set[str]:
+    """Bir kelimenin `normalize_tr` sonrası kabul edilebilir yazımları.
+
+    `normalize_tr` Türkçe kuralını uygular: büyük "I" -> "ı". Türkçe için
+    doğru, ama "Jarvis" İngilizce bir özel addır ve TAMAMI BÜYÜK yazıldığında
+    ("JARVIS") kural onu "jarvıs" yapar. Eşleştirme yalnız "jarvis" arasa
+    büyük harfli bir çıktıyı sessizce kaçırırdı — CLAUDE.md §6'nın tam
+    olarak uyardığı sınıftan bir hata.
+    """
+    temel = " ".join(normalize_tr(kelime))
+    return {temel, temel.replace("ı", "i"), temel.replace("i", "ı")}
+
+
+def uyandirma_duyuldu(metin: str) -> dict:
+    """Uyandırma cümlesi duyuldu mu? İki ölçü, AYRI raporlanır.
+
+    ``jarvis``     : adı hiç duydu mu (uyandırma için belirleyici olan bu —
+                     ölçülen kusurda çıktı "Heyecan mısın?" idi ve içinde
+                     "jarvis" hiç geçmiyordu).
+    ``hey_jarvis`` : tam ikiliyi sırayla duydu mu.
+
+    İkisi ayrı tutulur çünkü aynı şey değiller ve hangisinin olduğu
+    hükümde fark yaratır. Ham metin de her zaman raporlanır; bu sözlük
+    metnin yerine geçmez.
+    """
+    kelimeler = normalize_tr(metin or "")
+    jarvis_yazimlari = _varyantlar("Jarvis")
+    hey_yazimlari = _varyantlar("Hey")
+
+    jarvis = any(k in jarvis_yazimlari for k in kelimeler)
+    hey_jarvis = any(
+        kelimeler[i] in hey_yazimlari and kelimeler[i + 1] in jarvis_yazimlari
+        for i in range(len(kelimeler) - 1)
+    )
+    return {"jarvis": jarvis, "hey_jarvis": hey_jarvis, "kelimeler": kelimeler}
+
+
+def sizinti_farki(ipucusuz: str, ipuclu: str, kelimeler) -> dict:
+    """Gürültü klibinde ipucu kelimelerinin **farkını** ölçer.
+
+    Kartın kritik sorusu: uydurma ipucu yüzünden mi arttı, yoksa zaten var
+    mıydı? Whisper ipucusuz da uyduruyor (`voice/stt.py`'nin kendi yorumu
+    saf sessizliğe metin uydurduğunu yazıyor). Bu yüzden ölçülen şey
+    ipuçlu satırdaki varlık değil, **yalnız ipuçlu satırda olan**.
+
+    Ters yön de döner: ipucu bir uydurmayı bastırmış da olabilir; tek yön
+    ölçmek yanıltır.
+    """
+    ipucusuz_kelimeler = set(normalize_tr(ipucusuz or ""))
+    ipuclu_kelimeler = set(normalize_tr(ipuclu or ""))
+
+    def gorunenler(kume):
+        return sorted(
+            k for k in kelimeler
+            if _varyantlar(k) & kume
+        )
+
+    a = gorunenler(ipucusuz_kelimeler)
+    b = gorunenler(ipuclu_kelimeler)
+    return {
+        "ipucusuz_gorunen": a,
+        "ipuclu_gorunen": b,
+        "yalniz_ipucluda": sorted(set(b) - set(a)),
+        "yalniz_ipucusuzda": sorted(set(a) - set(b)),
+    }
+
+
 def wer(referans: str, hipotez: str) -> dict:
     """Kelime hata oranı: (yerine koyma + silme + ekleme) / referans kelime."""
     r, h = normalize_tr(referans), normalize_tr(hipotez)
@@ -528,6 +609,224 @@ def ipucu(a) -> int:
     return 0
 
 
+# --------------------------------------------------------------------------- #
+# dogrula — KART_STT_DOGRULA: uyandirma yayilimi + gurultu sizintisi
+# --------------------------------------------------------------------------- #
+
+def _mikrofon_ac():
+    """Kayit icin aygiti ve akis kurucusunu dondurur; `kaydet` ile ayni yol."""
+    import sounddevice as sd
+
+    belirtim = resolve_mic_device()
+    aygit = select_input_device(belirtim)
+    bilgi = (sd.query_devices(aygit) if aygit is not None
+             else sd.query_devices(kind="input"))
+    return aygit, bilgi, belirtim
+
+
+def _tek_kayit(aygit, mesaj: str):
+    """Enter ile baslar, Enter ile biter. Uretimle ayni geri-cagirma yolu."""
+    import queue
+
+    import numpy as np
+    import sounddevice as sd
+
+    kuyruk: "queue.Queue" = queue.Queue()
+
+    def _geri_cagirma(indata, frames, time_info, status, _k=kuyruk):
+        _k.put(np.asarray(indata, dtype="float32").reshape(-1).copy())
+
+    with sd.InputStream(samplerate=ORNEKLEME, channels=1, dtype="float32",
+                        blocksize=PARCA, device=aygit,
+                        callback=_geri_cagirma):
+        input(mesaj)
+    parcalar = []
+    while not kuyruk.empty():
+        parcalar.append(kuyruk.get())
+    return (np.concatenate(parcalar) if parcalar
+            else np.zeros(0, dtype="float32"))
+
+
+def dogrula_kaydet(a) -> int:
+    """ADIM 0 — Ahmet kaydeder. Iki tur malzeme, repo DISINDA.
+
+    A: uyandirma cumlesi ``--okuma`` kez, her biri bir KOSUL etiketiyle.
+    B: uc gurultu-yalniz klip; Ahmet hic konusmaz.
+
+    Kayitlar Ahmet'in sesi ve evinin sesi -- repoya GIRMEZ. Yol denetimi
+    mikrofon acilmadan ONCE yapilir.
+    """
+    kok = repo_disinda(a.cikti or (KAYIT_KOKU /
+                                   ("dogrula-" + time.strftime("%Y%m%d-%H%M%S"))))
+    if kok.exists() and any(kok.iterdir()):
+        raise ValueError(f"dizin bos degil, uzerine yazilmaz: {kok}")
+    kok.mkdir(parents=True, exist_ok=True)
+
+    aygit, bilgi, belirtim = _mikrofon_ac()
+    print(f"Aygit : {aygit!r}  {bilgi['name']}  (JARVIS_MIC_DEVICE -> {belirtim!r})")
+    print(f"Kayit : {kok}   (repo DISINDA)\n")
+
+    kayitlar: list[dict] = []
+
+    def _kaydet_bir(no: int, tur: str, etiket: str, istek: str, mesaj: str):
+        while True:
+            print(f"\n[{no}] {istek}")
+            print(f"     kosul: {etiket}")
+            input("  Enter: kaydi baslat ")
+            ornekler = _tek_kayit(aygit, mesaj)
+            ist = rms_istatistik(ornekler.tolist())
+            print(f"  {len(ornekler) / ORNEKLEME:.1f} s | ortalama rms "
+                  f"{ist['ortalama']:.5f} | tepe {ist['tepe']:.5f} | esik ustu "
+                  f"%{ist['esik_ustu_yuzde']:.0f}")
+            if input("  Enter = tamam | t = tekrar: ").strip().lower() == "t":
+                continue
+            dosya = kok / f"{tur}_{no:02d}.wav"
+            _wav_yaz(dosya, ornekler)
+            kayitlar.append({"no": no, "tur": tur, "etiket": etiket,
+                             "dosya": dosya.name,
+                             "referans": UYANDIRMA_CUMLESI if tur == "uyandirma" else "",
+                             "sure_s": len(ornekler) / ORNEKLEME, **ist})
+            # Her kayittan sonra yazilir: oturum yarida kesilirse kayip olmaz.
+            (kok / "dogrula_kayitlar.json").write_text(json.dumps(
+                {"schema_version": 1, "zaman": time.strftime("%Y-%m-%d %H:%M:%S"),
+                 "aygit": {"indeks": aygit, "ad": bilgi["name"],
+                           "belirtim": belirtim},
+                 "ornekleme": ORNEKLEME, "uyandirma_cumlesi": UYANDIRMA_CUMLESI,
+                 "kayitlar": kayitlar},
+                ensure_ascii=False, indent=2), encoding="utf-8")
+            break
+
+    print("=" * 66)
+    print(f"A — UYANDIRMA CUMLESI, {a.okuma} okuma")
+    print("=" * 66)
+    print(f'Cumle: "{UYANDIRMA_CUMLESI}"')
+    print("Amac ayni okumayi kopyalamak DEGIL; her okumada istenen kosula uy.")
+    for i in range(1, a.okuma + 1):
+        etiket = KOSUL_ETIKETLERI[(i - 1) % len(KOSUL_ETIKETLERI)]
+        _kaydet_bir(i, "uyandirma", etiket, f'"{UYANDIRMA_CUMLESI}"',
+                    "  *** KAYITTA *** oku, bitince Enter ")
+
+    print("\n" + "=" * 66)
+    print("B — GURULTU-YALNIZ KLIPLER (HIC KONUSMA)")
+    print("=" * 66)
+    print("Her klip ~10 saniye. Amac vad_filter'in neyi GECIRDIGINI olcmek.")
+    for i, etiket in enumerate(GURULTU_ETIKETLERI, 1):
+        _kaydet_bir(i, "gurultu", etiket, f"gurultu klibi: {etiket}",
+                    "  *** KAYITTA *** ~10 sn KONUSMA, sonra Enter ")
+
+    print(f"\nBitti: {len(kayitlar)} kayit -> {kok}")
+    print(f"Olcum icin: python scripts/olc_stt_turkce.py dogrula --kayit {kok}")
+    return 0
+
+
+def dogrula(a) -> int:
+    """ADIM 2-3 — uyandirma yayilimi ve gurultu sizintisi.
+
+    `ipucu`nun deseni: YENI bir olcum yolu yazilmaz, `_yaziya` kullanilir.
+    Ipucusuz cagri uretimle birebir ayni kalir (testle kilitli) ve
+    `vad_filter` hicbir yolda kapanmaz.
+
+    Onceki ham olcumlere (`olcum.json`, `olcum_ipucu.json`) DOKUNULMAZ;
+    sonuc `olcum_dogrula.json`a yazilir.
+    """
+    import os
+
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
+    kok = repo_disinda(a.kayit or _son_dogrula_kaydi())
+    meta = json.loads((kok / "dogrula_kayitlar.json").read_text(encoding="utf-8"))
+    hotwords = " ".join(IPUCU_KELIMELER)
+
+    from faster_whisper import WhisperModel
+
+    t0 = time.perf_counter()
+    model = WhisperModel("small", device="cpu", compute_type="int8")
+    sonuc: dict = {"schema_version": 1, "kayit": str(kok),
+                   "zaman": time.strftime("%Y-%m-%d %H:%M:%S"),
+                   "hotwords": hotwords,
+                   "yukleme_s": time.perf_counter() - t0,
+                   "uyandirma": [], "gurultu": [], "hukum": {}}
+
+    uyandirma = [k for k in meta["kayitlar"] if k["tur"] == "uyandirma"]
+    gurultu = [k for k in meta["kayitlar"] if k["tur"] == "gurultu"]
+
+    # ── ADIM 2: uyandirma cumlesi ───────────────────────────────────────
+    print("=" * 66)
+    print(f"ADIM 2 — uyandirma cumlesi, {len(uyandirma)} okuma")
+    print("=" * 66)
+    ayarlar = (("small/1", 1, None), ("small/5", 5, None),
+               ("small/5+hotwords", 5, hotwords))
+    for k in uyandirma:
+        ses = _wav_oku(kok / k["dosya"])
+        satir = {"no": k["no"], "etiket": k["etiket"], "ayarlar": {}}
+        print(f"\n[{k['no']}] kosul: {k['etiket']}")
+        for etiket, beam, hw in ayarlar:
+            metin = _yaziya(model, ses, beam, hotwords=hw)
+            durum = uyandirma_duyuldu(metin)
+            satir["ayarlar"][etiket] = {"metin": metin,
+                                        "jarvis": durum["jarvis"],
+                                        "hey_jarvis": durum["hey_jarvis"]}
+            isaret = "OK " if durum["hey_jarvis"] else ("~  " if durum["jarvis"]
+                                                       else "YOK")
+            print(f"   {isaret} {etiket:18} {metin!r}")
+        sonuc["uyandirma"].append(satir)
+
+    # N/N olarak yazilir; toplam WER YAZILMAZ (kart: olculen tek sey o
+    # cumlenin duyulup duyulmadigi).
+    print("\n" + "-" * 66)
+    for etiket, _b, _h in ayarlar:
+        tam = [s for s in sonuc["uyandirma"] if s["ayarlar"][etiket]["hey_jarvis"]]
+        ad = [s for s in sonuc["uyandirma"] if s["ayarlar"][etiket]["jarvis"]]
+        kaciran = [s["etiket"] for s in sonuc["uyandirma"]
+                   if not s["ayarlar"][etiket]["jarvis"]]
+        sonuc["hukum"][etiket] = {
+            "hey_jarvis": f"{len(tam)}/{len(uyandirma)}",
+            "jarvis": f"{len(ad)}/{len(uyandirma)}",
+            "kaciran_kosullar": kaciran,
+        }
+        print(f"{etiket:18} 'Hey Jarvis' {len(tam)}/{len(uyandirma)} · "
+              f"adi duydu {len(ad)}/{len(uyandirma)}"
+              + (f" · kaciran kosullar: {kaciran}" if kaciran else ""))
+
+    # ── ADIM 3: gurultu sizintisi ───────────────────────────────────────
+    print("\n" + "=" * 66)
+    print("ADIM 3 — gurultu klipleri: ipucusuz vs ipuclu (HAM METIN)")
+    print("=" * 66)
+    for k in gurultu:
+        ses = _wav_oku(kok / k["dosya"])
+        ipucusuz = _yaziya(model, ses, 5)
+        ipuclu = _yaziya(model, ses, 5, hotwords=hotwords)
+        fark = sizinti_farki(ipucusuz, ipuclu, IPUCU_KELIMELER)
+        sonuc["gurultu"].append({"no": k["no"], "etiket": k["etiket"],
+                                 "ipucusuz": ipucusuz, "ipuclu": ipuclu,
+                                 **fark})
+        print(f"\n[{k['no']}] {k['etiket']}")
+        print(f"   ipucusuz : {ipucusuz!r}" if ipucusuz else "   ipucusuz : bos")
+        print(f"   ipuclu   : {ipuclu!r}" if ipuclu else "   ipuclu   : bos")
+        print(f"   ipucu kelimesi gorundu mu : {fark['ipuclu_gorunen'] or 'hayir'}")
+        print(f"   YALNIZ ipucluda           : {fark['yalniz_ipucluda'] or 'yok'}")
+
+    tum_sizinti = sorted({k for g in sonuc["gurultu"] for k in g["yalniz_ipucluda"]})
+    sonuc["hukum"]["sizinti_yalniz_ipucluda"] = tum_sizinti
+    print("\n" + "-" * 66)
+    print(f"Ipucu YUZUNDEN eklenen kelimeler: {tum_sizinti or 'yok'}")
+    print("\n[i] HUKUM Ahmet'e aittir (ADIM 4). Bu betik uygulama yapmaz;")
+    print("    hicbir varsayilan degismedi.")
+
+    (kok / "olcum_dogrula.json").write_text(
+        json.dumps(sonuc, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"\nHam sonuc (repo DISINDA): {kok / 'olcum_dogrula.json'}")
+    return 0
+
+
+def _son_dogrula_kaydi() -> Path:
+    adaylar = sorted(p for p in KAYIT_KOKU.glob("dogrula-*")
+                     if (p / "dogrula_kayitlar.json").exists())
+    if not adaylar:
+        raise FileNotFoundError(
+            f"dogrula kaydi bulunamadi: {KAYIT_KOKU} (once `dogrula-kaydet`)")
+    return adaylar[-1]
+
+
 def main(argv=None) -> int:
     sys.stdout.reconfigure(errors="replace")
     ap = argparse.ArgumentParser(description="STT Turkce sondasi (KART_STT_TURKCE)")
@@ -544,8 +843,21 @@ def main(argv=None) -> int:
                                      "matrisi (KART_STT_HOTWORDS)")
     i.add_argument("--kayit", type=Path, default=None,
                    help="kayit dizini (varsayilan: en yenisi)")
+    dk = alt.add_parser("dogrula-kaydet",
+                        help="uyandirma cumlesi N okuma + 3 gurultu klibi "
+                             "(KART_STT_DOGRULA ADIM 0)")
+    dk.add_argument("--okuma", type=int, default=10,
+                    help="uyandirma cumlesi kac kez okunacak (varsayilan 10)")
+    dk.add_argument("--cikti", type=Path, default=None,
+                    help=f"kayit dizini, repo DISINDA "
+                         f"(varsayilan: {KAYIT_KOKU}/dogrula-<zaman>)")
+    d = alt.add_parser("dogrula", help="uyandirma yayilimi + gurultu sizintisi "
+                                      "(KART_STT_DOGRULA ADIM 2-3)")
+    d.add_argument("--kayit", type=Path, default=None,
+                   help="dogrula kayit dizini (varsayilan: en yenisi)")
     a = ap.parse_args(argv)
-    return {"kaydet": kaydet, "olc": olc, "ipucu": ipucu}[a.komut](a)
+    return {"kaydet": kaydet, "olc": olc, "ipucu": ipucu,
+            "dogrula-kaydet": dogrula_kaydet, "dogrula": dogrula}[a.komut](a)
 
 
 if __name__ == "__main__":
